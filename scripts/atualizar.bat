@@ -1,0 +1,2 @@
+node updateDeviceStatus.js
+pause

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MDM - Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header>
+        <div class="container-header">
+            <h1>MDM Admin</h1>
+            <nav>
+                <a href="#" class="nav-link active" data-section="home">Dashboard</a>
+                <a href="#" class="nav-link" data-section="devices">Dispositivos</a>
+                <a href="#" class="nav-link" data-section="users">Usuários</a>
+                <button id="logout-btn">Sair</button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        <section id="home" class="content-section active">
+            <h2>Visão Geral do Sistema</h2>
+            <div class="card-container">
+                <div class="card">
+                    <h3>Dispositivos Ativos</h3>
+                    <p id="device-count">...</p>
+                </div>
+                <div class="card">
+                    <h3>Comandos Pendentes</h3>
+                    <p id="pending-commands">...</p>
+                </div>
+                <div class="card">
+                    <h3>Uso de CPU</h3>
+                    <p id="cpu-usage">...</p>
+                </div>
+                <div class="card">
+                    <h3>Uso de Memória</h3>
+                    <p id="memory-usage">...</p>
+                </div>
+            </div>
+            <h3>Dispositivos Recentes</h3>
+            <table id="recent-devices-table">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Serial</th>
+                        <th>Última Conexão</th>
+                        <th>Setor</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Dados de dispositivos serão inseridos aqui -->
+                </tbody>
+            </table>
+        </section>
+
+        <section id="devices" class="content-section">
+            <h2>Gerenciamento de Dispositivos</h2>
+            <button id="update-all-apps-btn">Atualizar Apps em Todos os Dispositivos</button>
+            
+            <div class="device-filter-group">
+                <label for="device-status-filter">Filtrar por Status:</label>
+                <select id="device-status-filter">
+                    <option value="all">Todos</option>
+                    <option value="active">Ativo</option>
+                    <option value="maintenance">Em Manutenção</option>
+                    <option value="completed">Provisionado</option>
+                    <option value="pending">Pendente</option>
+                    <option value="failed">Falha no Provisionamento</option>
+                </select>
+            </div>
+
+            <table id="devices-full-table">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Serial</th>
+                        <th>Modelo</th>
+                        <th>Bateria</th>
+                        <th>IP</th>
+                        <th>Setor</th>
+                        <th>Status Provisionamento</th>
+                        <th>Status Manutenção</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Dados de dispositivos completos serão inseridos aqui -->
+                </tbody>
+            </table>
+        </section>
+
+        <section id="users" class="content-section">
+            <h2>Gerenciamento de Usuários</h2>
+            <button id="add-user-btn">Adicionar Novo Usuário</button>
+            <table id="users-table">
+                <thead>
+                    <tr>
+                        <th>Usuário</th>
+                        <th>Email</th>
+                        <th>Permissão</th>
+                        <th>Setor</th> <!-- NOVO: Coluna para Setor -->
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Dados de usuários serão inseridos aqui -->
+                </tbody>
+            </table>
+        </section>
+    </main>
+
+    <!-- Modais para formulários -->
+    <div id="user-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h3 id="modal-title">Adicionar Usuário</h3>
+            <form id="user-form">
+                <input type="hidden" id="user-id">
+                <div class="input-group">
+                    <label for="user-username">Usuário</label>
+                    <input type="text" id="user-username" required>
+                </div>
+                <div class="input-group">
+                    <label for="user-email">Email</label>
+                    <input type="email" id="user-email" required>
+                </div>
+                <div class="input-group">
+                    <label for="user-password">Senha</label>
+                    <input type="password" id="user-password" required>
+                </div>
+                <div class="input-group">
+                    <label for="user-role">Permissão</label>
+                    <select id="user-role" required>
+                        <option value="user">Usuário</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <!-- NOVO: Campo para Setor -->
+                <div class="input-group">
+                    <label for="user-sector">Setor</label>
+                    <input type="text" id="user-sector" placeholder="Ex: Engenharia, Produção">
+                </div>
+                <button type="submit" id="modal-submit-btn">Salvar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Importa os scripts JavaScript na ordem correta -->
+    <script src="js/api.js"></script>
+    <script src="js/users.js"></script>
+    <script src="js/devices.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+// Ficheiro: services/totemService.js
+
+const Totem = require('../models/Totem');
+
+exports.createOrUpdate = async (data) => {
+  const { serialNumber } = data;
+  const existingDevice = await Totem.findOne({ serialNumber });
+
+  if (existingDevice) {
+    Object.assign(existingDevice, data);
+    existingDevice.lastSeen = new Date();
+    return await existingDevice.save();
+  } else {
+    const newDevice = new Totem(data);
+    return await newDevice.save();
+  }
+};
+
+exports.getAll = async () => {
+  const devices = await Totem.find({}).sort({ lastSeen: -1 }).lean();
+
+  const devicesWithStatus = devices.map(device => {
+    const now = new Date();
+    const isOffline = (now - new Date(device.lastSeen)) > (2 * 60 * 1000);
+
+    let status = isOffline ? 'Offline' : 'Online';
+
+    if (status === 'Online' && device.printerStatus && device.printerStatus.toLowerCase().includes('error')) {
+      status = 'Com Erro';
+    }
+
+    return { ...device, status };
+  });
+
+  return devicesWithStatus;
+};

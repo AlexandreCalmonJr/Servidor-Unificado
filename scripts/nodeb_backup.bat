@@ -1,0 +1,1 @@
+C:\Program Files\MongoDB\Tools\100\bin\mongorestore.exe --db mdm --drop D:\backups\mdm_backups\mdm_2025-08-31T21-36-35.815Z
