@@ -1,3 +1,5 @@
+// Ficheiro: controllers/authController.js
+
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
@@ -23,7 +25,7 @@ const registerUser = async (req, res) => {
     }
 
     try {
-        const { username, email, password, role, sector } = req.body;
+        const { username, email, password, role, sector, permissions } = req.body;
         
         const existingUser = await User.findOne({ $or: [{ username }, { email }] });
         if (existingUser) {
@@ -33,10 +35,18 @@ const registerUser = async (req, res) => {
             });
         }
         
-        const user = new User({ username, email, password, role, sector });
+        // Para admins, define permissões completas automaticamente
+        const userData = { username, email, password, role, sector };
+        if (role === 'admin') {
+            userData.permissions = ['mobile', 'totem', 'admin'];
+        } else if (permissions && Array.isArray(permissions)) {
+            userData.permissions = permissions.filter(p => ['mobile', 'totem'].includes(p));
+        }
+        
+        const user = new User(userData);
         await user.save();
         
-        safeLog(req, 'info', `Novo utilizador registado: ${username} (${role}) - Setor: ${sector}`);
+        safeLog(req, 'info', `Novo utilizador registado: ${username} (${role}) - Setor: ${sector} - Permissões: ${user.permissions.join(', ')}`);
         
         res.status(201).json({ 
             success: true,
@@ -47,6 +57,7 @@ const registerUser = async (req, res) => {
                 email: user.email,
                 role: user.role,
                 sector: user.sector,
+                permissions: user.permissions,
                 created_at: user.created_at
             }
         });
@@ -61,95 +72,107 @@ const registerUser = async (req, res) => {
 };
 
 const loginUser = async (req, res) => {
-    // ... (código de login sem alterações, mas usando safeLog)
     try {
         const { username, password } = req.body;
         const user = await User.findOne({ username });
         
         if (!user || !(await user.comparePassword(password))) {
-            safeLog(req, 'warn', `Tentativa de login inválida para utilizador: ${username} - IP: ${req.ip}`);
+            safeLog(req, 'warn', `Tentativa de login falha: ${username} - IP: ${req.ip}`);
             return res.status(401).json({ 
-                success: false,
+                success: false, 
                 message: 'Credenciais inválidas' 
             });
         }
         
+        // Gera token com payload incluindo role e permissions
         const tokenPayload = {
             id: user._id,
-            role: user.role,
             username: user.username,
-            sector: user.sector
+            role: user.role,
+            permissions: user.role === 'admin' ? ['mobile', 'totem', 'admin'] : user.permissions
+        };
+        const token = jwt.sign(tokenPayload, process.env.JWT_SECRET || 'fallback_secret', { expiresIn: '7d' });
+        
+        // Retorna user sem senha, incluindo permissions
+        const userResponse = {
+            id: user._id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            sector: user.sector,
+            permissions: tokenPayload.permissions
         };
         
-        const token = jwt.sign(
-            tokenPayload,
-            process.env.JWT_SECRET,
-            { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
-        );
-        
-        safeLog(req, 'info', `Login bem-sucedido: ${username} (${user.role}) - Setor: ${user.sector} - IP: ${req.ip}`);
-        
+        safeLog(req, 'info', `Login bem-sucedido: ${username} - IP: ${req.ip}`);
         res.status(200).json({ 
-            success: true,
-            message: 'Login realizado com sucesso',
-            token,
-            user: {
-                id: user._id,
-                username: user.username,
-                email: user.email,
-                role: user.role,
-                sector: user.sector
-            }
+            success: true, 
+            token, 
+            user: userResponse 
         });
     } catch (err) {
         safeLog(req, 'error', `Erro no login: ${err.message}`);
-        res.status(500).json({ 
-            success: false,
-            message: 'Erro no servidor', 
-            details: err.message 
-        });
+        res.status(500).json({ success: false, message: 'Erro no servidor' });
     }
 };
 
 const listUsers = async (req, res) => {
     try {
-        const users = await User.find().select('-password').lean();
-        
-        safeLog(req, 'info', `Lista de utilizadores solicitada por: ${req.user.username}`);
-        
-        res.status(200).json({
-            success: true,
-            message: 'Utilizadores listados com sucesso',
-            users,
-            total: users.length
+        const users = await User.find({}).select('-password').sort({ created_at: -1 });
+        // Inclui permissions resolvidas (admins têm todas)
+        const usersWithPermissions = users.map(user => ({
+            ...user.toObject(),
+            permissions: user.role === 'admin' ? ['mobile', 'totem', 'admin'] : user.permissions
+        }));
+        res.status(200).json({ 
+            success: true, 
+            users: usersWithPermissions 
         });
     } catch (err) {
         safeLog(req, 'error', `Erro ao listar utilizadores: ${err.message}`);
-        res.status(500).json({ 
-            success: false,
-            message: 'Erro ao listar utilizadores', 
-            details: err.message 
-        });
+        res.status(500).json({ success: false, message: 'Erro ao buscar utilizadores', details: err.message });
     }
 };
 
 const updateUser = async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ success: false, message: 'Dados inválidos', errors: errors.array() });
+    }
     try {
         const { id } = req.params;
-        const updates = req.body;
-        delete updates.password;
-        delete updates._id;
-        delete updates.created_at;
-
-        const user = await User.findByIdAndUpdate(id, updates, { new: true, runValidators: true }).select('-password');
+        const { username, email, role, sector, permissions } = req.body;
         
+        const user = await User.findById(id);
         if (!user) {
             return res.status(404).json({ success: false, message: 'Utilizador não encontrado' });
         }
         
-        safeLog(req, 'info', `Utilizador atualizado: ${user.username} por ${req.user.username}`);
+        // Atualiza campos básicos
+        if (username) user.username = username;
+        if (email) user.email = email;
+        if (role) user.role = role;
+        if (sector) user.sector = sector;
         
-        res.status(200).json({ success: true, message: 'Utilizador atualizado com sucesso', user });
+        // Atualiza permissions
+        if (role === 'admin') {
+            user.permissions = ['mobile', 'totem', 'admin'];
+        } else if (permissions && Array.isArray(permissions)) {
+            user.permissions = permissions.filter(p => ['mobile', 'totem'].includes(p));
+        }
+        
+        await user.save();
+        
+        const userResponse = {
+            id: user._id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            sector: user.sector,
+            permissions: user.role === 'admin' ? ['mobile', 'totem', 'admin'] : user.permissions
+        };
+        
+        safeLog(req, 'info', `Utilizador atualizado: ${username} (${role}) - Permissões: ${userResponse.permissions.join(', ')}`);
+        res.status(200).json({ success: true, message: 'Utilizador atualizado com sucesso', user: userResponse });
     } catch (err) {
         safeLog(req, 'error', `Erro ao atualizar utilizador: ${err.message}`);
         res.status(500).json({ success: false, message: 'Erro ao atualizar utilizador', details: err.message });
@@ -159,17 +182,15 @@ const updateUser = async (req, res) => {
 const deleteUser = async (req, res) => {
     try {
         const { id } = req.params;
-        if (id === req.user.id) {
-            return res.status(400).json({ success: false, message: 'Você não pode eliminar a sua própria conta' });
-        }
-        
-        const user = await User.findByIdAndDelete(id);
+        const user = await User.findById(id);
         if (!user) {
             return res.status(404).json({ success: false, message: 'Utilizador não encontrado' });
         }
-        
-        safeLog(req, 'info', `Utilizador eliminado: ${user.username} por ${req.user.username}`);
-        
+        if (user.role === 'admin' && req.user.role !== 'admin') {
+            return res.status(403).json({ success: false, message: 'Não autorizado a excluir admins' });
+        }
+        await User.findByIdAndDelete(id);
+        safeLog(req, 'info', `Utilizador excluído: ${user.username}`);
         res.status(200).json({ success: true, message: 'Utilizador excluído com sucesso' });
     } catch (err) {
         safeLog(req, 'error', `Erro ao excluir utilizador: ${err.message}`);
@@ -183,10 +204,18 @@ const verifyToken = async (req, res) => {
         if (!user) {
             return res.status(404).json({ success: false, message: 'Utilizador não encontrado' });
         }
+        const permissions = user.role === 'admin' ? ['mobile', 'totem', 'admin'] : user.permissions;
         res.status(200).json({
             success: true,
             message: 'Token válido',
-            user: { id: user._id, username: user.username, email: user.email, role: user.role, sector: user.sector }
+            user: { 
+                id: user._id, 
+                username: user.username, 
+                email: user.email, 
+                role: user.role, 
+                sector: user.sector,
+                permissions
+            }
         });
     } catch (err) {
         safeLog(req, 'error', `Erro ao verificar token: ${err.message}`);

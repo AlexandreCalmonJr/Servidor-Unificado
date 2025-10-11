@@ -1,17 +1,23 @@
 // Ficheiro: services/totemService.js
 
 const Totem = require('../models/Totem');
+const { getLocationFromIp } = require('./ipMappingService');
 
 exports.createOrUpdate = async (data) => {
-  const { serialNumber } = data;
+  const { serialNumber, ip } = data;
   const existingDevice = await Totem.findOne({ serialNumber });
 
+  // Determinar a localização com base no IP
+  const unitRoutes = await getLocationFromIp(ip);
+
+  const deviceData = { ...data, unitRoutes };
+
   if (existingDevice) {
-    Object.assign(existingDevice, data);
+    Object.assign(existingDevice, deviceData);
     existingDevice.lastSeen = new Date();
     return await existingDevice.save();
   } else {
-    const newDevice = new Totem(data);
+    const newDevice = new Totem(deviceData);
     return await newDevice.save();
   }
 };

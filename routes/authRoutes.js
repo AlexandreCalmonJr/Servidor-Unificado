@@ -1,3 +1,5 @@
+// Ficheiro: routes/authRoutes.js
+
 const express = require('express');
 const { body } = require('express-validator');
 const { registerUser, loginUser, listUsers, updateUser, deleteUser, verifyToken, changePassword } = require('../controllers/authController');
@@ -35,6 +37,17 @@ const authRoutes = () => {
                 throw new Error('Setor é obrigatório para usuários comuns');
             }
             return true;
+        }),
+        // Validação para permissions (opcional, array de strings válidas)
+        body('permissions').optional().isArray().withMessage('Permissões deve ser um array').custom((value, { req }) => {
+            if (req.body.role === 'admin') return true; // Admins não precisam
+            if (value && !Array.isArray(value)) throw new Error('Permissões deve ser um array');
+            if (value) {
+                value.forEach(p => {
+                    if (!['mobile', 'totem'].includes(p)) throw new Error('Permissão inválida: deve ser mobile ou totem');
+                });
+            }
+            return true;
         })
     ], registerUser);
 
@@ -48,6 +61,17 @@ const authRoutes = () => {
         body('sector').optional().custom((value, { req }) => {
             if (req.body.role === 'user' && (!value || value.trim() === '')) {
                 throw new Error('Setor é obrigatório para usuários comuns');
+            }
+            return true;
+        }),
+        // Validação para permissions na atualização
+        body('permissions').optional().isArray().withMessage('Permissões deve ser um array').custom((value, { req }) => {
+            if (req.body.role === 'admin') return true;
+            if (value && !Array.isArray(value)) throw new Error('Permissões deve ser um array');
+            if (value) {
+                value.forEach(p => {
+                    if (!['mobile', 'totem'].includes(p)) throw new Error('Permissão inválida: deve ser mobile ou totem');
+                });
             }
             return true;
         })

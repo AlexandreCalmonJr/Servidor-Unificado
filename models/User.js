@@ -1,3 +1,5 @@
+// Ficheiro: models/User.js
+
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
@@ -32,6 +34,22 @@ const UserSchema = new mongoose.Schema({
         required: function() { return this.role === 'user'; }, // Obrigatório para usuários comuns
         default: 'Global', // Valor padrão para admin ou se não especificado
         trim: true
+    },
+    // NOVO CAMPO: Permissões para módulos (apenas para usuários 'user'; admins têm acesso total)
+    permissions: {
+        type: [String],
+        enum: {
+            values: ['mobile', 'totem', 'admin'],
+            message: 'Permissão inválida: deve ser um dos valores mobile, totem ou admin'
+        },
+        default: [],
+        validate: {
+            validator: function(v) {
+                // Para admins, ignora; para users, valida que não inclua 'admin'
+                return this.role !== 'user' || !v.includes('admin');
+            },
+            message: 'Usuários comuns não podem ter permissão "admin"'
+        }
     },
     created_at: {
         type: Date,
