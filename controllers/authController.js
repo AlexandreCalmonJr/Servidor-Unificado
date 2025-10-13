@@ -41,6 +41,8 @@ const registerUser = async (req, res) => {
             userData.permissions = ['mobile', 'totem', 'admin'];
         } else if (permissions && Array.isArray(permissions)) {
             userData.permissions = permissions.filter(p => ['mobile', 'totem'].includes(p));
+        } else {
+            userData.permissions = [];
         }
         
         const user = new User(userData);
@@ -84,26 +86,28 @@ const loginUser = async (req, res) => {
             });
         }
         
-        // Gera token com payload incluindo role e permissions
+        // Gera token com payload incluindo role, permissions e sector
+        const permissions = user.role === 'admin' ? ['mobile', 'totem', 'admin'] : (user.permissions || []);
         const tokenPayload = {
             id: user._id,
             username: user.username,
             role: user.role,
-            permissions: user.role === 'admin' ? ['mobile', 'totem', 'admin'] : user.permissions
+            sector: user.sector || 'Global',
+            permissions: permissions
         };
         const token = jwt.sign(tokenPayload, process.env.JWT_SECRET || 'fallback_secret', { expiresIn: '7d' });
         
-        // Retorna user sem senha, incluindo permissions
         const userResponse = {
             id: user._id,
             username: user.username,
             email: user.email,
             role: user.role,
-            sector: user.sector,
-            permissions: tokenPayload.permissions
+            sector: user.sector || 'Global',
+            permissions
         };
         
-        safeLog(req, 'info', `Login bem-sucedido: ${username} - IP: ${req.ip}`);
+        safeLog(req, 'info', `Autenticação bem-sucedida (JWT) para usuário: ${user.username}, Setor: ${user.sector || 'Desconhecido'}`);
+        
         res.status(200).json({ 
             success: true, 
             token, 
@@ -111,25 +115,33 @@ const loginUser = async (req, res) => {
         });
     } catch (err) {
         safeLog(req, 'error', `Erro no login: ${err.message}`);
-        res.status(500).json({ success: false, message: 'Erro no servidor' });
+        res.status(500).json({ success: false, message: 'Erro interno do servidor' });
     }
 };
 
 const listUsers = async (req, res) => {
     try {
-        const users = await User.find({}).select('-password').sort({ created_at: -1 });
-        // Inclui permissions resolvidas (admins têm todas)
-        const usersWithPermissions = users.map(user => ({
-            ...user.toObject(),
-            permissions: user.role === 'admin' ? ['mobile', 'totem', 'admin'] : user.permissions
-        }));
+        const users = await User.find({}, '-password').sort({ created_at: -1 });
+        const usersResponse = users.map(user => {
+            const permissions = user.role === 'admin' ? ['mobile', 'totem', 'admin'] : (user.permissions || []);
+            return {
+                id: user._id,
+                username: user.username,
+                email: user.email,
+                role: user.role,
+                sector: user.sector || 'Global',
+                permissions,
+                created_at: user.created_at
+            };
+        });
+        safeLog(req, 'info', `Lista de utilizadores solicitada por ${req.user.username}: ${users.length} utilizadores`);
         res.status(200).json({ 
             success: true, 
-            users: usersWithPermissions 
+            users: usersResponse 
         });
     } catch (err) {
         safeLog(req, 'error', `Erro ao listar utilizadores: ${err.message}`);
-        res.status(500).json({ success: false, message: 'Erro ao buscar utilizadores', details: err.message });
+        res.status(500).json({ success: false, message: 'Erro ao listar utilizadores', details: err.message });
     }
 };
 
@@ -141,37 +153,34 @@ const updateUser = async (req, res) => {
     try {
         const { id } = req.params;
         const { username, email, role, sector, permissions } = req.body;
-        
         const user = await User.findById(id);
         if (!user) {
             return res.status(404).json({ success: false, message: 'Utilizador não encontrado' });
         }
-        
-        // Atualiza campos básicos
+        if (user.role === 'admin' && req.user.role !== 'admin') {
+            return res.status(403).json({ success: false, message: 'Não autorizado a editar admins' });
+        }
+        // Atualiza apenas campos fornecidos
         if (username) user.username = username;
         if (email) user.email = email;
         if (role) user.role = role;
-        if (sector) user.sector = sector;
-        
-        // Atualiza permissions
+        if (sector !== undefined) user.sector = sector;
         if (role === 'admin') {
             user.permissions = ['mobile', 'totem', 'admin'];
         } else if (permissions && Array.isArray(permissions)) {
             user.permissions = permissions.filter(p => ['mobile', 'totem'].includes(p));
         }
-        
         await user.save();
-        
+        const updatedPermissions = user.role === 'admin' ? ['mobile', 'totem', 'admin'] : (user.permissions || []);
         const userResponse = {
             id: user._id,
             username: user.username,
             email: user.email,
             role: user.role,
-            sector: user.sector,
-            permissions: user.role === 'admin' ? ['mobile', 'totem', 'admin'] : user.permissions
+            sector: user.sector || 'Global',
+            permissions: updatedPermissions
         };
-        
-        safeLog(req, 'info', `Utilizador atualizado: ${username} (${role}) - Permissões: ${userResponse.permissions.join(', ')}`);
+        safeLog(req, 'info', `Utilizador atualizado: ${user.username} (${role || user.role}) - Setor: ${sector || user.sector} - Permissões: ${updatedPermissions.join(', ')}`);
         res.status(200).json({ success: true, message: 'Utilizador atualizado com sucesso', user: userResponse });
     } catch (err) {
         safeLog(req, 'error', `Erro ao atualizar utilizador: ${err.message}`);
@@ -204,7 +213,7 @@ const verifyToken = async (req, res) => {
         if (!user) {
             return res.status(404).json({ success: false, message: 'Utilizador não encontrado' });
         }
-        const permissions = user.role === 'admin' ? ['mobile', 'totem', 'admin'] : user.permissions;
+        const permissions = user.role === 'admin' ? ['mobile', 'totem', 'admin'] : (user.permissions || []);
         res.status(200).json({
             success: true,
             message: 'Token válido',
@@ -213,7 +222,7 @@ const verifyToken = async (req, res) => {
                 username: user.username, 
                 email: user.email, 
                 role: user.role, 
-                sector: user.sector,
+                sector: user.sector || 'Global',
                 permissions
             }
         });
