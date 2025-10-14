@@ -1,4 +1,3 @@
-// Corrected Unified deviceRoutes.js (Fixed query for prefix matching and removed pagination)
 const express = require('express');
 const { body, validationResult, query } = require('express-validator');
 const Device = require('../models/Device');
@@ -8,20 +7,6 @@ const { mapIpToUnit, mapMacAddressRadioToLocation } = require('../utils/mappings
 
 const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   const router = express.Router();
-
-  // Helper function to check if device_name matches user prefixes
-  const matchesUserPrefixes = (deviceName, userSector) => {
-    if (!userSector || userSector.trim() === '') return false;
-    const prefixes = userSector.split(',').map(p => p.trim().toLowerCase()).filter(p => p.length > 0);
-    if (prefixes.length === 0) return false;
-    const lowerDeviceName = deviceName.toLowerCase();
-    return prefixes.some(prefix => lowerDeviceName.startsWith(prefix));
-  };
-
-  // Helper to escape regex special chars
-  function escapeRegExp(string) {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
 
   // Receber e salvar dados do dispositivo
   router.post('/data', auth, modifyApiLimiter, [
@@ -44,29 +29,6 @@ const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
     body('floor').optional(),
     body('last_seen').optional(),
     body('last_sync').optional(),
-    body('unit').optional(),
-    body('provisioning_status').optional().isIn(['pending', 'in_progress', 'completed', 'failed']),
-    body('provisioning_token').optional(),
-    body('enrollment_date').optional(),
-    body('configuration_profile').optional(),
-    body('owner_organization').optional(),
-    body('compliance_status').optional().isIn(['compliant', 'non_compliant', 'unknown']),
-    body('installed_apps.*.package_name').optional(),
-    body('installed_apps.*.version').optional(),
-    body('installed_apps.*.install_date').optional(),
-    body('security_policies.password_required').optional().isBoolean(),
-    body('security_policies.encryption_enabled').optional().isBoolean(),
-    body('security_policies.screen_lock_timeout').optional().isInt({ min: 0 }),
-    body('security_policies.allow_unknown_sources').optional().isBoolean(),
-    body('status').optional().isIn(['online', 'offline', 'Sem Monitorar']),
-    body('is_online').optional().isBoolean(),
-    body('maintenance_status').optional().isBoolean(),
-    body('maintenance_ticket').optional(),
-    body('maintenance_reason').optional(),
-    body('maintenance_history.*.timestamp').optional(),
-    body('maintenance_history.*.status').optional(),
-    body('maintenance_history.*.ticket').optional(),
-
     body().custom((value) => {
       if (!value.imei && !value.serial_number) {
         throw new Error('Pelo menos um dos campos imei ou serial_number deve ser fornecido');
@@ -107,23 +69,6 @@ const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
         wifi_broadcast: data.wifi_broadcast || 'N/A',
         wifi_submask: data.wifi_submask || 'N/A',
         last_seen: data.last_seen || new Date().toISOString(),
-        unit: unitName !== 'Desconhecido' ? unitName : 'N/A',
-        provisioning_status: data.provisioning_status || 'N/A',
-        provisioning_token: data.provisioning_token || 'N/A',
-        enrollment_date: data.enrollment_date || 'N/A',
-        configuration_profile: data.configuration_profile || 'N/A',
-        owner_organization: data.owner_organization || 'N/A',
-        compliance_status: data.compliance_status || 'unknown',
-        installed_apps: data.installed_apps || [],
-        security_policies: data.security_policies || {},
-        status: data.status || 'unknown',
-        is_online: data.is_online || false,
-        // Manutenção
-        maintenance_status: data.maintenance_status || false,
-        maintenance_ticket: data.maintenance_ticket || '',
-        maintenance_reason: data.maintenance_reason || '',
-        maintenance_history: data.maintenance_history || [],
-        // Campos adicionais podem ser adicionados aqui conforme necessário
         // Removidos os campos de manutenção daqui para evitar a sobreposição de dados.
         // maintenance_status: data.maintenance_status,
         // maintenance_ticket: data.maintenance_ticket,
@@ -161,141 +106,193 @@ const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
         return res.status(409).json({ error: `Dispositivo com este ${field} já existe`, field, value });
       }
       logger.error(`Erro ao salvar dados de ${req.ip}: ${err.message}`);
-      return res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json({ error: 'Erro interno do servidor', details: err.message });
     }
   });
 
-  // Listar dispositivos (com filtro por prefixos de device_name para usuários comuns, sem paginação)
+  // Heartbeat para atualizar last_seen
+  router.post('/heartbeat', auth, modifyApiLimiter, [
+    body('serial_number').notEmpty().withMessage('serial_number é obrigatório').trim(),
+  ], async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      logger.warn(`Erros de validação: ${JSON.stringify(errors.array())}`);
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    try {
+      const { serial_number } = req.body;
+
+      const device = await Device.findOneAndUpdate(
+        { serial_number },
+        { last_seen: new Date() },
+        { new: true }
+      );
+
+      if (!device) {
+        logger.warn(`Dispositivo não encontrado para heartbeat: ${serial_number}`);
+        return res.status(404).json({ error: 'Dispositivo não encontrado' });
+      }
+
+      logger.info(`Heartbeat recebido de: ${serial_number}`);
+      res.status(200).json({ message: 'Heartbeat registrado com sucesso' });
+    } catch (err) {
+      logger.error(`Erro no heartbeat de ${req.ip}: ${err.message}`);
+      res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  });
+
+  // Listar dispositivos com filtragem por setor para usuários comuns
   router.get('/', auth, getApiLimiter, async (req, res) => {
     try {
-      let query = {};
+      // Buscar TODOS os dispositivos primeiro
+      const allDevices = await Device.find({}).lean();
+      let filteredDevices = allDevices;
 
-      // Filtro por prefixos de device_name para usuários comuns
+      // Se o usuário não for admin, filtrar por nome do dispositivo
       if (req.user.role === 'user') {
-        if (!req.user.sector || req.user.sector.trim() === '') {
-          logger.warn(`Usuário '${req.user.username}' sem prefixos definidos`);
-          return res.status(403).json({ error: 'Usuário sem prefixos definidos. Contacte o administrador.' });
-        }
-        const prefixes = req.user.sector.split(',').map(p => p.trim()).filter(p => p.length > 0);
-        if (prefixes.length === 0) {
-          return res.status(200).json({ success: true, devices: [] });
-        }
-        // Use $or com $regex para matching de prefixo case-insensitive
-        query.$or = prefixes.map(prefix => ({ device_name: { $regex: new RegExp(`^${escapeRegExp(prefix)}`, 'i') } }));
-      }
-
-      // Filtros opcionais de query params (apenas search, sem paginação)
-      if (req.query.search) {
-        const searchTerm = req.query.search.toString().trim();
-        const searchQuery = {
-          $or: [
-            { device_name: { $regex: searchTerm, $options: 'i' } },
-            { serial_number: { $regex: searchTerm, $options: 'i' } },
-            { imei: { $regex: searchTerm, $options: 'i' } }
-          ]
-        };
-        if (query.$or) {
-          query.$and = [query, searchQuery];
+        const userSector = req.user.sector;
+        if (userSector && userSector !== 'Global') {
+          // Separar os prefixos por vírgula e limpar espaços
+          const prefixes = userSector.split(',').map(p => p.trim().toLowerCase());
+          
+          // Filtrar dispositivos cujo nome começa com algum dos prefixos
+          filteredDevices = allDevices.filter(device => {
+            const deviceName = (device.device_name || '').toLowerCase();
+            return prefixes.some(prefix => deviceName.startsWith(prefix));
+          });
+          
+          logger.info(`Usuário '${req.user.username}' (prefixos: ${prefixes.join(', ')}) - ${filteredDevices.length} dispositivos filtrados de ${allDevices.length} totais.`);
         } else {
-          query = searchQuery;
+          logger.warn(`Usuário '${req.user.username}' com role 'user' mas sem setor definido ou setor 'Global'.`);
+          return res.status(403).json({ error: 'Acesso negado: Setor do usuário não definido ou inválido para esta operação.' });
         }
+      } else {
+        logger.info(`Usuário '${req.user.username}' (role: ${req.user.role}) solicitando TODOS os dispositivos.`);
       }
 
-      const devices = await Device.find(query)
-        .sort({ last_seen: -1 })
-        .lean();
-
-      // Calcular status baseado em last_seen
-      const now = new Date();
-      devices.forEach(device => {
-        const lastSeen = new Date(device.last_seen);
-        device.isOnline = (now - lastSeen) < 5 * 60 * 1000; // 5 minutos
-      });
-
-      logger.info(`Dispositivos listados para ${req.user.username}: ${devices.length}`);
-      res.status(200).json({
-        success: true,
-        devices
-      });
+      // Aplicar mapIpToUnit apenas nos dispositivos filtrados
+      const devicesWithUnit = await Promise.all(filteredDevices.map(async (device) => {
+        const unit = await mapIpToUnit(device.ip_address);
+        return { ...device, unit };
+      }));
+      
+      logger.info(`Lista de dispositivos retornada: ${devicesWithUnit.length} dispositivos (Role: ${req.user.role}, Setor: ${req.user.sector || 'N/A'})`);
+      res.status(200).json(devicesWithUnit);
     } catch (err) {
-      logger.error(`Erro ao listar dispositivos: ${err.message}`);
-      res.status(500).json({ success: false, message: 'Erro interno do servidor' });
+      logger.error(`Erro ao obter dispositivos: ${err.message}`);
+      res.status(500).json({ error: 'Erro interno do servidor' });
     }
-  });
+  });;
 
-  // Obter dispositivo por serial_number
-  router.get('/:serial_number', auth, getApiLimiter, async (req, res) => {
-    try {
-      const { serial_number } = req.params;
-
-      let device = await Device.findOne({ serial_number: serial_number }).lean();
-      if (!device) {
-        logger.warn(`Dispositivo não encontrado: ${serial_number}`);
-        return res.status(404).json({ error: 'Dispositivo não encontrado' });
-      }
-
-      // Verificação de prefixos
-      if (req.user.role === 'user' && !matchesUserPrefixes(device.device_name, req.user.sector)) {
-        logger.warn(`Usuário '${req.user.username}' tentou acessar dispositivo fora dos seus prefixos: ${serial_number}`);
-        return res.status(403).json({ error: 'Acesso negado: Dispositivo fora dos seus prefixos de permissão.' });
-      }
-
-      const now = new Date();
-      const lastSeen = new Date(device.last_seen);
-      device.isOnline = (now - lastSeen) < 5 * 60 * 1000;
-
-      logger.info(`Dispositivo ${serial_number} acessado por ${req.user.username}`);
-      res.status(200).json({ success: true, device });
-    } catch (err) {
-      logger.error(`Erro ao obter dispositivo: ${err.message}`);
-      res.status(500).json({ success: false, message: 'Erro interno do servidor' });
-    }
-  });
-
-  // Enviar comando para dispositivo
-  router.post('/commands', auth, modifyApiLimiter, [
-    body('serial_number').notEmpty().withMessage('serial_number é obrigatório'),
-    body('command').notEmpty().withMessage('command é obrigatório'),
-    body('device_name').optional().notEmpty().withMessage('device_name é opcional mas recomendado'),
+  // Obter comandos pendentes
+  router.get('/commands', auth, getApiLimiter, [
+    query('serial_number').notEmpty().withMessage('serial_number é obrigatório').trim(),
   ], async (req, res) => {
-    try {
-      const { serial_number, command, device_name, packageName, apkUrl, maintenance_status } = req.body;
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      logger.warn(`Erros de validação: ${JSON.stringify(errors.array())}`);
+      return res.status(400).json({ errors: errors.array() });
+    }
 
-      // Verificação de dispositivo e prefixos
-      const device = await Device.findOne({ serial_number: serial_number });
+    try {
+      const { serial_number } = req.query;
+      // Adicionar filtro por setor para usuários comuns também aqui, se necessário
+      const device = await Device.findOne({ serial_number });
+      if (req.user.role === 'user' && device && device.sector !== req.user.sector) {
+        logger.warn(`Usuário '${req.user.username}' tentou acessar comandos para dispositivo fora do seu setor: ${serial_number}`);
+        return res.status(403).json({ error: 'Acesso negado: Dispositivo fora do seu setor de permissão.' });
+      }
+
+      const commands = await Command.find({ serial_number, status: 'pending' }).lean();
+      if (commands.length > 0) {
+        await Command.updateMany({ serial_number, status: 'pending' }, { status: 'sent' });
+        logger.info(`Comandos pendentes encontrados para ${serial_number}: ${commands.length}`);
+      }
+
+      res.status(200).json(commands.map(cmd => ({
+        id: cmd._id.toString(),
+        command_type: cmd.command,
+        parameters: cmd.parameters
+      })));
+    } catch (err) {
+      logger.error(`Erro ao obter comandos: ${err.message}`);
+      res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  });
+
+  // Executar comando
+  router.post('/executeCommand', auth, modifyApiLimiter, [
+    body('serial_number').notEmpty().withMessage('serial_number é obrigatório').trim(),
+    body('command').notEmpty().withMessage('command é obrigatório').trim(),
+  ], async (req, res) => {
+    const { device_name, serial_number, command, packageName, apkUrl, maintenance_status, maintenance_ticket, maintenance_history_entry, maintenance_reason } = req.body;
+
+    try {
+      if (!serial_number || !command) {
+        logger.warn('Faltam campos obrigatórios: device_name ou command');
+        return res.status(400).json({ error: 'device_name e command são obrigatórios' });
+      }
+
+      // Verificação de setor antes de executar o comando
+      const device = await Device.findOne({ serial_number });
       if (!device) {
         logger.warn(`Dispositivo não encontrado: ${serial_number}`);
         return res.status(404).json({ error: 'Dispositivo não encontrado' });
       }
-      if (req.user.role === 'user' && !matchesUserPrefixes(device.device_name, req.user.sector)) {
-        logger.warn(`Usuário '${req.user.username}' tentou enviar comando para dispositivo fora dos seus prefixos: ${serial_number}`);
-        return res.status(403).json({ error: 'Acesso negado: Dispositivo fora dos seus prefixos de permissão.' });
+      if (req.user.role === 'user' && device.sector !== req.user.sector) {
+        logger.warn(`Usuário '${req.user.username}' tentou executar comando em dispositivo fora do seu setor: ${serial_number}`);
+        return res.status(403).json({ error: 'Acesso negado: Dispositivo fora do seu setor de permissão.' });
       }
 
       if (command === 'set_maintenance') {
-        // Atualizar status de manutenção diretamente
-        await Device.findOneAndUpdate(
-          { serial_number: serial_number },
-          {
-            maintenance_status: maintenance_status === 'true' || maintenance_status === true,
-            maintenance_ticket: req.body.maintenance_ticket || null,
-            maintenance_reason: req.body.maintenance_reason || null
+        if (typeof maintenance_status !== 'boolean') {
+          logger.warn(`maintenance_status deve ser booleano para ${serial_number}`);
+          return res.status(400).json({ error: 'maintenance_status deve ser um valor booleano' });
+        }
+
+        const updateFields = {
+          maintenance_status,
+          maintenance_ticket: maintenance_ticket || '',
+          maintenance_reason: maintenance_reason || '',
+        };
+
+        if (maintenance_history_entry) {
+          try {
+            const historyEntry = JSON.parse(maintenance_history_entry);
+            if (!historyEntry.timestamp || !historyEntry.status) {
+              logger.warn(`maintenance_history_entry inválido para ${serial_number}`);
+              return res.status(400).json({ error: 'maintenance_history_entry deve conter timestamp e status' });
+            }
+            updateFields.$push = { maintenance_history: historyEntry };
+          } catch (err) {
+            logger.error(`Erro ao parsear maintenance_history_entry para ${serial_number}: ${err.message}`);
+            return res.status(400).json({ error: 'Formato inválido para maintenance_history_entry' });
           }
+        }
+
+        const updatedDevice = await Device.findOneAndUpdate(
+          { serial_number },
+          updateFields,
+          { new: true }
         );
+
+        if (!updatedDevice) { // Dupla checagem, embora já verificada acima
+          logger.warn(`Dispositivo não encontrado: ${serial_number}`);
+          return res.status(404).json({ error: 'Dispositivo não encontrado' });
+        }
+
         logger.info(`Comando set_maintenance executado para ${serial_number}: status=${maintenance_status}`);
         return res.status(200).json({ message: `Status de manutenção atualizado para ${serial_number}` });
       } else {
-        // Registrar comando para outros tipos
         await Command.create({
-          device_name: device_name || device.device_name,
+          device_name,
           serial_number,
           command,
-          parameters: { packageName, apkUrl },
-          status: 'sent',
-          createdBy: req.user.username
+          parameters: { packageName, apkUrl }
         });
         logger.info(`Comando "${command}" registrado para ${serial_number}`);
-        res.status(200).json({ message: `Comando ${command} registrado para ${device_name || device.device_name}` });
+        res.status(200).json({ message: `Comando ${command} registrado para ${device_name}` });
       }
     } catch (err) {
       logger.error(`Erro ao processar comando: ${err.message}`);
@@ -337,12 +334,13 @@ const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
         return res.status(404).json({ error: 'Comando não encontrado' });
       }
 
-      // Verificação de prefixos para garantir que o usuário não manipule comandos de outros dispositivos
+      // Verificação de setor para garantir que o usuário não manipule comandos de outros setores
       const device = await Device.findOne({ serial_number: command.serial_number });
-      if (req.user.role === 'user' && device && !matchesUserPrefixes(device.device_name, req.user.sector)) {
-        logger.warn(`Usuário '${req.user.username}' tentou reportar comando para dispositivo fora dos seus prefixos: ${serial_number}`);
-        return res.status(403).json({ error: 'Acesso negado: Dispositivo fora dos seus prefixos de permissão.' });
+      if (req.user.role === 'user' && device && device.sector !== req.user.sector) {
+        logger.warn(`Usuário '${req.user.username}' tentou reportar comando para dispositivo fora do seu setor: ${serial_number}`);
+        return res.status(403).json({ error: 'Acesso negado: Dispositivo fora do seu setor de permissão.' });
       }
+
 
       logger.info(`Resultado do comando recebido: ${command.command} para ${serial_number} - ${success ? 'sucesso' : 'falha'}`);
       res.status(200).json({ message: 'Resultado do comando registrado' });
@@ -357,15 +355,15 @@ const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   router.delete('/:serial_number', auth, modifyApiLimiter, async (req, res) => {
     try {
       const { serial_number } = req.params;
-      // Verificação de prefixos antes de excluir
+      // Verificação de setor antes de excluir
       const device = await Device.findOne({ serial_number: serial_number });
       if (!device) {
         logger.warn(`Dispositivo não encontrado: ${serial_number}`);
         return res.status(404).json({ error: 'Dispositivo não encontrado' });
       }
-      if (req.user.role === 'user' && !matchesUserPrefixes(device.device_name, req.user.sector)) {
-        logger.warn(`Usuário '${req.user.username}' tentou excluir dispositivo fora dos seus prefixos: ${serial_number}`);
-        return res.status(403).json({ error: 'Acesso negado: Dispositivo fora dos seus prefixos de permissão.' });
+      if (req.user.role === 'user' && device.sector !== req.user.sector) {
+        logger.warn(`Usuário '${req.user.username}' tentou excluir dispositivo fora do seu setor: ${serial_number}`);
+        return res.status(403).json({ error: 'Acesso negado: Dispositivo fora do seu setor de permissão.' });
       }
 
       const deletedDevice = await Device.findOneAndDelete({ serial_number: serial_number });
@@ -382,16 +380,8 @@ const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
     try {
       const { serial_number } = req.params;
 
-      // Verificação de permissão para ver histórico deste dispositivo
-      const device = await Device.findOne({ serial_number: serial_number });
-      if (!device) {
-        logger.warn(`Dispositivo não encontrado: ${serial_number}`);
-        return res.status(404).json({ error: 'Dispositivo não encontrado' });
-      }
-      if (req.user.role === 'user' && !matchesUserPrefixes(device.device_name, req.user.sector)) {
-        logger.warn(`Usuário '${req.user.username}' tentou acessar histórico de dispositivo fora dos seus prefixos: ${serial_number}`);
-        return res.status(403).json({ error: 'Acesso negado: Dispositivo fora dos seus prefixos de permissão.' });
-      }
+      // Opcional: Adicionar verificação de permissão para ver este dispositivo específico
+      // if (req.user.role === 'user') { ... }
 
       const history = await LocationHistory.find({ serial_number: serial_number })
         .sort({ timestamp: -1 }) // Ordena do mais recente para o mais antigo

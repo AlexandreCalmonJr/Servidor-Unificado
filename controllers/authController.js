@@ -39,6 +39,7 @@ const registerUser = async (req, res) => {
         const userData = { username, email, password, role, sector };
         if (role === 'admin') {
             userData.permissions = ['mobile', 'totem', 'admin'];
+            userData.sector = 'Global'; // Admins sempre têm setor Global
         } else if (permissions && Array.isArray(permissions)) {
             userData.permissions = permissions.filter(p => ['mobile', 'totem'].includes(p));
         } else {
@@ -48,20 +49,23 @@ const registerUser = async (req, res) => {
         const user = new User(userData);
         await user.save();
         
-        safeLog(req, 'info', `Novo utilizador registado: ${username} (${role}) - Setor: ${sector} - Permissões: ${user.permissions.join(', ')}`);
+        safeLog(req, 'info', `Novo utilizador registado: ${username} (${role}) - Setor: ${user.sector} - Permissões: ${user.permissions.join(', ')}`);
+        
+        // IMPORTANTE: Retornar o usuário completo com TODOS os campos necessários
+        const userResponse = {
+            _id: user._id.toString(),
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            sector: user.sector || 'Global',
+            permissions: user.permissions || [],
+            created_at: user.created_at || new Date().toISOString()
+        };
         
         res.status(201).json({ 
             success: true,
             message: 'Utilizador registado com sucesso',
-            user: {
-                id: user._id,
-                username: user.username,
-                email: user.email,
-                role: user.role,
-                sector: user.sector,
-                permissions: user.permissions,
-                created_at: user.created_at
-            }
+            user: userResponse // Retorna o objeto user completo
         });
     } catch (err) {
         safeLog(req, 'error', `Erro ao registar utilizador: ${err.message}`);
@@ -125,13 +129,13 @@ const listUsers = async (req, res) => {
         const usersResponse = users.map(user => {
             const permissions = user.role === 'admin' ? ['mobile', 'totem', 'admin'] : (user.permissions || []);
             return {
-                id: user._id,
+                _id: user._id.toString(),
                 username: user.username,
                 email: user.email,
                 role: user.role,
                 sector: user.sector || 'Global',
                 permissions,
-                created_at: user.created_at
+                created_at: user.created_at || new Date().toISOString()
             };
         });
         safeLog(req, 'info', `Lista de utilizadores solicitada por ${req.user.username}: ${users.length} utilizadores`);
@@ -154,34 +158,52 @@ const updateUser = async (req, res) => {
         const { id } = req.params;
         const { username, email, role, sector, permissions } = req.body;
         const user = await User.findById(id);
+        
         if (!user) {
             return res.status(404).json({ success: false, message: 'Utilizador não encontrado' });
         }
+        
         if (user.role === 'admin' && req.user.role !== 'admin') {
             return res.status(403).json({ success: false, message: 'Não autorizado a editar admins' });
         }
+        
         // Atualiza apenas campos fornecidos
         if (username) user.username = username;
         if (email) user.email = email;
-        if (role) user.role = role;
-        if (sector !== undefined) user.sector = sector;
-        if (role === 'admin') {
-            user.permissions = ['mobile', 'totem', 'admin'];
-        } else if (permissions && Array.isArray(permissions)) {
+        if (role) {
+            user.role = role;
+            // Se mudou para admin, ajusta setor e permissões
+            if (role === 'admin') {
+                user.sector = 'Global';
+                user.permissions = ['mobile', 'totem', 'admin'];
+            }
+        }
+        if (sector !== undefined && role !== 'admin') user.sector = sector;
+        
+        // Atualiza permissões apenas se não for admin ou se está mudando de admin para user
+        if (role !== 'admin' && permissions && Array.isArray(permissions)) {
             user.permissions = permissions.filter(p => ['mobile', 'totem'].includes(p));
         }
+        
         await user.save();
+        
         const updatedPermissions = user.role === 'admin' ? ['mobile', 'totem', 'admin'] : (user.permissions || []);
         const userResponse = {
-            id: user._id,
+            _id: user._id.toString(),
             username: user.username,
             email: user.email,
             role: user.role,
             sector: user.sector || 'Global',
-            permissions: updatedPermissions
+            permissions: updatedPermissions,
+            created_at: user.created_at || new Date().toISOString()
         };
-        safeLog(req, 'info', `Utilizador atualizado: ${user.username} (${role || user.role}) - Setor: ${sector || user.sector} - Permissões: ${updatedPermissions.join(', ')}`);
-        res.status(200).json({ success: true, message: 'Utilizador atualizado com sucesso', user: userResponse });
+        
+        safeLog(req, 'info', `Utilizador atualizado: ${user.username} (${user.role}) - Setor: ${user.sector} - Permissões: ${updatedPermissions.join(', ')}`);
+        res.status(200).json({ 
+            success: true, 
+            message: 'Utilizador atualizado com sucesso', 
+            user: userResponse 
+        });
     } catch (err) {
         safeLog(req, 'error', `Erro ao atualizar utilizador: ${err.message}`);
         res.status(500).json({ success: false, message: 'Erro ao atualizar utilizador', details: err.message });
@@ -192,12 +214,15 @@ const deleteUser = async (req, res) => {
     try {
         const { id } = req.params;
         const user = await User.findById(id);
+        
         if (!user) {
             return res.status(404).json({ success: false, message: 'Utilizador não encontrado' });
         }
+        
         if (user.role === 'admin' && req.user.role !== 'admin') {
             return res.status(403).json({ success: false, message: 'Não autorizado a excluir admins' });
         }
+        
         await User.findByIdAndDelete(id);
         safeLog(req, 'info', `Utilizador excluído: ${user.username}`);
         res.status(200).json({ success: true, message: 'Utilizador excluído com sucesso' });
@@ -240,16 +265,20 @@ const changePassword = async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
         const user = await User.findById(req.user.id);
+        
         if (!user) {
             return res.status(404).json({ success: false, message: 'Utilizador não encontrado' });
         }
+        
         const isCurrentPasswordValid = await user.comparePassword(currentPassword);
         if (!isCurrentPasswordValid) {
             safeLog(req, 'warn', `Tentativa de alteração de senha com senha atual incorreta: ${user.username} - IP: ${req.ip}`);
             return res.status(401).json({ success: false, message: 'Senha atual incorreta' });
         }
+        
         user.password = newPassword;
         await user.save();
+        
         safeLog(req, 'info', `Senha alterada com sucesso: ${user.username} - IP: ${req.ip}`);
         res.status(200).json({ success: true, message: 'Senha alterada com sucesso' });
     } catch (err) {
