@@ -3575,3 +3575,21 @@
 {"level":"info","message":"JSON retornado para /api/bssid-mappings: [{\"_id\":\"68b4861d06543813fea7fa47\",\"mac_address_radio\":\"a0:a3:f0:0b:f6:14\",\"sector\":\"Casa\",\"floor\":\"6\"}]","timestamp":"2025-10-13T00:26:09.849Z"}
 {"level":"info","message":"Requisição recebida: GET /api/monitoring/totems from 192.168.0.183","timestamp":"2025-10-13T00:26:09.871Z"}
 {"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Desconhecido","timestamp":"2025-10-13T00:26:09.872Z"}
+{"level":"info","message":"🚀 MDM Server rodando em http://192.168.56.1:3000","timestamp":"2025-10-14T02:40:29.574Z"}
+{"level":"info","message":"📱 Provisionamento disponível em: http://192.168.56.1:3000/provision/{token}","timestamp":"2025-10-14T02:40:29.583Z"}
+{"level":"info","message":"📊 Dashboard disponível em: http://192.168.56.1:3000/dashboard","timestamp":"2025-10-14T02:40:29.590Z"}
+{"level":"info","message":"Conectado ao MongoDB com sucesso","timestamp":"2025-10-14T02:40:29.606Z"}
+{"level":"info","message":"Conexão MongoDB configurada com reconexão automática","timestamp":"2025-10-14T02:40:29.608Z"}
+{"level":"info","message":"Executando tarefa agendada para verificação de status dos dispositivos.","timestamp":"2025-10-14T02:45:00.016Z"}
+{"level":"info","message":"Nenhum dispositivo precisou de atualização de status nesta execução.","timestamp":"2025-10-14T02:45:00.025Z"}
+{"level":"info","message":"Executando tarefa agendada para verificação de status dos dispositivos.","timestamp":"2025-10-14T02:50:00.031Z"}
+{"level":"info","message":"Nenhum dispositivo precisou de atualização de status nesta execução.","timestamp":"2025-10-14T02:50:00.034Z"}
+{"level":"info","message":"Executando tarefa agendada para verificação de status dos dispositivos.","timestamp":"2025-10-14T02:55:00.023Z"}
+{"level":"info","message":"Nenhum dispositivo precisou de atualização de status nesta execução.","timestamp":"2025-10-14T02:55:00.027Z"}
+{"level":"info","message":"🚀 MDM Server rodando em http://192.168.56.1:3000","timestamp":"2025-10-14T02:59:08.721Z"}
+{"level":"info","message":"📱 Provisionamento disponível em: http://192.168.56.1:3000/provision/{token}","timestamp":"2025-10-14T02:59:08.729Z"}
+{"level":"info","message":"📊 Dashboard disponível em: http://192.168.56.1:3000/dashboard","timestamp":"2025-10-14T02:59:08.735Z"}
+{"level":"info","message":"Conectado ao MongoDB com sucesso","timestamp":"2025-10-14T02:59:08.752Z"}
+{"level":"info","message":"Conexão MongoDB configurada com reconexão automática","timestamp":"2025-10-14T02:59:08.753Z"}
+{"level":"info","message":"Executando tarefa agendada para verificação de status dos dispositivos.","timestamp":"2025-10-14T03:00:00.020Z"}
+{"level":"info","message":"Nenhum dispositivo precisou de atualização de status nesta execução.","timestamp":"2025-10-14T03:00:00.031Z"}
