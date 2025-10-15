@@ -21,6 +21,7 @@ const configProfileRoutes = require('../routes/configProfileRoutes');
 const bssidRoutes = require('../routes/bssidRoutes');
 const unitRoutes = require('../routes/unitRoutes');
 const serverRoutes = require('../routes/serverRoutes');
+const publicRoutes = require('../routes/publicRoutes'); // *** ADICIONADO ***
 
 
 const expressConfig = (app, logger) => {
@@ -38,6 +39,9 @@ const expressConfig = (app, logger) => {
 
   // Rota de autenticação (pública)
   app.use('/api/auth', authRoutes());
+
+  // *** ADICIONAR ROTA PÚBLICA PARA APKs ***
+  app.use('/', publicRoutes(logger, getApiLimiter));
 
   // --- ROTAS ORIGINAIS PARA CLIENTES (COMPATIBILIDADE MANTIDA) ---
 
