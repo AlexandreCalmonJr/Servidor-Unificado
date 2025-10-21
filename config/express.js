@@ -6,7 +6,7 @@ const cors = require('cors');
 const { modifyApiLimiter, getApiLimiter, enrollLimiter } = require('../middleware/rateLimiters');
 const auth = require('../middleware/auth');
 const authorize = require('../middleware/role');
-const requestLogger = require('../middleware/logging');
+const { requestLogger } = require('../middleware/logging');
 const errorHandler = require('../middleware/error');
 
 // Importar os controladores e rotas
@@ -21,7 +21,8 @@ const configProfileRoutes = require('../routes/configProfileRoutes');
 const bssidRoutes = require('../routes/bssidRoutes');
 const unitRoutes = require('../routes/unitRoutes');
 const serverRoutes = require('../routes/serverRoutes');
-const publicRoutes = require('../routes/publicRoutes'); // *** ADICIONADO ***
+const publicRoutes = require('../routes/publicRoutes');
+const assetModuleRoutes = require('../routes/assetModuleRoutes'); // *** ADICIONADO ***
 
 
 const expressConfig = (app, logger) => {
@@ -33,15 +34,20 @@ const expressConfig = (app, logger) => {
   app.set('views', path.join(__dirname, '..', 'views'));
   app.use(express.static(path.join(__dirname, '..', 'public', 'web')));
   app.use('/public', express.static(path.join(__dirname, '..', 'public')));
+  app.use('/api/assets', assetModuleRoutes(logger, getApiLimiter)); // *** ADICIONADO ***
+  
   // ...
 
-  app.use(requestLogger(logger));
+  app.use(requestLogger);
 
   // Rota de autenticação (pública)
   app.use('/api/auth', authRoutes());
 
   // *** ADICIONAR ROTA PÚBLICA PARA APKs ***
   app.use('/', publicRoutes(logger, getApiLimiter));
+
+
+  app.use('/api/assets', assetModuleRoutes(logger, getApiLimiter)); // *** ADICIONADO ***
 
   // --- ROTAS ORIGINAIS PARA CLIENTES (COMPATIBILIDADE MANTIDA) ---
 
