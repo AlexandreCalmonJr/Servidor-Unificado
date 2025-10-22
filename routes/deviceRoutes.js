@@ -41,14 +41,19 @@ const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
       logger.warn(`Erros de validação: ${JSON.stringify(errors.array())}`);
       return res.status(400).json({ errors: errors.array() });
     }
-
+  
     try {
       let data = req.body;
-      logger.info(`Dados recebidos de ${req.ip}: ${JSON.stringify(data)}`);
-
-      // Apenas uma chamada para a função de mapeamento
-      const location = await mapMacAddressRadioToLocation(data.mac_address_radio || 'N/A');
-
+      logger.info(`📥 Dados recebidos de ${req.ip}: ${JSON.stringify(data)}`);
+  
+      // ✅ CORREÇÃO: Usa a função completa de mapeamento
+      const { mapDeviceLocation } = require('../utils/mappings');
+      const location = await mapDeviceLocation({
+        ip_address: data.ip_address,
+        mac_address_radio: data.mac_address_radio,
+        device_name: data.device_name
+      });
+  
       const deviceData = {
         device_name: data.device_name || 'unknown',
         device_model: data.device_model || 'N/A',
@@ -58,10 +63,14 @@ const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
         battery: data.battery != null ? data.battery : null,
         network: data.network || 'N/A',
         host: data.host || 'N/A',
+        
+        // ✅ USA OS VALORES MAPEADOS
+        unit: location.unit,
         sector: location.sector,
         floor: location.floor,
+        
         mac_address_radio: data.mac_address_radio || 'N/A',
-        last_sync: data.last_sync || 'N/A',
+        last_sync: data.last_sync || new Date().toISOString(),
         secure_android_id: data.secure_android_id || 'N/A',
         ip_address: data.ip_address || 'N/A',
         wifi_ipv6: data.wifi_ipv6 || 'N/A',
@@ -69,17 +78,21 @@ const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
         wifi_broadcast: data.wifi_broadcast || 'N/A',
         wifi_submask: data.wifi_submask || 'N/A',
         last_seen: data.last_seen || new Date().toISOString(),
-        // Removidos os campos de manutenção daqui para evitar a sobreposição de dados.
-        // maintenance_status: data.maintenance_status,
-        // maintenance_ticket: data.maintenance_ticket,
-        // maintenance_reason: data.maintenance_reason,
+        status: 'online', // Dispositivo que envia dados está online
+        is_online: true
       };
-      logger.info(`Dados do dispositivo processados: ${JSON.stringify(deviceData)}`);
-
+  
+      logger.info(`✅ Dados processados para ${deviceData.serial_number}:`, {
+        unit: deviceData.unit,
+        sector: deviceData.sector,
+        floor: deviceData.floor
+      });
+  
+      // Verifica se houve mudança de localização para salvar no histórico
       const existingDevice = await Device.findOne({ serial_number: deviceData.serial_number });
-
+  
       if (existingDevice && existingDevice.mac_address_radio !== deviceData.mac_address_radio) {
-        logger.info(`Nova localização detetada para ${deviceData.serial_number}. A registar histórico.`);
+        logger.info(`🔄 Nova localização detectada para ${deviceData.serial_number}`);
         const historyEntry = new LocationHistory({
           serial_number: deviceData.serial_number,
           bssid: deviceData.mac_address_radio,
@@ -89,24 +102,41 @@ const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
         });
         await historyEntry.save();
       }
-
+  
+      // Salva ou atualiza o dispositivo
       const device = await Device.findOneAndUpdate(
         { serial_number: deviceData.serial_number },
         { $set: deviceData },
         { new: true, upsert: true, setDefaultsOnInsert: true }
       );
-
-      logger.info(`Dispositivo ${device.serial_number} salvo/atualizado com sucesso`);
-      res.status(200).json({ message: 'Dados salvos com sucesso', deviceId: device._id });
+  
+      logger.info(`💾 Dispositivo ${device.serial_number} salvo/atualizado com sucesso`);
+      res.status(200).json({ 
+        message: 'Dados salvos com sucesso', 
+        deviceId: device._id,
+        location: {
+          unit: device.unit,
+          sector: device.sector,
+          floor: device.floor
+        }
+      });
+  
     } catch (err) {
       if (err.code === 11000) {
         const field = err.keyValue?.serial_number ? 'serial_number' : 'imei';
         const value = err.keyValue?.serial_number || err.keyValue?.imei;
-        logger.error(`Erro de duplicidade para ${field}: ${value}`);
-        return res.status(409).json({ error: `Dispositivo com este ${field} já existe`, field, value });
+        logger.error(`❌ Duplicidade para ${field}: ${value}`);
+        return res.status(409).json({ 
+          error: `Dispositivo com este ${field} já existe`, 
+          field, 
+          value 
+        });
       }
-      logger.error(`Erro ao salvar dados de ${req.ip}: ${err.message}`);
-      return res.status(500).json({ error: 'Erro interno do servidor', details: err.message });
+      logger.error(`❌ Erro ao salvar dados de ${req.ip}: ${err.message}`);
+      return res.status(500).json({ 
+        error: 'Erro interno do servidor', 
+        details: err.message 
+      });
     }
   });
 
