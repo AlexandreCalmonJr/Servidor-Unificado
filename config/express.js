@@ -14,6 +14,7 @@ const authRoutes = require('../routes/authRoutes');
 const mdmDeviceRoutes = require('../routes/deviceRoutes');// Renomeado de deviceRoutes.js
 const totemController = require('../controllers/totemController');
 const monitoringRoutes = require('../routes/monitoringRoutes');
+const moduleRoutes = require('../routes/moduleRoutes');
 
 // Outras rotas do MDM
 const provisioningRoutes = require('../routes/provisioningRoutes');
@@ -66,6 +67,7 @@ const expressConfig = (app, logger) => {
   app.use('/api/units', unitRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
   app.use('/api/bssid-mappings', bssidRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
   app.use('/api/server', serverRoutes(logger, getApiLimiter, auth));
+  app.use('/api/modules', moduleRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
 
 
   // ... (rotas de visualização, erro handler, etc.)
