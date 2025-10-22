@@ -2,16 +2,18 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-/**
- * Schema Mongoose para Notebooks, baseado em:
- * - lib/models/asset_module_base.dart (ManagedAsset)
- * - lib/models/notebook.dart (Notebook)
- */
 const NotebookSchema = new Schema({
   // --- Campos base de ManagedAsset ---
   asset_name: { type: String, required: true, trim: true },
   asset_type: { type: String, required: true, default: 'notebook' },
-  serial_number: { type: String, required: true, unique: true, trim: true, sparse: true, default: 'N/A' },
+  serial_number: { 
+    type: String, 
+    required: true, 
+    trim: true, 
+    sparse: true, 
+    default: 'N/A'
+    // REMOVIDO: unique: true
+  },
   status: {
     type: String,
     enum: ['online', 'offline', 'maintenance', 'Sem Monitorar'],
@@ -55,7 +57,7 @@ const NotebookSchema = new Schema({
   hardware_info: { type: Map, of: Schema.Types.Mixed },
   is_encrypted: { type: Boolean, default: false },
 
-  // --- Campos de Manutenção (para consistência) ---
+  // --- Campos de Manutenção ---
   maintenance_status: { type: Boolean, default: false },
   maintenance_ticket: { type: String, default: '' },
   maintenance_reason: { type: String, default: '' },
@@ -65,12 +67,12 @@ const NotebookSchema = new Schema({
     ticket: { type: String }
   }]
 }, {
-  timestamps: true // Adiciona createdAt e updatedAt
+  timestamps: true
 });
 
-// --- Índices ---
+// --- Índices (definidos UMA ÚNICA VEZ) ---
 NotebookSchema.index({ asset_name: 1 });
-NotebookSchema.index({ serial_number: 1 });
+NotebookSchema.index({ serial_number: 1 }, { unique: true, sparse: true });
 NotebookSchema.index({ unit: 1 });
 NotebookSchema.index({ assigned_to: 1 });
 NotebookSchema.index({ mac_address: 1 });

@@ -1,3 +1,4 @@
+// scripts/updateDeviceStatus.js
 const Device = require('../models/Device');
 
 // Define os limites de tempo
@@ -10,6 +11,8 @@ const UNMONITORED_THRESHOLD_DAYS = 5;
  */
 const updateDeviceStatus = async (logger) => {
   try {
+    logger.info('Iniciando verificação de status dos dispositivos...');
+
     // --- ETAPA 1: Marcar dispositivos 'online' como 'offline' ---
     const offlineThreshold = new Date(Date.now() - OFFLINE_THRESHOLD_MINUTES * 60 * 1000);
     
@@ -28,7 +31,7 @@ const updateDeviceStatus = async (logger) => {
     );
 
     if (offlineResult.modifiedCount > 0) {
-      logger.info(`${offlineResult.modifiedCount} dispositivos foram marcados como 'offline'.`);
+      logger.info(`✅ ${offlineResult.modifiedCount} dispositivos foram marcados como 'offline'.`);
     }
 
     // --- ETAPA 2: Marcar dispositivos 'offline' como 'Sem Monitorar' ---
@@ -48,16 +51,28 @@ const updateDeviceStatus = async (logger) => {
     );
 
     if (unmonitoredResult.modifiedCount > 0) {
-      logger.info(`${unmonitoredResult.modifiedCount} dispositivos foram marcados como 'Sem Monitorar'.`);
+      logger.info(`✅ ${unmonitoredResult.modifiedCount} dispositivos foram marcados como 'Sem Monitorar'.`);
     }
 
     if (offlineResult.modifiedCount === 0 && unmonitoredResult.modifiedCount === 0) {
-      logger.info('Nenhum dispositivo precisou de atualização de status nesta execução.');
+      logger.info('ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.');
     }
 
-  } catch (error) {
-    logger.error('Erro durante a tarefa de atualização de status dos dispositivos:', { message: error.message });
-  }
-}
+    logger.info('Verificação de status concluída.');
+    
+    return {
+      offlineCount: offlineResult.modifiedCount,
+      unmonitoredCount: unmonitoredResult.modifiedCount
+    };
 
+  } catch (error) {
+    logger.error('❌ Erro durante a tarefa de atualização de status dos dispositivos:', { 
+      message: error.message,
+      stack: error.stack 
+    });
+    throw error;
+  }
+};
+
+// EXPORTAR A FUNÇÃO
 module.exports = updateDeviceStatus;

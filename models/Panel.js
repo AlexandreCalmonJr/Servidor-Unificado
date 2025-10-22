@@ -2,24 +2,26 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-/**
- * Schema Mongoose para Painéis/TVs/Monitores, baseado em:
- * - lib/models/asset_module_base.dart (ManagedAsset)
- * - lib/models/painel.dart (Panel)
- */
 const PanelSchema = new Schema({
   // --- Campos base de ManagedAsset ---
   asset_name: { type: String, required: true, trim: true },
   asset_type: { type: String, required: true, default: 'panel' },
-  serial_number: { type: String, required: true, unique: true, trim: true, sparse: true, default: 'N/A' },
+  serial_number: { 
+    type: String, 
+    required: true, 
+    trim: true, 
+    sparse: true, 
+    default: 'N/A'
+    // REMOVIDO: unique: true
+  },
   status: {
     type: String,
-    enum: ['online', 'offline', 'maintenance', 'Sem Monitorar'], // Consistente com Device.js
+    enum: ['online', 'offline', 'maintenance', 'Sem Monitorar'],
     default: 'offline'
   },
   last_seen: { type: Date, default: Date.now },
   custom_data: { type: Map, of: Schema.Types.Mixed, default: {} },
-  location: { type: String, trim: true }, // O cliente deve preencher com o nome mapeado
+  location: { type: String, trim: true },
   assigned_to: { type: String, trim: true },
   unit: { type: String, trim: true, default: 'N/A' },
   sector: { type: String, trim: true, default: 'Desconhecido' },
@@ -57,7 +59,7 @@ const PanelSchema = new Schema({
   // Periféricos
   connected_devices: [{ type: String }],
 
-  // --- Campos de Manutenção (para consistência com Device.js) ---
+  // --- Campos de Manutenção ---
   maintenance_status: { type: Boolean, default: false },
   maintenance_ticket: { type: String, default: '' },
   maintenance_reason: { type: String, default: '' },
@@ -67,19 +69,17 @@ const PanelSchema = new Schema({
     ticket: { type: String }
   }]
 }, {
-  // Adiciona timestamps (createdAt, updatedAt)
   timestamps: true
 });
 
-// --- Índices para otimização de busca ---
+// --- Índices (definidos UMA ÚNICA VEZ) ---
 PanelSchema.index({ asset_name: 1 });
-PanelSchema.index({ serial_number: 1 });
+PanelSchema.index({ serial_number: 1 }, { unique: true, sparse: true });
 PanelSchema.index({ unit: 1 });
 PanelSchema.index({ sector: 1, floor: 1 });
 PanelSchema.index({ ip_address: 1 });
 PanelSchema.index({ mac_address: 1 });
 PanelSchema.index({ status: 1 });
-
 
 const Panel = mongoose.model('Panel', PanelSchema);
 

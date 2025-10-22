@@ -2,16 +2,18 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-/**
- * Schema Mongoose para Desktops, baseado em:
- * - lib/models/asset_module_base.dart (ManagedAsset)
- * - lib/models/desktop.dart (Desktop)
- */
 const DesktopSchema = new Schema({
   // --- Campos base de ManagedAsset ---
   asset_name: { type: String, required: true, trim: true },
   asset_type: { type: String, required: true, default: 'desktop' },
-  serial_number: { type: String, required: true, unique: true, trim: true, sparse: true, default: 'N/A' },
+  serial_number: { 
+    type: String, 
+    required: true, 
+    trim: true, 
+    sparse: true, 
+    default: 'N/A'
+    // REMOVIDO: unique: true (será definido via index abaixo)
+  },
   status: {
     type: String,
     enum: ['online', 'offline', 'maintenance', 'Sem Monitorar'],
@@ -34,7 +36,7 @@ const DesktopSchema = new Schema({
   processor: { type: String, default: 'N/A' },
   ram: { type: String, default: 'N/A' },
   storage: { type: String, default: 'N/A' },
-  storage_type: { type: String, default: 'N/A' }, // Mapeia de 'storageType' ou 'hd_type'
+  storage_type: { type: String, default: 'N/A' },
 
   // Sistema Operacional
   operating_system: { type: String, default: 'N/A' },
@@ -61,7 +63,7 @@ const DesktopSchema = new Schema({
   // Hardware adicional
   hardware_info: { type: Map, of: Schema.Types.Mixed },
   
-  // --- Campos de Manutenção (para consistência) ---
+  // --- Campos de Manutenção ---
   maintenance_status: { type: Boolean, default: false },
   maintenance_ticket: { type: String, default: '' },
   maintenance_reason: { type: String, default: '' },
@@ -71,12 +73,12 @@ const DesktopSchema = new Schema({
     ticket: { type: String }
   }]
 }, {
-  timestamps: true // Adiciona createdAt e updatedAt
+  timestamps: true
 });
 
-// --- Índices ---
+// --- Índices (definidos UMA ÚNICA VEZ) ---
 DesktopSchema.index({ asset_name: 1 });
-DesktopSchema.index({ serial_number: 1 });
+DesktopSchema.index({ serial_number: 1 }, { unique: true, sparse: true });
 DesktopSchema.index({ unit: 1 });
 DesktopSchema.index({ sector: 1, floor: 1 });
 DesktopSchema.index({ ip_address: 1 });

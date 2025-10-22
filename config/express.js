@@ -11,7 +11,7 @@ const errorHandler = require('../middleware/error');
 
 // Importar os controladores e rotas
 const authRoutes = require('../routes/authRoutes');
-const mdmDeviceRoutes = require('../routes/deviceRoutes');// Renomeado de deviceRoutes.js
+const mdmDeviceRoutes = require('../routes/deviceRoutes');
 const totemController = require('../controllers/totemController');
 const monitoringRoutes = require('../routes/monitoringRoutes');
 const moduleRoutes = require('../routes/moduleRoutes');
@@ -23,11 +23,13 @@ const bssidRoutes = require('../routes/bssidRoutes');
 const unitRoutes = require('../routes/unitRoutes');
 const serverRoutes = require('../routes/serverRoutes');
 const publicRoutes = require('../routes/publicRoutes');
-const assetModuleRoutes = require('../routes/assetModuleRoutes'); // *** ADICIONADO ***
-
+const assetModuleRoutes = require('../routes/assetModuleRoutes');
 
 const expressConfig = (app, logger) => {
-  // ... (configurações de compressão, cors, json, ejs, static)
+  // Disponibilizar o logger para toda a aplicação
+  app.locals.logger = logger;
+
+  // Configurações básicas
   app.use(compression());
   app.use(cors());
   app.use(express.json());
@@ -35,36 +37,30 @@ const expressConfig = (app, logger) => {
   app.set('views', path.join(__dirname, '..', 'views'));
   app.use(express.static(path.join(__dirname, '..', 'public', 'web')));
   app.use('/public', express.static(path.join(__dirname, '..', 'public')));
-  app.use('/api/assets', assetModuleRoutes(logger, getApiLimiter)); // *** ADICIONADO ***
-  
-  // ...
 
+  // Middleware de logging
   app.use(requestLogger);
 
   // Rota de autenticação (pública)
   app.use('/api/auth', authRoutes());
 
-  // *** ADICIONAR ROTA PÚBLICA PARA APKs ***
+  // Rota pública para APKs
   app.use('/', publicRoutes(logger, getApiLimiter));
 
-
-  app.use('/api/assets', assetModuleRoutes(logger, getApiLimiter)); // *** ADICIONADO ***
+  // Rotas de módulos de ativos
+  app.use('/api/assets', assetModuleRoutes(logger, getApiLimiter));
 
   // --- ROTAS ORIGINAIS PARA CLIENTES (COMPATIBILIDADE MANTIDA) ---
 
   // Rota original do cliente de monitoramento (totem)
-  // POST /api/monitor
   app.post('/api/monitor', totemController.handleTotemData);
 
   // Rota original do cliente MDM (dispositivos móveis)
-  // Ex: /api/devices/checkin, etc.
   app.use('/api/devices', mdmDeviceRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
-
 
   // --- NOVAS ROTAS MODULARES PARA O PAINEL DE CONTROLE ---
 
   // Módulo de Monitoramento para o Painel (protegido por autenticação)
-  // Ex: /api/monitoring/totems, /api/monitoring/ip-mappings
   app.use('/api/monitoring', monitoringRoutes(logger, modifyApiLimiter, auth));
 
   // Outras rotas do MDM (usadas pelo painel e provisionamento)
@@ -75,13 +71,15 @@ const expressConfig = (app, logger) => {
   app.use('/api/server', serverRoutes(logger, getApiLimiter, auth));
   app.use('/api/modules', moduleRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
 
-
-  // ... (rotas de visualização, erro handler, etc.)
+  // Rotas de visualização
   app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'public', 'web', 'index.html'));
   });
+  
   app.get('/dashboard', auth, authorize('admin'), require('../routes/serverRoutes').renderDashboard(logger));
   app.get('/provision/:token', require('../routes/provisioningRoutes').renderProvisioningPage(logger));
+  
+  // Error handler (deve ser o último middleware)
   app.use(errorHandler(logger));
 };
 

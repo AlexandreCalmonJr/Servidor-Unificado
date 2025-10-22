@@ -10,7 +10,6 @@ const TableColumnConfigSchema = new Schema({
 
 /**
  * Schema Mongoose para a configuração de Módulos de Ativos
- * Baseado em lib/models/asset_module_base.dart (AssetModuleConfig)
  */
 const AssetModuleConfigSchema = new Schema({
   name: { type: String, required: true },
@@ -18,7 +17,7 @@ const AssetModuleConfigSchema = new Schema({
   type: {
     type: String,
     required: true,
-    enum: [ //
+    enum: [
       'mobile',
       'totem',
       'desktop',
@@ -28,17 +27,18 @@ const AssetModuleConfigSchema = new Schema({
       'scanner',
       'custom'
     ]
+    // REMOVIDO: unique: true (será definido via index)
   },
   is_active: { type: Boolean, default: true },
   is_custom: { type: Boolean, default: false },
   custom_fields: { type: Map, of: Schema.Types.Mixed, default: {} },
   settings: { type: Map, of: Schema.Types.Mixed, default: {} },
-  table_columns: [TableColumnConfigSchema] //
+  table_columns: [TableColumnConfigSchema]
 }, {
-  // Mapeia createdAt -> created_at e updatedAt -> updated_at
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });
 
+// --- Índices (definidos UMA ÚNICA VEZ) ---
 AssetModuleConfigSchema.index({ type: 1 }, { unique: true });
 AssetModuleConfigSchema.index({ is_active: 1 });
 

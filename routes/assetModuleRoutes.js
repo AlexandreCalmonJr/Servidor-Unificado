@@ -1,46 +1,45 @@
 // routes/assetModuleRoutes.js
 const express = require('express');
-const router = express.Router();
 const assetModuleController = require('../controllers/assetModuleController');
 const auth = require('../middleware/auth');
 const role = require('../middleware/role');
 
-// --- Rotas de Configuração de Módulo ---
+// Exporta uma função que retorna o router configurado
+module.exports = (logger, getApiLimiter) => {
+  const router = express.Router();
 
-// GET /api/modules (Lista todas as configurações de módulos)
-router.get('/', auth, assetModuleController.getModuleConfigs);
+  // --- Rotas de Configuração de Módulo ---
 
-// PUT /api/modules/:moduleId (Atualiza a configuração de um módulo, ex: colunas)
-router.put('/:moduleId', auth, role(['admin']), assetModuleController.updateModuleConfig);
+  // GET /api/assets/modules (Lista todas as configurações de módulos)
+  router.get('/modules', auth, assetModuleController.getModuleConfigs);
 
-// --- Rotas de Ativos (Assets) ---
+  // PUT /api/assets/modules/:moduleId (Atualiza a configuração de um módulo)
+  router.put('/modules/:moduleId', auth, role(['admin']), assetModuleController.updateModuleConfig);
 
-// GET /api/modules/:moduleId/assets (Lista todos os ativos de um módulo, ex: /api/modules/panel/assets)
-router.get('/:moduleId/assets', auth, assetModuleController.getAssets);
+  // --- Rotas de Ativos (Assets) ---
 
-// POST /api/modules/:moduleId/assets (Cria um novo ativo)
-router.post('/:moduleId/assets', auth, role(['admin']), assetModuleController.createAsset);
+  // GET /api/assets/:moduleId/assets (Lista todos os ativos de um módulo)
+  router.get('/:moduleId/assets', auth, assetModuleController.getAssets);
 
-// GET /api/modules/:moduleId/assets/:assetId (Busca um ativo específico)
-router.get('/:moduleId/assets/:assetId', auth, assetModuleController.getAssetById);
+  // POST /api/assets/:moduleId/assets (Cria um novo ativo)
+  router.post('/:moduleId/assets', auth, role(['admin']), assetModuleController.createAsset);
 
-// PUT /api/modules/:moduleId/assets/:assetId (Atualiza um ativo específico)
-router.put('/:moduleId/assets/:assetId', auth, role(['admin']), assetModuleController.updateAsset);
+  // GET /api/assets/:moduleId/assets/:assetId (Busca um ativo específico)
+  router.get('/:moduleId/assets/:assetId', auth, assetModuleController.getAssetById);
 
-// DELETE /api/modules/:moduleId/assets/:assetId (Deleta um ativo específico)
-//
-router.delete('/:moduleId/assets/:assetId', auth, role(['admin']), assetModuleController.deleteAsset);
+  // PUT /api/assets/:moduleId/assets/:assetId (Atualiza um ativo específico)
+  router.put('/:moduleId/assets/:assetId', auth, role(['admin']), assetModuleController.updateAsset);
 
+  // DELETE /api/assets/:moduleId/assets/:assetId (Deleta um ativo específico)
+  router.delete('/:moduleId/assets/:assetId', auth, role(['admin']), assetModuleController.deleteAsset);
 
-// --- Rotas de Permissões de Módulo ---
+  // --- Rotas de Permissões de Módulo ---
 
-// GET /api/modules/:moduleId/permissions (Lista IDs de usuários com acesso ao módulo)
-//
-router.get('/:moduleId/permissions', auth, role(['admin']), assetModuleController.getModulePermissions);
+  // GET /api/assets/:moduleId/permissions (Lista IDs de usuários com acesso ao módulo)
+  router.get('/:moduleId/permissions', auth, role(['admin']), assetModuleController.getModulePermissions);
 
-// PUT /api/modules/:moduleId/permissions (Define a lista de usuários com acesso)
-//
-router.put('/:moduleId/permissions', auth, role(['admin']), assetModuleController.updateModulePermissions);
+  // PUT /api/assets/:moduleId/permissions (Define a lista de usuários com acesso)
+  router.put('/:moduleId/permissions', auth, role(['admin']), assetModuleController.updateModulePermissions);
 
-
-module.exports = router;
+  return router;
+};

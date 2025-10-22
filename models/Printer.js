@@ -2,16 +2,18 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-/**
- * Schema Mongoose para Impressoras, baseado em:
- * - lib/models/asset_module_base.dart (ManagedAsset)
- * - lib/models/printer.dart (Printer)
- */
 const PrinterSchema = new Schema({
   // --- Campos base de ManagedAsset ---
   asset_name: { type: String, required: true, trim: true },
   asset_type: { type: String, required: true, default: 'printer' },
-  serial_number: { type: String, required: true, unique: true, trim: true, sparse: true, default: 'N/A' },
+  serial_number: { 
+    type: String, 
+    required: true, 
+    trim: true, 
+    sparse: true, 
+    default: 'N/A'
+    // REMOVIDO: unique: true
+  },
   status: {
     type: String,
     enum: ['online', 'offline', 'maintenance', 'Sem Monitorar'],
@@ -33,7 +35,7 @@ const PrinterSchema = new Schema({
   // Conectividade
   ip_address: { type: String, trim: true },
   mac_address: { type: String, trim: true },
-  connection_type: { type: String, default: 'network' }, // 'network', 'usb', etc.
+  connection_type: { type: String, default: 'network' },
   usb_port: { type: String },
 
   // Status operacional
@@ -66,7 +68,7 @@ const PrinterSchema = new Schema({
   last_maintenance_date: { type: Date },
   maintenance_info: { type: Map, of: Schema.Types.Mixed },
 
-  // --- Campos de Manutenção (para consistência) ---
+  // --- Campos de Manutenção ---
   maintenance_status: { type: Boolean, default: false },
   maintenance_ticket: { type: String, default: '' },
   maintenance_reason: { type: String, default: '' },
@@ -76,12 +78,12 @@ const PrinterSchema = new Schema({
     ticket: { type: String }
   }]
 }, {
-  timestamps: true // Adiciona createdAt e updatedAt
+  timestamps: true
 });
 
-// --- Índices ---
+// --- Índices (definidos UMA ÚNICA VEZ) ---
 PrinterSchema.index({ asset_name: 1 });
-PrinterSchema.index({ serial_number: 1 });
+PrinterSchema.index({ serial_number: 1 }, { unique: true, sparse: true });
 PrinterSchema.index({ unit: 1 });
 PrinterSchema.index({ ip_address: 1 });
 PrinterSchema.index({ mac_address: 1 });
