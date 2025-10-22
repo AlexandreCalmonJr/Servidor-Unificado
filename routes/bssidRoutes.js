@@ -13,6 +13,8 @@ const bssidRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
       .withMessage('mac_address_radio deve ser um MAC válido'),
     body('sector').notEmpty().withMessage('sector é obrigatório'),
     body('floor').notEmpty().withMessage('floor é obrigatório'),
+    // AJUSTE: Validação opcional para o novo campo
+    body('unitName').optional().trim(),
   ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -20,8 +22,15 @@ const bssidRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
       return res.status(400).json({ errors: errors.array() });
     }
     try {
-      const { mac_address_radio, sector, floor } = req.body;
-      const mapping = new BssidMapping({ mac_address_radio, sector, floor });
+      // AJUSTE: Extrai unitName do body
+      const { mac_address_radio, sector, floor, unitName } = req.body;
+      const mapping = new BssidMapping({ 
+        mac_address_radio, 
+        sector, 
+        floor, 
+        // AJUSTE: Salva o novo campo
+        unitName: unitName || '' 
+      });
       await mapping.save();
       logger.info(`Mapeamento de BSSID criado: ${mac_address_radio}`);
       res.status(201).json(mapping);
@@ -43,7 +52,9 @@ const bssidRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
         _id: mapping._id,
         mac_address_radio: mapping.mac_address_radio || '00:00:00:00:00:00',
         sector: mapping.sector || 'Desconhecido',
-        floor: mapping.floor || 'Desconhecido'
+        floor: mapping.floor || 'Desconhecido',
+        // AJUSTE: Envia unitName (com valor padrão)
+        unitName: mapping.unitName || ''
       }));
       logger.info(`JSON retornado para /api/bssid-mappings: ${JSON.stringify(safeMappings)}`);
       res.status(200).json(safeMappings);
@@ -53,13 +64,43 @@ const bssidRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
     }
   });
 
+  // Listar mapeamentos de BSSID POR UNIDADE
+  router.get('/by-unit/:unitName', auth, getApiLimiter, async (req, res) => {
+    try {
+      const { unitName } = req.params;
+      if (!unitName) {
+        return res.status(400).json({ error: 'Nome da unidade é obrigatório' });
+      }
+
+      const mappings = await BssidMapping.find({ unitName: unitName }).lean();
+      
+      // Mesma lógica de segurança da rota GET /
+      const safeMappings = mappings.map(mapping => ({
+        _id: mapping._id,
+        mac_address_radio: mapping.mac_address_radio || '00:00:00:00:00:00',
+        sector: mapping.sector || 'Desconhecido',
+        floor: mapping.floor || 'Desconhecido',
+        unitName: mapping.unitName || ''
+      }));
+
+      logger.info(`JSON retornado para /api/bssid-mappings/by-unit/${unitName}`);
+      res.status(200).json(safeMappings);
+
+    } catch (err) {
+      logger.error(`Erro ao obter mapeamentos por unidade: ${err.message}`);
+      res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  });
+
   // Atualizar mapeamento de BSSID
   router.put('/:mac_address_radio', auth, modifyApiLimiter, async (req, res) => {
     try {
-      const { sector, floor } = req.body;
+      // AJUSTE: Extrai unitName para atualização
+      const { sector, floor, unitName } = req.body;
       const mapping = await BssidMapping.findOneAndUpdate(
         { mac_address_radio: req.params.mac_address_radio },
-        { sector, floor },
+        // AJUSTE: Atualiza unitName (se fornecido)
+        { sector, floor, unitName },
         { new: true }
       );
       if (!mapping) {
@@ -87,6 +128,36 @@ const bssidRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   });
+
+  router.get('/by-unit/:unitName', auth, getApiLimiter, async (req, res) => {
+    try {
+      const { unitName } = req.params;
+      if (!unitName) {
+        return res.status(400).json({ error: 'Nome da unidade é obrigatório' });
+      }
+
+      // Busca no DB filtrando pelo 'unitName'
+      const mappings = await BssidMapping.find({ unitName: unitName }).lean();
+      
+      // Mesma lógica de segurança da rota GET /
+      const safeMappings = mappings.map(mapping => ({
+        _id: mapping._id,
+        mac_address_radio: mapping.mac_address_radio || '00:00:00:00:00:00',
+        sector: mapping.sector || 'Desconhecido',
+        floor: mapping.floor || 'Desconhecido',
+        unitName: mapping.unitName || ''
+      }));
+
+      logger.info(`BSSIDs por unidade solicitados por ${req.user.username} para ${unitName}: ${safeMappings.length} encontrados`);
+      // Retorna diretamente o array de mapeamentos
+      res.status(200).json(safeMappings);
+
+    } catch (err) {
+      logger.error(`Erro ao obter mapeamentos por unidade: ${err.message}`);
+      res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  });
+
 
   return router;
 };

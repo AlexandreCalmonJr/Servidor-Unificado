@@ -9,28 +9,43 @@ const unitRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   // Criar mapeamento de unidade (apenas admin)
   router.post('/', auth, authorize('admin'), modifyApiLimiter, async (req, res) => {
     try {
-      const { name, ip_range_start, ip_range_end } = req.body;
-      if (!name || !ip_range_start || !ip_range_end) {
+      // AJUSTE: 'ip_ranges' agora é esperado como um array
+      const { name, ip_ranges } = req.body;
+      
+      if (!name || !ip_ranges || !Array.isArray(ip_ranges) || ip_ranges.length === 0) {
         return res.status(400).json({ 
           success: false,
-          message: 'name, ip_range_start e ip_range_end são obrigatórios' 
+          message: 'name e um array ip_ranges (com pelo menos uma faixa) são obrigatórios' 
         });
       }
-      if (!isValidIPv4(ip_range_start) || !isValidIPv4(ip_range_end)) {
-        return res.status(400).json({ 
-          success: false,
-          message: 'ip_range_start e ip_range_end devem ser IPs válidos no formato xxx.xxx.xxx.xxx' 
-        });
+
+      // Valida cada faixa de IP no array
+      for (const range of ip_ranges) {
+        const { start, end } = range;
+        if (!start || !end) {
+          return res.status(400).json({ 
+            success: false,
+            message: 'Cada faixa em ip_ranges deve conter start e end' 
+          });
+        }
+        if (!isValidIPv4(start) || !isValidIPv4(end)) {
+          return res.status(400).json({ 
+            success: false,
+            message: `IPs inválidos na faixa: ${start} - ${end}. Formato xxx.xxx.xxx.xxx esperado.` 
+          });
+        }
+        const startInt = ipToInt(start);
+        const endInt = ipToInt(end);
+        if (startInt > endInt) {
+          return res.status(400).json({ 
+            success: false,
+            message: `IP inicial deve ser menor que o IP final na faixa: ${start} - ${end}` 
+          });
+        }
       }
-      const startInt = ipToInt(ip_range_start);
-      const endInt = ipToInt(ip_range_end);
-      if (startInt > endInt) {
-        return res.status(400).json({ 
-          success: false,
-          message: 'ip_range_start deve ser menor ou igual a ip_range_end' 
-        });
-      }
-      const unit = new UnitMapping({ name, ip_range_start, ip_range_end });
+
+      // AJUSTE: Salva o objeto com o array
+      const unit = new UnitMapping({ name, ip_ranges });
       await unit.save();
       logger.info(`Unidade criada por ${req.user.username}: ${name}`);
       res.status(201).json({
@@ -55,6 +70,7 @@ const unitRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   });
 
   // Listar unidades (todos os usuários autenticados podem ver)
+  // (Esta rota não precisa de mudanças, ela retorna o que estiver no DB)
   router.get('/', auth, getApiLimiter, async (req, res) => {
     try {
       const units = await UnitMapping.find().lean();
@@ -62,7 +78,7 @@ const unitRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
       res.status(200).json({
         success: true,
         message: 'Unidades listadas com sucesso',
-        units,
+        units, // Agora 'units' conterá o array 'ip_ranges'
         total: units.length
       });
     } catch (err) {
@@ -77,33 +93,61 @@ const unitRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   // Atualizar unidade (apenas admin)
   router.put('/:name', auth, authorize('admin'), modifyApiLimiter, async (req, res) => {
     try {
-      const { name, ip_range_start, ip_range_end } = req.body;
+      // AJUSTE: Recebe 'ip_ranges' para atualização
+      const { name, ip_ranges } = req.body;
       
-      if (ip_range_start && !isValidIPv4(ip_range_start)) {
-        return res.status(400).json({ 
-          success: false,
-          message: 'ip_range_start deve ser um IP válido' 
-        });
-      }
-      if (ip_range_end && !isValidIPv4(ip_range_end)) {
-        return res.status(400).json({ 
-          success: false,
-          message: 'ip_range_end deve ser um IP válido' 
-        });
+      const updateData = {};
+      if (name) {
+        updateData.name = name;
       }
       
+      // Se ip_ranges foi fornecido, valida antes de adicionar ao updateData
+      if (ip_ranges) {
+        if (!Array.isArray(ip_ranges) || ip_ranges.length === 0) {
+           return res.status(400).json({ 
+            success: false,
+            message: 'ip_ranges deve ser um array com pelo menos uma faixa' 
+          });
+        }
+         // Valida cada faixa de IP no array
+        for (const range of ip_ranges) {
+          const { start, end } = range;
+          if (!start || !end) {
+            return res.status(400).json({ 
+              success: false,
+              message: 'Cada faixa em ip_ranges deve conter start e end' 
+            });
+          }
+          if (!isValidIPv4(start) || !isValidIPv4(end)) {
+            return res.status(400).json({ 
+              success: false,
+              message: `IPs inválidos na faixa: ${start} - ${end}.` 
+            });
+          }
+          if (ipToInt(start) > ipToInt(end)) {
+            return res.status(400).json({ 
+              success: false,
+              message: `IP inicial deve ser menor que o IP final na faixa: ${start} - ${end}` 
+            });
+          }
+        }
+        // Adiciona ao objeto de atualização
+        updateData.ip_ranges = ip_ranges;
+      }
+
       const unit = await UnitMapping.findOneAndUpdate(
         { name: req.params.name },
-        { name, ip_range_start, ip_range_end },
+        updateData, // Usa o objeto de atualização construído
         { new: true }
       );
+
       if (!unit) {
         return res.status(404).json({ 
           success: false,
           message: 'Unidade não encontrada' 
         });
       }
-      logger.info(`Unidade atualizada por ${req.user.username}: ${name}`);
+      logger.info(`Unidade atualizada por ${req.user.username}: ${unit.name}`);
       res.status(200).json({
         success: true,
         message: 'Unidade atualizada com sucesso',
@@ -119,6 +163,7 @@ const unitRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   });
 
   // Excluir unidade (apenas admin)
+  // (Esta rota não precisa de mudanças)
   router.delete('/:name', auth, authorize('admin'), modifyApiLimiter, async (req, res) => {
     try {
       const unit = await UnitMapping.findOneAndDelete({ name: req.params.name });
