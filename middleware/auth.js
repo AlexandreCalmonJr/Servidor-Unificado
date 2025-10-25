@@ -1,44 +1,94 @@
+// middleware/auth.js - VERSÃO ALINHADA
 const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 
-const auth = (req, res, next) => {
-    // Os headers HTTP são 'case-insensitive', o Express converte para minúsculas
-    const authHeader = req.headers['authorization'];
-    const staticToken = req.headers['auth_token'];
-
-    // 1. Tenta validar como JWT (nova lógica)
-    if (authHeader) {
-        const token = authHeader.split(' ')[1];
-        if (token) {
-            try {
-                const decoded = jwt.verify(token, process.env.JWT_SECRET);
-                // Garante que 'sector' está no req.user para filtragem
-                req.user = { ...decoded, sector: decoded.sector || 'Desconhecido' }; 
-                req.logger.info(`Autenticação bem-sucedida (JWT) para usuário: ${decoded.username}, Setor: ${req.user.sector}`);
-                return next();
-            } catch (err) {
-                req.logger.debug(`Falha na validação JWT: ${err.message}. A tentar token estático.`);
-                // Se falhar o JWT, não retorna erro ainda, deixa tentar o token estático
-            }
-        }
+const auth = async (req, res, next) => {
+  const logger = req.logger || console;
+  
+  try {
+    // SUPORTA MÚLTIPLOS FORMATOS DE TOKEN
+    // 1. Header padrão: Authorization: Bearer <token>
+    // 2. Header customizado: AUTH_TOKEN: <token>
+    // 3. Query parameter: ?token=<token> (para agentes)
+    
+    let token = null;
+    
+    // Prioridade 1: AUTH_TOKEN (usado pelos agentes)
+    if (req.headers['auth_token']) {
+      token = req.headers['auth_token'];
+      logger.info('Token recebido via AUTH_TOKEN header');
+    }
+    // Prioridade 2: Authorization Bearer
+    else if (req.headers.authorization?.startsWith('Bearer ')) {
+      token = req.headers.authorization.substring(7);
+      logger.info('Token recebido via Authorization Bearer');
+    }
+    // Prioridade 3: Query parameter (para agentes que não podem customizar headers)
+    else if (req.query.token) {
+      token = req.query.token;
+      logger.info('Token recebido via query parameter');
     }
 
-    // 2. Tenta validar como token estático (lógica legacy)
-    if (staticToken) {
-        if (staticToken === process.env.AUTH_TOKEN) {
-            // Para compatibilidade, define um usuário "genérico" com role 'admin' e setor 'Global'
-            req.user = { role: 'admin', username: 'legacy_user', sector: 'Global' }; 
-            req.logger.info(`Autenticação bem-sucedida (Legacy Token)`);
-            return next();
-        } else {
-            // Encontrou um header auth_token, mas o valor está errado
-            req.logger.warn(`Tentativa de acesso com token estático inválido: ${req.ip}`);
-            return res.status(403).json({ error: 'Token inválido' });
-        }
+    if (!token) {
+      logger.warn(`Tentativa de acesso sem token - IP: ${req.ip} - Path: ${req.path}`);
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Token de autenticação não fornecido' 
+      });
     }
 
-    // 3. Se nenhuma das autenticações funcionou
-    req.logger.warn(`Tentativa de acesso sem token (Headers verificados: authorization, auth_token): ${req.ip}`);
-    res.status(401).json({ error: 'Token de autenticação não fornecido' });
+    // Verifica e decodifica o token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+    
+    // Busca o usuário completo
+    const user = await User.findById(decoded.id).select('-password');
+    
+    if (!user) {
+      logger.warn(`Token válido mas usuário não encontrado - ID: ${decoded.id}`);
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Usuário não encontrado' 
+      });
+    }
+
+    // Adiciona dados do usuário à requisição
+    req.user = {
+      id: user._id.toString(),
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      sector: user.sector || 'Global',
+      permissions: user.role === 'admin' 
+        ? ['mobile', 'totem', 'admin'] 
+        : (user.permissions || [])
+    };
+
+    logger.info(`Autenticação bem-sucedida - User: ${user.username} (${user.role})`);
+    next();
+
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError') {
+      logger.warn(`Token inválido - IP: ${req.ip} - Erro: ${error.message}`);
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Token inválido' 
+      });
+    }
+    
+    if (error.name === 'TokenExpiredError') {
+      logger.warn(`Token expirado - IP: ${req.ip}`);
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Token expirado. Faça login novamente.' 
+      });
+    }
+
+    logger.error(`Erro na autenticação - IP: ${req.ip} - Erro: ${error.message}`);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erro no servidor durante autenticação' 
+    });
+  }
 };
 
 module.exports = auth;
