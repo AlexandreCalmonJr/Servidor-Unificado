@@ -4482,3 +4482,286 @@
 {"level":"info","message":"Usuário 'admin' (role: admin) solicitando TODOS os dispositivos.","timestamp":"2025-10-22T02:44:54.315Z"}
 {"level":"info","message":"Lista de dispositivos retornada: 0 dispositivos (Role: admin, Setor: Global)","timestamp":"2025-10-22T02:44:54.316Z"}
 {"level":"info","message":"Executando tarefa agendada para verificação de status dos dispositivos.","timestamp":"2025-10-22T02:45:00.080Z"}
+{"level":"info","message":"Tentando conectar ao MongoDB: mongodb://localhost:27017/mdm","timestamp":"2025-10-25T00:03:49.588Z"}
+{"level":"info","message":"🚀 MDM Server rodando em http://192.168.0.84:3000","timestamp":"2025-10-25T00:03:49.639Z"}
+{"level":"info","message":"📱 Provisionamento disponível em: http://192.168.0.84:3000/provision/{token}","timestamp":"2025-10-25T00:03:49.645Z"}
+{"level":"info","message":"📊 Dashboard disponível em: http://192.168.0.84:3000/dashboard","timestamp":"2025-10-25T00:03:49.650Z"}
+{"level":"info","message":"Conectado ao MongoDB com sucesso","timestamp":"2025-10-25T00:03:49.679Z"}
+{"level":"info","message":"Conexão MongoDB configurada com reconexão automática","timestamp":"2025-10-25T00:03:49.682Z"}
+{"level":"info","message":"🔄 Executando verificação inicial de status dos dispositivos...","timestamp":"2025-10-25T00:03:49.683Z"}
+{"level":"info","message":"Iniciando verificação de status dos dispositivos...","timestamp":"2025-10-25T00:03:49.684Z"}
+{"level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","timestamp":"2025-10-25T00:03:49.795Z"}
+{"level":"info","message":"Verificação de status concluída.","timestamp":"2025-10-25T00:03:49.796Z"}
+{"level":"info","message":"⏰ Executando tarefa agendada de verificação de status.","timestamp":"2025-10-25T00:05:00.302Z"}
+{"level":"info","message":"Iniciando verificação de status dos dispositivos...","timestamp":"2025-10-25T00:05:00.303Z"}
+{"level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","timestamp":"2025-10-25T00:05:00.308Z"}
+{"level":"info","message":"Verificação de status concluída.","timestamp":"2025-10-25T00:05:00.308Z"}
+{"level":"info","message":"Requisição recebida: POST /api/auth/login from 192.168.0.84","timestamp":"2025-10-25T00:06:25.390Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:06:25.516Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules from 192.168.0.84","timestamp":"2025-10-25T00:06:26.660Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:06:26.663Z"}
+{"level":"info","message":"Módulos listados por admin: 0 módulos","timestamp":"2025-10-25T00:06:26.668Z"}
+{"level":"info","message":"Requisição recebida: GET /api/auth/users from 192.168.0.84","timestamp":"2025-10-25T00:06:37.047Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:06:37.049Z"}
+{"level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","timestamp":"2025-10-25T00:06:37.053Z"}
+{"level":"info","message":"Requisição recebida: GET /api/units from 192.168.0.84","timestamp":"2025-10-25T00:06:38.754Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:06:38.756Z"}
+{"level":"info","message":"🏢 Unidades listadas: 0 unidade(s)","timestamp":"2025-10-25T00:06:38.758Z"}
+{"level":"info","message":"Requisição recebida: GET /api/bssid-mappings from 192.168.0.84","timestamp":"2025-10-25T00:06:38.785Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:06:38.786Z"}
+{"level":"info","message":"📡 BSSIDs listados: 0 mapeamentos","timestamp":"2025-10-25T00:06:38.789Z"}
+{"level":"info","message":"Requisição recebida: POST /api/units from 192.168.0.84","timestamp":"2025-10-25T00:07:15.916Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:07:15.918Z"}
+{"level":"info","message":"✅ Unidade criada: Casa com 1 faixa(s)","timestamp":"2025-10-25T00:07:15.933Z"}
+{"level":"info","message":"Requisição recebida: GET /api/units from 192.168.0.84","timestamp":"2025-10-25T00:07:15.947Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:07:15.950Z"}
+{"level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","timestamp":"2025-10-25T00:07:15.952Z"}
+{"level":"info","message":"Requisição recebida: GET /api/bssid-mappings from 192.168.0.84","timestamp":"2025-10-25T00:07:16.047Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:07:16.049Z"}
+{"level":"info","message":"📡 BSSIDs listados: 0 mapeamentos","timestamp":"2025-10-25T00:07:16.051Z"}
+{"level":"info","message":"Requisição recebida: GET /api/bssid-mappings/by-unit/Casa from 192.168.0.84","timestamp":"2025-10-25T00:07:19.144Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:07:19.146Z"}
+{"level":"info","message":"🔍 BSSIDs por unidade 'Casa': 0 encontrados","timestamp":"2025-10-25T00:07:19.148Z"}
+{"level":"info","message":"Requisição recebida: GET /api/units from 192.168.0.84","timestamp":"2025-10-25T00:07:25.462Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:07:25.463Z"}
+{"level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","timestamp":"2025-10-25T00:07:25.466Z"}
+{"level":"info","message":"Requisição recebida: GET /api/bssid-mappings from 192.168.0.84","timestamp":"2025-10-25T00:07:25.581Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:07:25.583Z"}
+{"level":"info","message":"📡 BSSIDs listados: 0 mapeamentos","timestamp":"2025-10-25T00:07:25.585Z"}
+{"level":"info","message":"Requisição recebida: GET /api/bssid-mappings/by-unit/Casa from 192.168.0.84","timestamp":"2025-10-25T00:07:32.301Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:07:32.303Z"}
+{"level":"info","message":"🔍 BSSIDs por unidade 'Casa': 0 encontrados","timestamp":"2025-10-25T00:07:32.305Z"}
+{"level":"info","message":"Requisição recebida: GET /api/units from 192.168.0.84","timestamp":"2025-10-25T00:07:37.888Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:07:37.889Z"}
+{"level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","timestamp":"2025-10-25T00:07:37.891Z"}
+{"level":"info","message":"Requisição recebida: GET /api/bssid-mappings from 192.168.0.84","timestamp":"2025-10-25T00:07:37.981Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:07:37.983Z"}
+{"level":"info","message":"📡 BSSIDs listados: 0 mapeamentos","timestamp":"2025-10-25T00:07:37.985Z"}
+{"level":"info","message":"Requisição recebida: GET /api/units from 192.168.0.84","timestamp":"2025-10-25T00:07:41.157Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:07:41.159Z"}
+{"level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","timestamp":"2025-10-25T00:07:41.161Z"}
+{"level":"info","message":"Requisição recebida: GET /api/bssid-mappings from 192.168.0.84","timestamp":"2025-10-25T00:07:41.198Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:07:41.200Z"}
+{"level":"info","message":"📡 BSSIDs listados: 0 mapeamentos","timestamp":"2025-10-25T00:07:41.203Z"}
+{"level":"info","message":"Requisição recebida: GET /api/devices from 192.168.0.84","timestamp":"2025-10-25T00:07:41.282Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:07:41.283Z"}
+{"level":"info","message":"Usuário 'admin' (role: admin) solicitando TODOS os dispositivos.","timestamp":"2025-10-25T00:07:41.285Z"}
+{"level":"info","message":"Lista de dispositivos retornada: 0 dispositivos (Role: admin, Setor: Global)","timestamp":"2025-10-25T00:07:41.285Z"}
+{"level":"info","message":"Requisição recebida: GET /api/auth/users from 192.168.0.84","timestamp":"2025-10-25T00:07:55.644Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:07:55.646Z"}
+{"level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","timestamp":"2025-10-25T00:07:55.648Z"}
+{"level":"info","message":"Requisição recebida: GET /api/units from 192.168.0.84","timestamp":"2025-10-25T00:07:57.138Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:07:57.139Z"}
+{"level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","timestamp":"2025-10-25T00:07:57.141Z"}
+{"level":"info","message":"Requisição recebida: GET /api/bssid-mappings from 192.168.0.84","timestamp":"2025-10-25T00:07:57.162Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:07:57.164Z"}
+{"level":"info","message":"📡 BSSIDs listados: 0 mapeamentos","timestamp":"2025-10-25T00:07:57.166Z"}
+{"level":"info","message":"Requisição recebida: GET /api/server/apks from 192.168.0.84","timestamp":"2025-10-25T00:08:03.431Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:08:03.433Z"}
+{"level":"info","message":"APKs listados por admin: 1 arquivo(s)","timestamp":"2025-10-25T00:08:03.438Z"}
+{"level":"info","message":"Requisição recebida: GET /api/units from 192.168.0.84","timestamp":"2025-10-25T00:08:06.847Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:08:06.849Z"}
+{"level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","timestamp":"2025-10-25T00:08:06.850Z"}
+{"level":"info","message":"Requisição recebida: GET /api/bssid-mappings from 192.168.0.84","timestamp":"2025-10-25T00:08:06.851Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:08:06.853Z"}
+{"level":"info","message":"📡 BSSIDs listados: 0 mapeamentos","timestamp":"2025-10-25T00:08:06.855Z"}
+{"level":"info","message":"Requisição recebida: GET /api/monitoring/totems from 192.168.0.84","timestamp":"2025-10-25T00:08:06.903Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:08:06.904Z"}
+{"level":"info","message":"Requisição recebida: GET /api/auth/users from 192.168.0.84","timestamp":"2025-10-25T00:08:10.566Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:08:10.567Z"}
+{"level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","timestamp":"2025-10-25T00:08:10.570Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules from 192.168.0.84","timestamp":"2025-10-25T00:08:12.258Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:08:12.259Z"}
+{"level":"info","message":"Módulos listados por admin: 0 módulos","timestamp":"2025-10-25T00:08:12.261Z"}
+{"level":"info","message":"Requisição recebida: POST /api/modules from 192.168.0.84","timestamp":"2025-10-25T00:08:43.759Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:08:43.761Z"}
+{"level":"info","message":"Novo módulo criado: Notebook (notebook) por admin","timestamp":"2025-10-25T00:08:43.778Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules from 192.168.0.84","timestamp":"2025-10-25T00:08:43.793Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:08:43.796Z"}
+{"level":"info","message":"Módulos listados por admin: 1 módulos","timestamp":"2025-10-25T00:08:43.818Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules from 192.168.0.84","timestamp":"2025-10-25T00:08:50.741Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:08:50.742Z"}
+{"level":"info","message":"Requisição recebida: GET /api/auth/users from 192.168.0.84","timestamp":"2025-10-25T00:08:50.744Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:08:50.746Z"}
+{"level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","timestamp":"2025-10-25T00:08:50.752Z"}
+{"level":"info","message":"Módulos listados por admin: 1 módulos","timestamp":"2025-10-25T00:08:50.754Z"}
+{"level":"info","message":"Requisição recebida: GET /api/units from 192.168.0.84","timestamp":"2025-10-25T00:08:54.372Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:08:54.373Z"}
+{"level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","timestamp":"2025-10-25T00:08:54.375Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/assets from 192.168.0.84","timestamp":"2025-10-25T00:08:54.434Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:08:54.436Z"}
+{"level":"info","message":"Ativos listados do módulo Notebook: 0 por admin","timestamp":"2025-10-25T00:08:54.443Z"}
+{"level":"info","message":"Requisição recebida: GET /api/auth/users from 192.168.0.84","timestamp":"2025-10-25T00:08:59.234Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:08:59.236Z"}
+{"level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","timestamp":"2025-10-25T00:08:59.239Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/permissions from 192.168.0.84","timestamp":"2025-10-25T00:08:59.256Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:08:59.258Z"}
+{"level":"info","message":"Requisição recebida: GET /api/auth/users from 192.168.0.84","timestamp":"2025-10-25T00:09:01.189Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:09:01.191Z"}
+{"level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","timestamp":"2025-10-25T00:09:01.194Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/permissions from 192.168.0.84","timestamp":"2025-10-25T00:09:01.210Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:09:01.211Z"}
+{"level":"info","message":"Requisição recebida: GET /api/auth/users from 192.168.0.84","timestamp":"2025-10-25T00:09:09.190Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:09:09.192Z"}
+{"level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","timestamp":"2025-10-25T00:09:09.194Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/permissions from 192.168.0.84","timestamp":"2025-10-25T00:09:09.202Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:09:09.204Z"}
+{"level":"info","message":"Requisição recebida: GET /api/auth/users from 192.168.0.84","timestamp":"2025-10-25T00:09:18.677Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:09:18.678Z"}
+{"level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","timestamp":"2025-10-25T00:09:18.680Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/permissions from 192.168.0.84","timestamp":"2025-10-25T00:09:18.697Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:09:18.699Z"}
+{"level":"info","message":"Requisição recebida: GET /api/units from 192.168.0.84","timestamp":"2025-10-25T00:09:22.188Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:09:22.190Z"}
+{"level":"info","message":"Requisição recebida: GET /api/bssid-mappings from 192.168.0.84","timestamp":"2025-10-25T00:09:22.191Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:09:22.193Z"}
+{"level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","timestamp":"2025-10-25T00:09:22.194Z"}
+{"level":"info","message":"📡 BSSIDs listados: 0 mapeamentos","timestamp":"2025-10-25T00:09:22.196Z"}
+{"level":"info","message":"Requisição recebida: GET /api/monitoring/totems from 192.168.0.84","timestamp":"2025-10-25T00:09:22.257Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:09:22.260Z"}
+{"level":"info","message":"Requisição recebida: GET /api/units from 192.168.0.84","timestamp":"2025-10-25T00:09:25.022Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:09:25.023Z"}
+{"level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","timestamp":"2025-10-25T00:09:25.025Z"}
+{"level":"info","message":"Requisição recebida: GET /api/bssid-mappings from 192.168.0.84","timestamp":"2025-10-25T00:09:25.080Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:09:25.081Z"}
+{"level":"info","message":"📡 BSSIDs listados: 0 mapeamentos","timestamp":"2025-10-25T00:09:25.083Z"}
+{"level":"info","message":"Requisição recebida: GET /api/devices from 192.168.0.84","timestamp":"2025-10-25T00:09:25.176Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:09:25.177Z"}
+{"level":"info","message":"Usuário 'admin' (role: admin) solicitando TODOS os dispositivos.","timestamp":"2025-10-25T00:09:25.179Z"}
+{"level":"info","message":"Lista de dispositivos retornada: 0 dispositivos (Role: admin, Setor: Global)","timestamp":"2025-10-25T00:09:25.179Z"}
+{"level":"info","message":"Requisição recebida: GET /api/units from 192.168.0.84","timestamp":"2025-10-25T00:09:29.404Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:09:29.405Z"}
+{"level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","timestamp":"2025-10-25T00:09:29.407Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/assets from 192.168.0.84","timestamp":"2025-10-25T00:09:29.455Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:09:29.457Z"}
+{"level":"info","message":"Ativos listados do módulo Notebook: 0 por admin","timestamp":"2025-10-25T00:09:29.462Z"}
+{"level":"info","message":"Requisição recebida: GET /api/auth/users from 192.168.0.84","timestamp":"2025-10-25T00:09:33.142Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:09:33.143Z"}
+{"level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","timestamp":"2025-10-25T00:09:33.146Z"}
+{"level":"info","message":"Requisição recebida: GET /api/units from 192.168.0.84","timestamp":"2025-10-25T00:09:34.539Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:09:34.541Z"}
+{"level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","timestamp":"2025-10-25T00:09:34.542Z"}
+{"level":"info","message":"Requisição recebida: GET /api/bssid-mappings from 192.168.0.84","timestamp":"2025-10-25T00:09:34.560Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:09:34.561Z"}
+{"level":"info","message":"📡 BSSIDs listados: 0 mapeamentos","timestamp":"2025-10-25T00:09:34.563Z"}
+{"level":"info","message":"Requisição recebida: GET /api/bssid-mappings/by-unit/Casa from 192.168.0.84","timestamp":"2025-10-25T00:09:35.925Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:09:35.926Z"}
+{"level":"info","message":"🔍 BSSIDs por unidade 'Casa': 0 encontrados","timestamp":"2025-10-25T00:09:35.928Z"}
+{"level":"info","message":"Requisição recebida: GET /api/units from 192.168.0.84","timestamp":"2025-10-25T00:09:42.572Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:09:42.574Z"}
+{"level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","timestamp":"2025-10-25T00:09:42.576Z"}
+{"level":"info","message":"Requisição recebida: GET /api/bssid-mappings from 192.168.0.84","timestamp":"2025-10-25T00:09:42.667Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:09:42.669Z"}
+{"level":"info","message":"📡 BSSIDs listados: 0 mapeamentos","timestamp":"2025-10-25T00:09:42.670Z"}
+{"level":"info","message":"⏰ Executando tarefa agendada de verificação de status.","timestamp":"2025-10-25T00:10:00.585Z"}
+{"level":"info","message":"Iniciando verificação de status dos dispositivos...","timestamp":"2025-10-25T00:10:00.586Z"}
+{"level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","timestamp":"2025-10-25T00:10:00.589Z"}
+{"level":"info","message":"Verificação de status concluída.","timestamp":"2025-10-25T00:10:00.589Z"}
+{"level":"info","message":"Requisição recebida: GET /api/bssid-mappings/by-unit/Casa from 192.168.0.84","timestamp":"2025-10-25T00:10:03.014Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:10:03.016Z"}
+{"level":"info","message":"🔍 BSSIDs por unidade 'Casa': 0 encontrados","timestamp":"2025-10-25T00:10:03.017Z"}
+{"level":"info","message":"Requisição recebida: GET /api/units from 192.168.0.84","timestamp":"2025-10-25T00:10:04.844Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:10:04.845Z"}
+{"level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","timestamp":"2025-10-25T00:10:04.846Z"}
+{"level":"info","message":"Requisição recebida: GET /api/bssid-mappings from 192.168.0.84","timestamp":"2025-10-25T00:10:04.927Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:10:04.929Z"}
+{"level":"info","message":"📡 BSSIDs listados: 0 mapeamentos","timestamp":"2025-10-25T00:10:04.931Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules from 192.168.0.84","timestamp":"2025-10-25T00:10:16.023Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:10:16.024Z"}
+{"level":"info","message":"Módulos listados por admin: 1 módulos","timestamp":"2025-10-25T00:10:16.028Z"}
+{"level":"info","message":"Requisição recebida: PUT /api/modules/68fc150b6519a711040ec074 from 192.168.0.84","timestamp":"2025-10-25T00:10:32.891Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:10:32.892Z"}
+{"level":"info","message":"Módulo atualizado: Notebook por admin","timestamp":"2025-10-25T00:10:32.923Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules from 192.168.0.84","timestamp":"2025-10-25T00:10:32.931Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:10:32.932Z"}
+{"level":"info","message":"Módulos listados por admin: 1 módulos","timestamp":"2025-10-25T00:10:32.936Z"}
+{"level":"info","message":"Requisição recebida: PUT /api/modules/68fc150b6519a711040ec074 from 192.168.0.84","timestamp":"2025-10-25T00:10:42.312Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:10:42.313Z"}
+{"level":"info","message":"Módulo atualizado: Notebook por admin","timestamp":"2025-10-25T00:10:42.318Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules from 192.168.0.84","timestamp":"2025-10-25T00:10:42.334Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:10:42.336Z"}
+{"level":"info","message":"Módulos listados por admin: 1 módulos","timestamp":"2025-10-25T00:10:42.343Z"}
+{"level":"info","message":"Requisição recebida: PUT /api/modules/68fc150b6519a711040ec074 from 192.168.0.84","timestamp":"2025-10-25T00:10:44.978Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:10:44.980Z"}
+{"level":"info","message":"Módulo atualizado: Notebook por admin","timestamp":"2025-10-25T00:10:44.984Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules from 192.168.0.84","timestamp":"2025-10-25T00:10:44.998Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:10:45.000Z"}
+{"level":"info","message":"Módulos listados por admin: 1 módulos","timestamp":"2025-10-25T00:10:45.004Z"}
+{"level":"info","message":"⏰ Executando tarefa agendada de verificação de status.","timestamp":"2025-10-25T00:15:00.945Z"}
+{"level":"info","message":"Iniciando verificação de status dos dispositivos...","timestamp":"2025-10-25T00:15:00.946Z"}
+{"level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","timestamp":"2025-10-25T00:15:00.950Z"}
+{"level":"info","message":"Verificação de status concluída.","timestamp":"2025-10-25T00:15:00.951Z"}
+{"level":"info","message":"Requisição recebida: PUT /api/modules/68fc150b6519a711040ec074 from 192.168.0.84","timestamp":"2025-10-25T00:18:13.136Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:18:13.139Z"}
+{"level":"info","message":"Módulo atualizado: Notebook por admin","timestamp":"2025-10-25T00:18:13.144Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules from 192.168.0.84","timestamp":"2025-10-25T00:18:13.158Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:18:13.161Z"}
+{"level":"info","message":"Módulos listados por admin: 1 módulos","timestamp":"2025-10-25T00:18:13.168Z"}
+{"level":"info","message":"⏰ Executando tarefa agendada de verificação de status.","timestamp":"2025-10-25T00:20:00.348Z"}
+{"level":"info","message":"Iniciando verificação de status dos dispositivos...","timestamp":"2025-10-25T00:20:00.349Z"}
+{"level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","timestamp":"2025-10-25T00:20:00.353Z"}
+{"level":"info","message":"Verificação de status concluída.","timestamp":"2025-10-25T00:20:00.353Z"}
+{"level":"info","message":"Requisição recebida: POST /api/auth/login from 192.168.0.84","timestamp":"2025-10-25T00:22:34.779Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:22:34.922Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules from 192.168.0.84","timestamp":"2025-10-25T00:22:36.079Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:22:36.081Z"}
+{"level":"info","message":"Módulos listados por admin: 1 módulos","timestamp":"2025-10-25T00:22:36.085Z"}
+{"level":"info","message":"Requisição recebida: GET /api/auth/users from 192.168.0.84","timestamp":"2025-10-25T00:22:37.904Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:22:37.906Z"}
+{"level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","timestamp":"2025-10-25T00:22:37.908Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules from 192.168.0.84","timestamp":"2025-10-25T00:22:39.825Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:22:39.827Z"}
+{"level":"info","message":"Módulos listados por admin: 1 módulos","timestamp":"2025-10-25T00:22:39.830Z"}
+{"level":"info","message":"Requisição recebida: DELETE /api/modules/68fc150b6519a711040ec074 from 192.168.0.84","timestamp":"2025-10-25T00:23:00.524Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:23:00.526Z"}
+{"level":"info","message":"Módulo excluído: Notebook (notebook) por admin","timestamp":"2025-10-25T00:23:00.557Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules from 192.168.0.84","timestamp":"2025-10-25T00:23:00.568Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:23:00.569Z"}
+{"level":"info","message":"Módulos listados por admin: 0 módulos","timestamp":"2025-10-25T00:23:00.577Z"}
+{"level":"info","message":"Requisição recebida: POST /api/modules from 192.168.0.84","timestamp":"2025-10-25T00:23:38.096Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:23:38.098Z"}
+{"level":"info","message":"Novo módulo criado: Notebook (notebook) por admin","timestamp":"2025-10-25T00:23:38.104Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules from 192.168.0.84","timestamp":"2025-10-25T00:23:38.113Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:23:38.116Z"}
+{"level":"info","message":"Módulos listados por admin: 1 módulos","timestamp":"2025-10-25T00:23:38.120Z"}
+{"level":"info","message":"Requisição recebida: GET /api/units from 192.168.0.84","timestamp":"2025-10-25T00:23:58.309Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:23:58.311Z"}
+{"level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","timestamp":"2025-10-25T00:23:58.313Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/assets from 192.168.0.84","timestamp":"2025-10-25T00:23:58.388Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:23:58.389Z"}
+{"level":"info","message":"Requisição recebida: GET /api/auth/users from 192.168.0.84","timestamp":"2025-10-25T00:24:02.897Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:24:02.899Z"}
+{"level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","timestamp":"2025-10-25T00:24:02.901Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/permissions from 192.168.0.84","timestamp":"2025-10-25T00:24:02.919Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:24:02.922Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/assets from 192.168.0.84","timestamp":"2025-10-25T00:24:06.442Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:24:06.443Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/assets from 192.168.0.84","timestamp":"2025-10-25T00:24:07.588Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:24:07.589Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/assets from 192.168.0.84","timestamp":"2025-10-25T00:24:07.776Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:24:07.778Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/assets from 192.168.0.84","timestamp":"2025-10-25T00:24:07.972Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:24:07.973Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/assets from 192.168.0.84","timestamp":"2025-10-25T00:24:08.154Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:24:08.156Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/assets from 192.168.0.84","timestamp":"2025-10-25T00:24:08.313Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:24:08.315Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/assets from 192.168.0.84","timestamp":"2025-10-25T00:24:08.494Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:24:08.496Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/assets from 192.168.0.84","timestamp":"2025-10-25T00:24:08.696Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:24:08.698Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/assets from 192.168.0.84","timestamp":"2025-10-25T00:24:08.903Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:24:08.904Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/assets from 192.168.0.84","timestamp":"2025-10-25T00:24:09.092Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:24:09.095Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/assets from 192.168.0.84","timestamp":"2025-10-25T00:24:09.287Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:24:09.288Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/assets from 192.168.0.84","timestamp":"2025-10-25T00:24:09.501Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:24:09.503Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/assets from 192.168.0.84","timestamp":"2025-10-25T00:24:09.725Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:24:09.727Z"}
+{"level":"info","message":"Requisição recebida: GET /api/auth/users from 192.168.0.84","timestamp":"2025-10-25T00:24:18.321Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:24:18.323Z"}
+{"level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","timestamp":"2025-10-25T00:24:18.326Z"}
+{"level":"info","message":"Requisição recebida: GET /api/modules/68fc150b6519a711040ec074/permissions from 192.168.0.84","timestamp":"2025-10-25T00:24:18.343Z"}
+{"level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","timestamp":"2025-10-25T00:24:18.345Z"}

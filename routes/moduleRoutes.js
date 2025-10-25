@@ -1,44 +1,69 @@
-// File: routes/moduleRoutes.js
+// File: routes/moduleRoutes.js (CORREÇÃO COMPLETA)
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const AssetModule = require('../models/AssetModule');
-const ManagedAsset = require('../models/ManagedAsset');
+const AssetModuleConfig = require('../models/AssetModuleConfig');
+
+// Importar os modelos específicos
+const Desktop = require('../models/Desktop');
+const Notebook = require('../models/Notebook');
+const Panel = require('../models/Panel');
+const Printer = require('../models/Printer');
 
 module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   const router = express.Router();
 
-  // Helper para log seguro
-  const safeLog = (req, level, message) => {
-    if (req.logger && typeof req.logger[level] === 'function') {
-      req.logger[level](message);
-    } else if (logger && typeof logger[level] === 'function') {
-      logger[level](message);
-    } else {
-      console.log(`[${level.toUpperCase()}]: ${message}`);
-    }
+  // Helper para obter o modelo correto baseado no tipo
+  const getModelByType = (type) => {
+    const models = {
+      'desktop': Desktop,
+      'notebook': Notebook,
+      'panel': Panel,
+      'printer': Printer,
+      // Adicione outros modelos conforme necessário
+    };
+    return models[type] || null;
   };
-
-  // ==================== ROTAS DE MÓDULOS ====================
 
   /**
    * GET /api/modules
-   * Lista todos os módulos
+   * Lista todos os módulos de configuração
    */
   router.get('/', auth, getApiLimiter, async (req, res) => {
     try {
-      const modules = await AssetModule.find()
-        .sort({ created_at: -1 })
-        .lean();
-      
-      safeLog(req, 'info', `Módulos listados: ${modules.length} - Usuário: ${req.user.username}`);
-      
+      const modules = await AssetModuleConfig.find().sort({ created_at: -1 }).lean();
+
+      // Para cada módulo, conta quantos ativos existem
+      const modulesWithCount = await Promise.all(
+        modules.map(async (module) => {
+          const Model = getModelByType(module.type);
+          const count = Model ? await Model.countDocuments() : 0;
+
+          return {
+            _id: module._id,
+            id: module._id,
+            name: module.name,
+            description: module.description,
+            type: module.type,
+            is_active: module.is_active,
+            is_custom: module.is_custom,
+            created_at: module.created_at,
+            updated_at: module.updated_at,
+            custom_fields: module.custom_fields,
+            settings: module.settings,
+            table_columns: module.table_columns || [],
+            asset_count: count
+          };
+        })
+      );
+
+      logger.info(`Módulos listados por ${req.user.username}: ${modulesWithCount.length} módulos`);
+
       res.json({
         success: true,
-        modules: modules,
-        count: modules.length
+        modules: modulesWithCount
       });
     } catch (error) {
-      safeLog(req, 'error', `Erro ao listar módulos: ${error.message}`);
+      logger.error(`Erro ao listar módulos: ${error.message}`);
       res.status(500).json({
         success: false,
         message: 'Erro ao carregar módulos',
@@ -48,27 +73,25 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   });
 
   /**
-   * GET /api/modules/:id
-   * Obtém detalhes de um módulo específico
+   * GET /api/modules/:moduleId
+   * Obtém um módulo específico
    */
-  router.get('/:id', auth, getApiLimiter, async (req, res) => {
+  router.get('/:moduleId', auth, getApiLimiter, async (req, res) => {
     try {
-      const module = await AssetModule.findById(req.params.id).lean();
-      
+      const module = await AssetModuleConfig.findById(req.params.moduleId).lean();
+
       if (!module) {
         return res.status(404).json({
           success: false,
           message: 'Módulo não encontrado'
         });
       }
-      
-      // Conta quantos ativos existem neste módulo
-      const assetCount = await ManagedAsset.countDocuments({ 
-        module_id: req.params.id 
-      });
-      
-      safeLog(req, 'info', `Módulo consultado: ${module.name} - Usuário: ${req.user.username}`);
-      
+
+      const Model = getModelByType(module.type);
+      const assetCount = Model ? await Model.countDocuments() : 0;
+
+      logger.info(`Módulo consultado: ${module.name} por ${req.user.username}`);
+
       res.json({
         success: true,
         module: {
@@ -77,7 +100,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
         }
       });
     } catch (error) {
-      safeLog(req, 'error', `Erro ao buscar módulo: ${error.message}`);
+      logger.error(`Erro ao buscar módulo: ${error.message}`);
       res.status(500).json({
         success: false,
         message: 'Erro ao carregar módulo',
@@ -88,10 +111,10 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
 
   /**
    * POST /api/modules
-   * Cria um novo módulo (apenas admin)
+   * Cria um novo módulo
    */
-  router.post('/', 
-    auth, 
+  router.post('/',
+    auth,
     modifyApiLimiter,
     [
       body('name').trim().notEmpty().withMessage('Nome é obrigatório'),
@@ -99,9 +122,9 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
         .isIn(['mobile', 'totem', 'desktop', 'notebook', 'panel', 'printer', 'scanner', 'custom'])
         .withMessage('Tipo inválido'),
       body('description').optional().trim(),
+      body('table_columns').optional().isArray().withMessage('table_columns deve ser um array'),
     ],
     async (req, res) => {
-      // Verifica se é admin
       if (req.user.role !== 'admin') {
         return res.status(403).json({
           success: false,
@@ -119,22 +142,20 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
       }
 
       try {
-        const { name, description, type, custom_fields, settings } = req.body;
-        
-        // Verifica se já existe um módulo com este nome
-        const existingModule = await AssetModule.findOne({ 
-          name: { $regex: new RegExp(`^${name}$`, 'i') } 
+        const { name, description, type, custom_fields, settings, table_columns } = req.body;
+
+        const existingModule = await AssetModuleConfig.findOne({
+          name: { $regex: new RegExp(`^${name}$`, 'i') } // Corrigido Regex
         });
-        
+
         if (existingModule) {
           return res.status(400).json({
             success: false,
             message: 'Já existe um módulo com este nome'
           });
         }
-        
-        // Cria o novo módulo
-        const newModule = new AssetModule({
+
+        const newModule = new AssetModuleConfig({
           name,
           description: description || '',
           type,
@@ -142,21 +163,22 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
           is_active: true,
           custom_fields: custom_fields || {},
           settings: settings || {},
+          table_columns: table_columns || [],
           created_by: req.user.id,
           created_at: new Date(),
         });
-        
+
         await newModule.save();
-        
-        safeLog(req, 'info', `Novo módulo criado: ${name} (${type}) - Admin: ${req.user.username}`);
-        
+
+        logger.info(`Novo módulo criado: ${name} (${type}) por ${req.user.username}`);
+
         res.status(201).json({
           success: true,
           message: 'Módulo criado com sucesso',
           module: newModule
         });
       } catch (error) {
-        safeLog(req, 'error', `Erro ao criar módulo: ${error.message}`);
+        logger.error(`Erro ao criar módulo: ${error.message}`);
         res.status(500).json({
           success: false,
           message: 'Erro ao criar módulo',
@@ -167,14 +189,13 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   );
 
   /**
-   * PUT /api/modules/:id
-   * Atualiza um módulo existente (apenas admin)
+   * PUT /api/modules/:moduleId
+   * Atualiza um módulo existente
    */
-  router.put('/:id', 
-    auth, 
+  router.put('/:moduleId',
+    auth,
     modifyApiLimiter,
     async (req, res) => {
-      // Verifica se é admin
       if (req.user.role !== 'admin') {
         return res.status(403).json({
           success: false,
@@ -183,38 +204,38 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
       }
 
       try {
-        const { name, description, is_active, custom_fields, settings } = req.body;
-        
-        const module = await AssetModule.findById(req.params.id);
-        
+        const { name, description, is_active, custom_fields, settings, table_columns } = req.body;
+
+        const module = await AssetModuleConfig.findById(req.params.moduleId);
+
         if (!module) {
           return res.status(404).json({
             success: false,
             message: 'Módulo não encontrado'
           });
         }
-        
-        // Atualiza os campos permitidos
+
         if (name !== undefined) module.name = name;
         if (description !== undefined) module.description = description;
         if (is_active !== undefined) module.is_active = is_active;
         if (custom_fields !== undefined) module.custom_fields = custom_fields;
         if (settings !== undefined) module.settings = settings;
-        
+        if (table_columns !== undefined) module.table_columns = table_columns;
+
         module.updated_at = new Date();
         module.updated_by = req.user.id;
-        
+
         await module.save();
-        
-        safeLog(req, 'info', `Módulo atualizado: ${module.name} - Admin: ${req.user.username}`);
-        
+
+        logger.info(`Módulo atualizado: ${module.name} por ${req.user.username}`);
+
         res.json({
           success: true,
           message: 'Módulo atualizado com sucesso',
           module: module
         });
       } catch (error) {
-        safeLog(req, 'error', `Erro ao atualizar módulo: ${error.message}`);
+        logger.error(`Erro ao atualizar módulo: ${error.message}`);
         res.status(500).json({
           success: false,
           message: 'Erro ao atualizar módulo',
@@ -225,11 +246,10 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   );
 
   /**
-   * DELETE /api/modules/:id
-   * Deleta um módulo (apenas admin)
+   * DELETE /api/modules/:moduleId
+   * Deleta um módulo (CORRIGIDO)
    */
-  router.delete('/:id', auth, modifyApiLimiter, async (req, res) => {
-    // Verifica se é admin
+  router.delete('/:moduleId', auth, modifyApiLimiter, async (req, res) => {
     if (req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
@@ -238,37 +258,41 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
     }
 
     try {
-      const module = await AssetModule.findById(req.params.id);
-      
+      const module = await AssetModuleConfig.findById(req.params.moduleId);
+
       if (!module) {
         return res.status(404).json({
           success: false,
           message: 'Módulo não encontrado'
         });
       }
-      
-      // Verifica se existem ativos associados
-      const assetCount = await ManagedAsset.countDocuments({ 
-        module_id: req.params.id 
-      });
-      
-      if (assetCount > 0) {
-        return res.status(400).json({
-          success: false,
-          message: `Não é possível excluir. Existem ${assetCount} ativo(s) associado(s) a este módulo.`
-        });
+
+      // ✅ CORREÇÃO: Verifica ativos na coleção correta
+      const Model = getModelByType(module.type);
+
+      if (Model) {
+        const assetCount = await Model.countDocuments();
+
+        if (assetCount > 0) {
+          return res.status(400).json({
+            success: false,
+            message: `Não é possível excluir. Existem ${assetCount} ativo(s) associado(s) a este módulo.`,
+            asset_count: assetCount
+          });
+        }
       }
-      
-      await AssetModule.findByIdAndDelete(req.params.id);
-      
-      safeLog(req, 'info', `Módulo excluído: ${module.name} - Admin: ${req.user.username}`);
-      
+
+      // ✅ CORREÇÃO: Usa findByIdAndDelete
+      await AssetModuleConfig.findByIdAndDelete(req.params.moduleId);
+
+      logger.info(`Módulo excluído: ${module.name} (${module.type}) por ${req.user.username}`);
+
       res.json({
         success: true,
         message: 'Módulo excluído com sucesso'
       });
     } catch (error) {
-      safeLog(req, 'error', `Erro ao excluir módulo: ${error.message}`);
+      logger.error(`Erro ao excluir módulo: ${error.message}`, { stack: error.stack });
       res.status(500).json({
         success: false,
         message: 'Erro ao excluir módulo',
@@ -277,33 +301,35 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
     }
   });
 
-  // ==================== ROTAS DE ATIVOS DOS MÓDULOS ====================
-
   /**
    * GET /api/modules/:moduleId/assets
-   * Lista todos os ativos de um módulo
+   * Lista ativos de um módulo
    */
   router.get('/:moduleId/assets', auth, getApiLimiter, async (req, res) => {
     try {
-      const { moduleId } = req.params;
-      const { page = 1, limit = 50, status, search } = req.query;
-      
-      // Verifica se o módulo existe
-      const module = await AssetModule.findById(moduleId);
+      const module = await AssetModuleConfig.findById(req.params.moduleId);
+
       if (!module) {
         return res.status(404).json({
           success: false,
           message: 'Módulo não encontrado'
         });
       }
-      
-      // Constrói o filtro de busca
-      const filter = { module_id: moduleId };
-      
-      if (status) {
-        filter.status = status;
+
+      const Model = getModelByType(module.type);
+
+      if (!Model) {
+        return res.status(400).json({
+          success: false,
+          message: 'Modelo de dados não encontrado para este tipo de módulo'
+        });
       }
-      
+
+      const { page = 1, limit = 50, status, search } = req.query;
+      const filter = {};
+
+      if (status) filter.status = status;
+
       if (search) {
         filter.$or = [
           { asset_name: { $regex: search, $options: 'i' } },
@@ -311,18 +337,17 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
           { location: { $regex: search, $options: 'i' } },
         ];
       }
-      
-      // Busca os ativos com paginação
-      const assets = await ManagedAsset.find(filter)
+
+      const assets = await Model.find(filter)
         .sort({ last_seen: -1 })
         .limit(limit * 1)
         .skip((page - 1) * limit)
         .lean();
-      
-      const count = await ManagedAsset.countDocuments(filter);
-      
-      safeLog(req, 'info', `Ativos listados do módulo ${module.name}: ${assets.length} - Usuário: ${req.user.username}`);
-      
+
+      const count = await Model.countDocuments(filter);
+
+      logger.info(`Ativos listados do módulo ${module.name}: ${assets.length} por ${req.user.username}`);
+
       res.json({
         success: true,
         assets: assets,
@@ -331,7 +356,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
         total_count: count
       });
     } catch (error) {
-      safeLog(req, 'error', `Erro ao listar ativos: ${error.message}`);
+      logger.error(`Erro ao listar ativos: ${error.message}`);
       res.status(500).json({
         success: false,
         message: 'Erro ao carregar ativos',
@@ -341,132 +366,57 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   });
 
   /**
-   * POST /api/modules/:moduleId/assets
-   * Adiciona um novo ativo ao módulo
-   */
-  router.post('/:moduleId/assets', 
-    auth, 
-    modifyApiLimiter,
-    [
-      body('asset_name').trim().notEmpty().withMessage('Nome do ativo é obrigatório'),
-      body('serial_number').trim().notEmpty().withMessage('Número de série é obrigatório'),
-    ],
-    async (req, res) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({
-          success: false,
-          message: 'Dados inválidos',
-          errors: errors.array()
-        });
-      }
-
-      try {
-        const { moduleId } = req.params;
-        const assetData = req.body;
-        
-        // Verifica se o módulo existe
-        const module = await AssetModule.findById(moduleId);
-        if (!module) {
-          return res.status(404).json({
-            success: false,
-            message: 'Módulo não encontrado'
-          });
-        }
-        
-        if (!module.is_active) {
-          return res.status(400).json({
-            success: false,
-            message: 'Não é possível adicionar ativos a um módulo inativo'
-          });
-        }
-        
-        // Verifica se já existe um ativo com este serial number
-        const existingAsset = await ManagedAsset.findOne({
-          serial_number: assetData.serial_number,
-          module_id: moduleId
-        });
-        
-        if (existingAsset) {
-          return res.status(400).json({
-            success: false,
-            message: 'Já existe um ativo com este número de série neste módulo'
-          });
-        }
-        
-        // Cria o novo ativo
-        const newAsset = new ManagedAsset({
-          ...assetData,
-          module_id: moduleId,
-          asset_type: module.type,
-          status: assetData.status || 'offline',
-          last_seen: new Date(),
-          created_by: req.user.id,
-          created_at: new Date(),
-        });
-        
-        await newAsset.save();
-        
-        safeLog(req, 'info', `Novo ativo adicionado: ${newAsset.asset_name} - Módulo: ${module.name} - Usuário: ${req.user.username}`);
-        
-        res.status(201).json({
-          success: true,
-          message: 'Ativo adicionado com sucesso',
-          asset: newAsset
-        });
-      } catch (error) {
-        safeLog(req, 'error', `Erro ao adicionar ativo: ${error.message}`);
-        res.status(500).json({
-          success: false,
-          message: 'Erro ao adicionar ativo',
-          error: error.message
-        });
-      }
-    }
-  );
-
-  /**
    * PUT /api/modules/:moduleId/assets/:assetId
    * Atualiza um ativo
    */
   router.put('/:moduleId/assets/:assetId', auth, modifyApiLimiter, async (req, res) => {
     try {
-      const { moduleId, assetId } = req.params;
-      const updateData = req.body;
-      
-      const asset = await ManagedAsset.findOne({
-        _id: assetId,
-        module_id: moduleId
-      });
-      
+      const module = await AssetModuleConfig.findById(req.params.moduleId);
+
+      if (!module) {
+        return res.status(404).json({
+          success: false,
+          message: 'Módulo não encontrado'
+        });
+      }
+
+      const Model = getModelByType(module.type);
+
+      if (!Model) {
+        return res.status(400).json({
+          success: false,
+          message: 'Modelo de dados não encontrado para este tipo de módulo'
+        });
+      }
+
+      const asset = await Model.findById(req.params.assetId);
+
       if (!asset) {
         return res.status(404).json({
           success: false,
           message: 'Ativo não encontrado'
         });
       }
-      
-      // Atualiza os campos
+
+      const updateData = req.body;
       Object.keys(updateData).forEach(key => {
-        if (key !== '_id' && key !== 'module_id' && key !== 'created_at') {
+        if (key !== '_id' && key !== 'created_at') {
           asset[key] = updateData[key];
         }
       });
-      
+
       asset.updated_at = new Date();
-      asset.updated_by = req.user.id;
-      
       await asset.save();
-      
-      safeLog(req, 'info', `Ativo atualizado: ${asset.asset_name} - Usuário: ${req.user.username}`);
-      
+
+      logger.info(`Ativo atualizado: ${asset.asset_name} por ${req.user.username}`);
+
       res.json({
         success: true,
         message: 'Ativo atualizado com sucesso',
         asset: asset
       });
     } catch (error) {
-      safeLog(req, 'error', `Erro ao atualizar ativo: ${error.message}`);
+      logger.error(`Erro ao atualizar ativo: ${error.message}`);
       res.status(500).json({
         success: false,
         message: 'Erro ao atualizar ativo',
@@ -481,31 +431,144 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
    */
   router.delete('/:moduleId/assets/:assetId', auth, modifyApiLimiter, async (req, res) => {
     try {
-      const { moduleId, assetId } = req.params;
-      
-      const asset = await ManagedAsset.findOneAndDelete({
-        _id: assetId,
-        module_id: moduleId
-      });
-      
+      const module = await AssetModuleConfig.findById(req.params.moduleId);
+
+      if (!module) {
+        return res.status(404).json({
+          success: false,
+          message: 'Módulo não encontrado'
+        });
+      }
+
+      const Model = getModelByType(module.type);
+
+      if (!Model) {
+        return res.status(400).json({
+          success: false,
+          message: 'Modelo de dados não encontrado para este tipo de módulo'
+        });
+      }
+
+      const asset = await Model.findByIdAndDelete(req.params.assetId);
+
       if (!asset) {
         return res.status(404).json({
           success: false,
           message: 'Ativo não encontrado'
         });
       }
-      
-      safeLog(req, 'info', `Ativo excluído: ${asset.asset_name} - Usuário: ${req.user.username}`);
-      
+
+      logger.info(`Ativo excluído: ${asset.asset_name} por ${req.user.username}`);
+
       res.json({
         success: true,
         message: 'Ativo excluído com sucesso'
       });
     } catch (error) {
-      safeLog(req, 'error', `Erro ao excluir ativo: ${error.message}`);
+      logger.error(`Erro ao excluir ativo: ${error.message}`);
       res.status(500).json({
         success: false,
         message: 'Erro ao excluir ativo',
+        error: error.message
+      });
+    }
+  });
+
+  /**
+   * GET /api/modules/:moduleId/permissions
+   * Obtém lista de usuários com permissão
+   */
+  router.get('/:moduleId/permissions', auth, async (req, res) => {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado'
+      });
+    }
+
+    try {
+      const User = require('../models/User');
+      const module = await AssetModuleConfig.findById(req.params.moduleId);
+
+      if (!module) {
+        return res.status(404).json({
+          success: false,
+          message: 'Módulo não encontrado'
+        });
+      }
+
+      const permissionKey = `module:${module.type}`;
+      const users = await User.find({ permissions: permissionKey }).select('_id');
+      const userIds = users.map(u => u._id.toString());
+
+      res.json({ success: true, users: userIds });
+    } catch (error) {
+      logger.error(`Erro ao obter permissões: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        message: 'Erro ao obter permissões',
+        error: error.message
+      });
+    }
+  });
+
+  /**
+   * PUT /api/modules/:moduleId/permissions
+   * Atualiza permissões de usuários
+   */
+  router.put('/:moduleId/permissions', auth, modifyApiLimiter, async (req, res) => {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado'
+      });
+    }
+
+    try {
+      const User = require('../models/User');
+      const { userIds } = req.body;
+
+      if (!Array.isArray(userIds)) {
+        return res.status(400).json({
+          success: false,
+          message: 'userIds deve ser um array'
+        });
+      }
+
+      const module = await AssetModuleConfig.findById(req.params.moduleId);
+
+      if (!module) {
+        return res.status(404).json({
+          success: false,
+          message: 'Módulo não encontrado'
+        });
+      }
+
+      const permissionKey = `module:${module.type}`;
+
+      // Adiciona permissão para os IDs selecionados
+      await User.updateMany(
+        { _id: { $in: userIds } },
+        { $addToSet: { permissions: permissionKey } }
+      );
+
+      // Remove permissão dos IDs não selecionados
+      await User.updateMany(
+        { _id: { $nin: userIds } },
+        { $pull: { permissions: permissionKey } }
+      );
+
+      logger.info(`Permissões atualizadas para módulo ${module.name} por ${req.user.username}`);
+
+      res.json({
+        success: true,
+        message: 'Permissões atualizadas com sucesso'
+      });
+    } catch (error) {
+      logger.error(`Erro ao atualizar permissões: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        message: 'Erro ao atualizar permissões',
         error: error.message
       });
     }
