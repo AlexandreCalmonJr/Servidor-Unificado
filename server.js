@@ -1,5 +1,4 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const winston = require('winston');
 const path = require('path');
 
@@ -18,7 +17,7 @@ if (result.error) {
 }
 
 // Verificar variáveis essenciais
-const requiredEnvVars = ['MONGO_URI', 'JWT_SECRET', 'AUTH_TOKEN'];
+const requiredEnvVars = ['MONGO_URI', 'JWT_SECRET'];
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingVars.length > 0) {
@@ -27,13 +26,6 @@ if (missingVars.length > 0) {
 }
 
 const cron = require('node-cron');
-
-// Importar a função de atualização de status
-const updateDeviceStatus = require('./scripts/updateDeviceStatus');
-
-const expressConfig = require('./config/express');
-const connectDB = require('./config/db');
-const { getLocalIPAddress } = require('./utils/helpers');
 
 // Configurar logger com winston
 const logger = winston.createLogger({
@@ -53,37 +45,98 @@ const logger = winston.createLogger({
   ],
 });
 
+// ✅ CORREÇÃO: Importar a função de configuração e criar app
+const expressConfig = require('./config/express');
+const connectDB = require('./config/db');
+const { getLocalIPAddress } = require('./utils/helpers');
+
+// Importar a função de atualização de status
+const updateDeviceStatus = require('./scripts/updateDeviceStatus');
+
+// Criar instância do Express
 const app = express();
-const port = process.env.PORT || 3000;
+
+// Configurar o Express usando sua função
+expressConfig(app, logger);
+
+let port = parseInt(process.env.PORT) || 3000;
 const ip = '0.0.0.0';
+const maxPortAttempts = 10;
+
+// Função para tentar iniciar o servidor em uma porta
+async function startServer(attemptPort) {
+  return new Promise((resolve, reject) => {
+    const server = app.listen(attemptPort, ip)
+      .once('listening', () => {
+        logger.info(`🚀 MDM Server rodando em http://${getLocalIPAddress()}:${attemptPort}`);
+        logger.info(`📱 Provisionamento disponível em: http://${getLocalIPAddress()}:${attemptPort}/provision/{token}`);
+        logger.info(`📊 Dashboard disponível em: http://${getLocalIPAddress()}:${attemptPort}/dashboard`);
+        resolve({ server, port: attemptPort });
+      })
+      .once('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+          reject(err);
+        } else {
+          logger.error(`❌ Erro ao iniciar servidor na porta ${attemptPort}:`, err);
+          reject(err);
+        }
+      });
+  });
+}
+
+// Tentar iniciar servidor com fallback de portas
+async function tryStartServer() {
+  for (let attempt = 0; attempt < maxPortAttempts; attempt++) {
+    const attemptPort = port + attempt;
+    
+    try {
+      logger.info(`🔄 Tentando iniciar servidor na porta ${attemptPort}...`);
+      const result = await startServer(attemptPort);
+      
+      if (attemptPort !== port) {
+        logger.warn(`⚠️  Porta ${port} estava em uso. Servidor iniciado na porta ${attemptPort}`);
+        logger.info(`💡 Para usar a porta ${port}, execute: node scripts/diagnose-port.js`);
+      }
+      
+      return result;
+    } catch (err) {
+      if (err.code === 'EADDRINUSE') {
+        logger.warn(`⚠️  Porta ${attemptPort} em uso, tentando próxima...`);
+        if (attempt === maxPortAttempts - 1) {
+          logger.error(`❌ Todas as portas de ${port} a ${port + maxPortAttempts - 1} estão em uso!`);
+          logger.info(`💡 Execute para diagnóstico: node scripts/diagnose-port.js`);
+          process.exit(1);
+        }
+      } else {
+        throw err;
+      }
+    }
+  }
+}
 
 // Conectar ao banco de dados
-connectDB(logger).then(() => {
-  // Executar verificação de status assim que conectar (opcional)
+connectDB(logger).then(async () => {
+  // Executar verificação de status assim que conectar
   logger.info('🔄 Executando verificação inicial de status dos dispositivos...');
   updateDeviceStatus(logger).catch(err => {
     logger.error('Erro na verificação inicial:', { message: err.message });
   });
-});
 
-// Configurar o Express e as rotas
-expressConfig(app, logger);
+  // Tarefa agendada para rodar a cada 5 minutos
+  cron.schedule('*/5 * * * *', async () => {
+    logger.info('⏰ Executando tarefa agendada de verificação de status.');
+    try {
+      await updateDeviceStatus(logger);
+    } catch (error) {
+      logger.error('Erro na tarefa agendada de status:', { 
+        message: error.message 
+      });
+    }
+  });
 
-// Tarefa agendada para rodar a cada 5 minutos
-cron.schedule('*/5 * * * *', async () => {
-  logger.info('⏰ Executando tarefa agendada de verificação de status.');
-  try {
-    await updateDeviceStatus(logger);
-  } catch (error) {
-    logger.error('Erro na tarefa agendada de status:', { 
-      message: error.message 
-    });
-  }
-});
-
-// Iniciar servidor
-app.listen(port, ip, () => {
-  logger.info(`🚀 MDM Server rodando em http://${getLocalIPAddress()}:${port}`);
-  logger.info(`📱 Provisionamento disponível em: http://${getLocalIPAddress()}:${port}/provision/{token}`);
-  logger.info(`📊 Dashboard disponível em: http://${getLocalIPAddress()}:${port}/dashboard`);
+  // Iniciar servidor com fallback automático de portas
+  await tryStartServer();
+}).catch(err => {
+  logger.error('❌ Falha ao conectar ao banco de dados:', err);
+  process.exit(1);
 });
