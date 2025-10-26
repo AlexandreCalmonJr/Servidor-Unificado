@@ -1,142 +1,280 @@
-const express = require('express');
-const winston = require('winston');
+// server.js - VERSÃO MELHORADA COM VALIDAÇÃO E LOGS
+require('dotenv').config();
 const path = require('path');
-
-// Carregar variáveis de ambiente ANTES de tudo
-const dotenv = require('dotenv');
-const envPath = path.resolve(__dirname, '.env');
-const result = dotenv.config({ path: envPath });
-
-// Verificar se o .env foi carregado corretamente
-if (result.error) {
-  console.error('❌ Erro ao carregar .env:', result.error);
-  console.log('📁 Procurando .env em:', envPath);
-} else {
-  console.log('✅ Arquivo .env carregado com sucesso');
-  console.log('📊 Variáveis carregadas:', Object.keys(result.parsed || {}).length);
-}
-
-// Verificar variáveis essenciais
-const requiredEnvVars = ['MONGO_URI', 'JWT_SECRET'];
-const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
-
-if (missingVars.length > 0) {
-  console.warn('⚠️  Variáveis de ambiente faltando:', missingVars.join(', '));
-  console.log('📝 Usando valores padrão para variáveis faltantes');
-}
-
 const cron = require('node-cron');
 
-// Configurar logger com winston
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.File({
-      filename: 'logs/server.log',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-      tailable: true
-    }),
-    new winston.transports.Console()
-  ],
-});
+// ===== VALIDAÇÃO DE AMBIENTE =====
+const validateEnv = require('./config/validateEnv');
+try {
+  validateEnv();
+} catch (error) {
+  console.error('\n❌ Erro de configuração:', error.message);
+  console.error('\n💡 Corrija as variáveis de ambiente e tente novamente.\n');
+  process.exit(1);
+}
 
-// ✅ CORREÇÃO: Importar a função de configuração e criar app
-const expressConfig = require('./config/express');
-const connectDB = require('./config/db');
+// ===== IMPORTS =====
+const express = require('express');
+const mongoose = require('mongoose');
+const logger = require('./utils/logger');
+const { requestLogger } = require('./middleware/requestLogger');
+const updateDeviceStatus = require('./scripts/updateDeviceStatus');
 const { getLocalIPAddress } = require('./utils/helpers');
 
-// Importar a função de atualização de status
-const updateDeviceStatus = require('./scripts/updateDeviceStatus');
-
-// Criar instância do Express
 const app = express();
-
-// Configurar o Express usando sua função
-expressConfig(app, logger);
-
-let port = parseInt(process.env.PORT) || 3000;
+const port = process.env.PORT || 3000;
 const ip = '0.0.0.0';
-const maxPortAttempts = 10;
 
-// Função para tentar iniciar o servidor em uma porta
-async function startServer(attemptPort) {
-  return new Promise((resolve, reject) => {
-    const server = app.listen(attemptPort, ip)
-      .once('listening', () => {
-        logger.info(`🚀 MDM Server rodando em http://${getLocalIPAddress()}:${attemptPort}`);
-        logger.info(`📱 Provisionamento disponível em: http://${getLocalIPAddress()}:${attemptPort}/provision/{token}`);
-        logger.info(`📊 Dashboard disponível em: http://${getLocalIPAddress()}:${attemptPort}/dashboard`);
-        resolve({ server, port: attemptPort });
-      })
-      .once('error', (err) => {
-        if (err.code === 'EADDRINUSE') {
-          reject(err);
-        } else {
-          logger.error(`❌ Erro ao iniciar servidor na porta ${attemptPort}:`, err);
-          reject(err);
-        }
-      });
-  });
-}
+// ===== LOG DE INICIALIZAÇÃO =====
+logger.logSystemEvent('server_starting', {
+  nodeVersion: process.version,
+  environment: process.env.NODE_ENV || 'development',
+  port,
+});
 
-// Tentar iniciar servidor com fallback de portas
-async function tryStartServer() {
-  for (let attempt = 0; attempt < maxPortAttempts; attempt++) {
-    const attemptPort = port + attempt;
+// ===== CONEXÃO COM MONGODB =====
+const connectDB = async () => {
+  try {
+    logger.info('Conectando ao MongoDB...');
     
-    try {
-      logger.info(`🔄 Tentando iniciar servidor na porta ${attemptPort}...`);
-      const result = await startServer(attemptPort);
-      
-      if (attemptPort !== port) {
-        logger.warn(`⚠️  Porta ${port} estava em uso. Servidor iniciado na porta ${attemptPort}`);
-        logger.info(`💡 Para usar a porta ${port}, execute: node scripts/diagnose-port.js`);
-      }
-      
-      return result;
-    } catch (err) {
-      if (err.code === 'EADDRINUSE') {
-        logger.warn(`⚠️  Porta ${attemptPort} em uso, tentando próxima...`);
-        if (attempt === maxPortAttempts - 1) {
-          logger.error(`❌ Todas as portas de ${port} a ${port + maxPortAttempts - 1} estão em uso!`);
-          logger.info(`💡 Execute para diagnóstico: node scripts/diagnose-port.js`);
-          process.exit(1);
-        }
-      } else {
-        throw err;
-      }
-    }
-  }
-}
+    await mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      family: 4, // IPv4 only
+    });
 
-// Conectar ao banco de dados
-connectDB(logger).then(async () => {
-  // Executar verificação de status assim que conectar
-  logger.info('🔄 Executando verificação inicial de status dos dispositivos...');
-  updateDeviceStatus(logger).catch(err => {
-    logger.error('Erro na verificação inicial:', { message: err.message });
-  });
+    logger.logSystemEvent('mongodb_connected', {
+      host: mongoose.connection.host,
+      database: mongoose.connection.name,
+    });
 
-  // Tarefa agendada para rodar a cada 5 minutos
-  cron.schedule('*/5 * * * *', async () => {
-    logger.info('⏰ Executando tarefa agendada de verificação de status.');
-    try {
-      await updateDeviceStatus(logger);
-    } catch (error) {
-      logger.error('Erro na tarefa agendada de status:', { 
-        message: error.message 
+    // Eventos de conexão
+    mongoose.connection.on('error', (err) => {
+      logger.error('Erro na conexão MongoDB:', {
+        message: err.message,
+        stack: err.stack,
       });
+    });
+
+    mongoose.connection.on('disconnected', () => {
+      logger.warn('Desconectado do MongoDB');
+    });
+
+    mongoose.connection.on('reconnected', () => {
+      logger.info('Reconectado ao MongoDB');
+    });
+
+  } catch (err) {
+    logger.logCriticalError(err, {
+      context: 'mongodb_connection',
+      mongoUri: process.env.MONGO_URI.replace(/\/\/.*@/, '//***@'), // Mascara credenciais
+    });
+    
+    console.error('\n❌ Falha ao conectar ao MongoDB');
+    console.error('💡 Verifique se o MongoDB está rodando e se o MONGO_URI está correto\n');
+    process.exit(1);
+  }
+};
+
+// Conecta ao banco
+connectDB();
+
+// ===== MIDDLEWARES GLOBAIS =====
+app.use(requestLogger); // Logger de requisições
+
+const cors = require('cors');
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  credentials: true,
+}));
+
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Servir arquivos estáticos
+app.use('/public', express.static(path.join(__dirname, 'public')));
+
+
+// ===== HEALTH CHECK =====
+app.get('/health', (req, res) => {
+  const uptime = process.uptime();
+  const memoryUsage = process.memoryUsage();
+  
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(uptime),
+    uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`,
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    memory: {
+      heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`,
+      heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`,
+    },
+    version: process.env.npm_package_version || '1.0.0',
+    environment: process.env.NODE_ENV || 'development',
+  });
+});
+
+// ===== ROTAS =====
+const auth = require('./middleware/auth');
+const { getApiLimiter, modifyApiLimiter, enrollLimiter } = require('./middleware/rateLimiters');
+const { errorHandler } = require('./middleware/error');
+
+// Controllers
+const totemController = require('./controllers/totemController');
+
+// Routes
+const authRoutes = require('./routes/authRoutes');
+const deviceRoutes = require('./routes/deviceRoutes');
+const bssidRoutes = require('./routes/bssidRoutes');
+const unitRoutes = require('./routes/unitRoutes');
+const moduleRoutes = require('./routes/moduleRoutes');
+const assetModuleRoutes = require('./routes/assetModuleRoutes');
+const monitoringRoutes = require('./routes/monitoringRoutes');
+const serverRoutes = require('./routes/serverRoutes');
+const publicRoutes = require('./routes/publicRoutes');
+const provisioningRoutes = require('./routes/provisioningRoutes');
+const configProfileRoutes = require('./routes/configProfileRoutes');
+
+// Montagem de rotas
+app.use('/api/auth', authRoutes(logger, getApiLimiter, modifyApiLimiter));
+app.post('/api/monitor', modifyApiLimiter, totemController.handleTotemData);
+app.get('/provision/:token', provisioningRoutes.renderProvisioningPage(logger));
+app.use('/api/provisioning', provisioningRoutes(logger, modifyApiLimiter, enrollLimiter, auth));
+app.use('/api/config-profiles', configProfileRoutes(logger, modifyApiLimiter, auth));
+app.use('/api/devices', deviceRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
+app.use('/api/units', unitRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
+app.use('/api/bssid-mappings', bssidRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
+app.use('/api/modules', moduleRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
+app.use('/api/assets', assetModuleRoutes(logger, getApiLimiter));
+app.use('/api/monitoring', monitoringRoutes(logger, modifyApiLimiter, auth));
+app.use('/api/server', serverRoutes(logger, getApiLimiter, auth));
+app.use('/api', publicRoutes(logger, getApiLimiter));
+
+// ===== DASHBOARD (OPCIONAL) =====
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+app.get('/dashboard', auth, serverRoutes.renderDashboard(logger));
+app.use(express.static(path.join(__dirname, 'public', 'web'))); // Serve arquivos estáticos da pasta web
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'web', 'index.html'));
+});
+// ===== ROTA 404 =====
+app.use((req, res) => {
+  logger.warn('Rota não encontrada', {
+    method: req.method,
+    path: req.path,
+    ip: req.ip,
+  });
+  
+  res.status(404).json({
+    success: false,
+    message: 'Rota não encontrada',
+    path: req.path,
+    method: req.method,
+  });
+});
+
+// ===== ERROR HANDLER =====
+app.use(errorHandler(logger));
+
+// ===== TAREFA AGENDADA =====
+cron.schedule('*/5 * * * *', async () => {
+  logger.debug('Executando tarefa agendada de verificação de status');
+  
+  try {
+    await updateDeviceStatus(logger);
+  } catch (error) {
+    logger.error('Erro na tarefa agendada:', {
+      message: error.message,
+      stack: error.stack,
+    });
+  }
+});
+
+// ===== INICIALIZAÇÃO DO SERVIDOR =====
+const server = app.listen(port, ip, () => {
+  const localIp = getLocalIPAddress();
+  
+  logger.logSystemEvent('server_started', {
+    port,
+    ip,
+    localIp,
+    environment: process.env.NODE_ENV || 'development',
+  });
+
+  console.log('\n' + '='.repeat(60));
+  console.log('🚀 MDM Server iniciado com sucesso!');
+  console.log('='.repeat(60));
+  console.log(`📱 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🌐 Acesso local: http://localhost:${port}`);
+  console.log(`🌐 Acesso rede: http://${localIp}:${port}`);
+  console.log(`📊 Health check: http://${localIp}:${port}/health`);
+  console.log(`📱 Dashboard: http://${localIp}:${port}/dashboard`);
+  console.log('='.repeat(60) + '\n');
+});
+
+// ===== TRATAMENTO DE SINAIS =====
+const gracefulShutdown = (signal) => {
+  logger.logSystemEvent('shutdown_initiated', { signal });
+  
+  console.log(`\n\n⚠️  ${signal} recebido. Encerrando servidor graciosamente...`);
+
+  server.close(async () => {
+    logger.logSystemEvent('server_closed');
+    console.log('✅ Servidor HTTP encerrado');
+
+    try {
+      await mongoose.connection.close();
+      logger.logSystemEvent('mongodb_disconnected');
+      console.log('✅ MongoDB desconectado');
+      
+      process.exit(0);
+    } catch (err) {
+      logger.error('Erro ao desconectar MongoDB:', {
+        message: err.message,
+      });
+      process.exit(1);
     }
   });
 
-  // Iniciar servidor com fallback automático de portas
-  await tryStartServer();
-}).catch(err => {
-  logger.error('❌ Falha ao conectar ao banco de dados:', err);
-  process.exit(1);
+  // Força o encerramento após 10 segundos
+  setTimeout(() => {
+    logger.error('Shutdown forçado após timeout');
+    console.error('❌ Não foi possível encerrar graciosamente. Forçando...');
+    process.exit(1);
+  }, 10000);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// ===== TRATAMENTO DE ERROS NÃO CAPTURADOS =====
+process.on('unhandledRejection', (reason, promise) => {
+  logger.logCriticalError(new Error('Unhandled Rejection'), {
+    reason: reason?.toString(),
+    promise: promise?.toString(),
+  });
+  
+  console.error('\n❌ ERRO CRÍTICO: Unhandled Promise Rejection');
+  console.error(reason);
+  
+  // Em produção, encerra o processo
+  if (process.env.NODE_ENV === 'production') {
+    gracefulShutdown('UNHANDLED_REJECTION');
+  }
+});
+
+process.on('uncaughtException', (err) => {
+  logger.logCriticalError(err, {
+    context: 'uncaught_exception',
+  });
+  
+  console.error('\n❌ ERRO CRÍTICO: Uncaught Exception');
+  console.error(err);
+  
+  // Em produção, encerra o processo
+  if (process.env.NODE_ENV === 'production') {
+    gracefulShutdown('UNCAUGHT_EXCEPTION');
+  }
 });

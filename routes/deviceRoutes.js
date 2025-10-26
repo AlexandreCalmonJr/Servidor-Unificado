@@ -1,435 +1,491 @@
+// routes/deviceRoutes.js - VERSÃO MELHORADA COM VALIDAÇÃO E LOCATIONSERVICE
 const express = require('express');
 const { body, validationResult, query } = require('express-validator');
 const Device = require('../models/Device');
 const Command = require('../models/Command');
 const LocationHistory = require('../models/LocationHistory');
-const { mapIpToUnit, mapMacAddressRadioToLocation } = require('../utils/mappings');
+const locationService = require('../services/locationService');
+const { asyncHandler, validationErrorHandler, NotFoundError } = require('../middleware/error');
 
 const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   const router = express.Router();
 
-  // Receber e salvar dados do dispositivo
+  // ===== RECEBER E SALVAR DADOS DO DISPOSITIVO =====
   router.post('/data', auth, modifyApiLimiter, [
-    body('device_id').notEmpty().withMessage('device_id é obrigatório'),
-    body('device_name').notEmpty().withMessage('device_name é obrigatório'),
-    body('serial_number').notEmpty().withMessage('serial_number é obrigatório'),
-    body('battery').optional().isInt({ min: 0, max: 100 }).withMessage('battery deve ser um número entre 0 e 100'),
-    body('ip_address').optional().isIP().withMessage('ip_address deve ser um IP válido'),
-    body('mac_address_radio').optional().matches(/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/).withMessage('mac_address_radio deve ser um MAC válido'),
-    body('wifi_ipv6').optional(),
-    body('wifi_gateway_ip').optional().isIP().withMessage('wifi_gateway_ip deve ser um IP válido'),
-    body('wifi_broadcast').optional().isIP().withMessage('wifi_broadcast deve ser um IP válido'),
-    body('wifi_submask').optional(),
-    body('device_model').optional(),
-    body('imei').optional(),
-    body('secure_android_id').optional(),
-    body('network').optional(),
-    body('host').optional(),
-    body('sector').optional(),
-    body('floor').optional(),
-    body('last_seen').optional(),
-    body('last_sync').optional(),
-    body().custom((value) => {
-      if (!value.imei && !value.serial_number) {
-        throw new Error('Pelo menos um dos campos imei ou serial_number deve ser fornecido');
+    // Validações robustas
+    body('device_id').notEmpty().trim().escape().withMessage('device_id é obrigatório'),
+    body('device_name').notEmpty().trim().escape()
+      .isLength({ max: 100 }).withMessage('device_name muito longo'),
+    body('serial_number').notEmpty().trim().escape()
+      .isLength({ max: 100 }).withMessage('serial_number muito longo'),
+    body('battery').optional().isInt({ min: 0, max: 100 })
+      .withMessage('battery deve ser entre 0 e 100'),
+    body('ip_address').optional().custom((value) => {
+      if (value && value !== 'N/A') {
+        return locationService.isValidIp(value);
       }
       return true;
-    }),
-  ], async (req, res) => {
+    }).withMessage('ip_address inválido'),
+    body('mac_address_radio').optional().custom((value) => {
+      if (value && value !== 'N/A') {
+        return locationService.isValidMac(value);
+      }
+      return true;
+    }).withMessage('mac_address_radio inválido'),
+    body('device_model').optional().trim().escape(),
+    body('imei').optional().trim().escape().isLength({ max: 20 }),
+  ], asyncHandler(async (req, res) => {
+    // Valida erros de validação
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      logger.warn(`Erros de validação: ${JSON.stringify(errors.array())}`);
-      return res.status(400).json({ errors: errors.array() });
+      throw validationErrorHandler(errors);
     }
-  
-    try {
-      let data = req.body;
-      logger.info(`📥 Dados recebidos de ${req.ip}: ${JSON.stringify(data)}`);
-  
-      // ✅ CORREÇÃO: Usa a função completa de mapeamento
-      const { mapDeviceLocation } = require('../utils/mappings');
-      const location = await mapDeviceLocation({
-        ip_address: data.ip_address,
-        mac_address_radio: data.mac_address_radio,
-        device_name: data.device_name
+
+    const data = req.body;
+    
+    logger.logDeviceOperation('data_received', {
+      device_name: data.device_name,
+      serial_number: data.serial_number,
+    }, {
+      ip: req.ip,
+      battery: data.battery,
+    });
+
+    // ✅ USA O LOCATIONSERVICE PARA MAPEAR LOCALIZAÇÃO
+    const location = await locationService.mapDeviceLocation({
+      ip_address: data.ip_address,
+      mac_address_radio: data.mac_address_radio,
+      device_name: data.device_name,
+    });
+
+    const deviceData = {
+      device_name: data.device_name || 'unknown',
+      device_model: data.device_model || 'N/A',
+      device_id: data.device_id || 'unknown',
+      serial_number: data.serial_number || 'N/A',
+      imei: data.imei || 'N/A',
+      battery: data.battery != null ? data.battery : null,
+      network: data.network || 'N/A',
+      host: data.host || 'N/A',
+      
+      // ✅ LOCALIZAÇÃO MAPEADA
+      unit: location.unit,
+      sector: location.sector,
+      floor: location.floor,
+      
+      mac_address_radio: data.mac_address_radio || 'N/A',
+      last_sync: data.last_sync || new Date().toISOString(),
+      secure_android_id: data.secure_android_id || 'N/A',
+      ip_address: data.ip_address || 'N/A',
+      wifi_ipv6: data.wifi_ipv6 || 'N/A',
+      wifi_gateway_ip: data.wifi_gateway_ip || 'N/A',
+      wifi_broadcast: data.wifi_broadcast || 'N/A',
+      wifi_submask: data.wifi_submask || 'N/A',
+      last_seen: data.last_seen || new Date().toISOString(),
+      status: 'online',
+      is_online: true
+    };
+
+    // Verifica se houve mudança de localização
+    const existingDevice = await Device.findOne({ 
+      serial_number: deviceData.serial_number 
+    }).lean();
+
+    if (existingDevice && existingDevice.mac_address_radio !== deviceData.mac_address_radio) {
+      logger.logDeviceOperation('location_changed', {
+        serial_number: deviceData.serial_number,
+      }, {
+        old_bssid: existingDevice.mac_address_radio,
+        new_bssid: deviceData.mac_address_radio,
+        new_location: `${location.unit} - ${location.sector} - ${location.floor}`,
       });
-  
-      const deviceData = {
-        device_name: data.device_name || 'unknown',
-        device_model: data.device_model || 'N/A',
-        device_id: data.device_id || 'unknown',
-        serial_number: data.serial_number || 'N/A',
-        imei: data.imei || 'N/A',
-        battery: data.battery != null ? data.battery : null,
-        network: data.network || 'N/A',
-        host: data.host || 'N/A',
-        
-        // ✅ USA OS VALORES MAPEADOS
-        unit: location.unit,
+
+      // Salva no histórico
+      const historyEntry = new LocationHistory({
+        serial_number: deviceData.serial_number,
+        bssid: deviceData.mac_address_radio,
         sector: location.sector,
         floor: location.floor,
-        
-        mac_address_radio: data.mac_address_radio || 'N/A',
-        last_sync: data.last_sync || new Date().toISOString(),
-        secure_android_id: data.secure_android_id || 'N/A',
-        ip_address: data.ip_address || 'N/A',
-        wifi_ipv6: data.wifi_ipv6 || 'N/A',
-        wifi_gateway_ip: data.wifi_gateway_ip || 'N/A',
-        wifi_broadcast: data.wifi_broadcast || 'N/A',
-        wifi_submask: data.wifi_submask || 'N/A',
-        last_seen: data.last_seen || new Date().toISOString(),
-        status: 'online', // Dispositivo que envia dados está online
-        is_online: true
-      };
-  
-      logger.info(`✅ Dados processados para ${deviceData.serial_number}:`, {
-        unit: deviceData.unit,
-        sector: deviceData.sector,
-        floor: deviceData.floor
+        timestamp: new Date(deviceData.last_seen),
       });
-  
-      // Verifica se houve mudança de localização para salvar no histórico
-      const existingDevice = await Device.findOne({ serial_number: deviceData.serial_number });
-  
-      if (existingDevice && existingDevice.mac_address_radio !== deviceData.mac_address_radio) {
-        logger.info(`🔄 Nova localização detectada para ${deviceData.serial_number}`);
-        const historyEntry = new LocationHistory({
-          serial_number: deviceData.serial_number,
-          bssid: deviceData.mac_address_radio,
-          sector: location.sector,
-          floor: location.floor,
-          timestamp: new Date(deviceData.last_seen)
-        });
-        await historyEntry.save();
-      }
-  
-      // Salva ou atualiza o dispositivo
-      const device = await Device.findOneAndUpdate(
-        { serial_number: deviceData.serial_number },
-        { $set: deviceData },
-        { new: true, upsert: true, setDefaultsOnInsert: true }
-      );
-  
-      logger.info(`💾 Dispositivo ${device.serial_number} salvo/atualizado com sucesso`);
-      res.status(200).json({ 
-        message: 'Dados salvos com sucesso', 
-        deviceId: device._id,
-        location: {
-          unit: device.unit,
-          sector: device.sector,
-          floor: device.floor
-        }
-      });
-  
-    } catch (err) {
-      if (err.code === 11000) {
-        const field = err.keyValue?.serial_number ? 'serial_number' : 'imei';
-        const value = err.keyValue?.serial_number || err.keyValue?.imei;
-        logger.error(`❌ Duplicidade para ${field}: ${value}`);
-        return res.status(409).json({ 
-          error: `Dispositivo com este ${field} já existe`, 
-          field, 
-          value 
-        });
-      }
-      logger.error(`❌ Erro ao salvar dados de ${req.ip}: ${err.message}`);
-      return res.status(500).json({ 
-        error: 'Erro interno do servidor', 
-        details: err.message 
-      });
+      await historyEntry.save();
     }
-  });
 
-  // Heartbeat para atualizar last_seen
+    // Salva ou atualiza o dispositivo
+    const device = await Device.findOneAndUpdate(
+      { serial_number: deviceData.serial_number },
+      { $set: deviceData },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
+    logger.logDeviceOperation('data_saved', {
+      serial_number: device.serial_number,
+      device_name: device.device_name,
+    }, {
+      location: `${location.unit} - ${location.sector} - ${location.floor}`,
+    });
+
+    res.status(200).json({ 
+      success: true,
+      message: 'Dados salvos com sucesso', 
+      deviceId: device._id,
+      location: {
+        unit: device.unit,
+        sector: device.sector,
+        floor: device.floor,
+      }
+    });
+  }));
+
+  // ===== HEARTBEAT =====
   router.post('/heartbeat', auth, modifyApiLimiter, [
-    body('serial_number').notEmpty().withMessage('serial_number é obrigatório').trim(),
-  ], async (req, res) => {
+    body('serial_number').notEmpty().trim().escape(),
+  ], asyncHandler(async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      logger.warn(`Erros de validação: ${JSON.stringify(errors.array())}`);
-      return res.status(400).json({ errors: errors.array() });
+      throw validationErrorHandler(errors);
     }
 
-    try {
-      const { serial_number } = req.body;
+    const { serial_number } = req.body;
 
-      const device = await Device.findOneAndUpdate(
+    const device = await Device.findOneAndUpdate(
+      { serial_number },
+      { last_seen: new Date(), status: 'online', is_online: true },
+      { new: true }
+    );
+
+    if (!device) {
+      throw new NotFoundError(`Dispositivo não encontrado: ${serial_number}`);
+    }
+
+    logger.debug('Heartbeat recebido', { 
+      serial_number,
+      device_name: device.device_name 
+    });
+
+    res.status(200).json({ 
+      success: true,
+      message: 'Heartbeat registrado' 
+    });
+  }));
+
+  // ===== LISTAR DISPOSITIVOS =====
+  router.get('/', auth, getApiLimiter, asyncHandler(async (req, res) => {
+    const startTime = Date.now();
+
+    // Busca todos os dispositivos
+    const allDevices = await Device.find({}).lean();
+    let filteredDevices = allDevices;
+
+    // Filtra por setor para usuários comuns
+    if (req.user.role === 'user') {
+      const userSector = req.user.sector;
+      
+      if (userSector && userSector !== 'Global') {
+        const prefixes = userSector.split(',').map(p => p.trim().toLowerCase());
+        
+        filteredDevices = allDevices.filter(device => {
+          const deviceName = (device.device_name || '').toLowerCase();
+          return prefixes.some(prefix => deviceName.startsWith(prefix));
+        });
+        
+        logger.debug('Dispositivos filtrados por setor', {
+          username: req.user.username,
+          prefixes,
+          total: allDevices.length,
+          filtered: filteredDevices.length,
+        });
+      } else {
+        logger.warn('Usuário sem setor definido tentou acessar dispositivos', {
+          username: req.user.username,
+          role: req.user.role,
+        });
+        
+        return res.status(403).json({ 
+          success: false,
+          error: 'Acesso negado: Setor não definido' 
+        });
+      }
+    }
+
+    const duration = Date.now() - startTime;
+    
+    logger.info('Lista de dispositivos retornada', {
+      username: req.user.username,
+      role: req.user.role,
+      count: filteredDevices.length,
+      duration: `${duration}ms`,
+    });
+
+    res.status(200).json({
+      success: true,
+      devices: filteredDevices,
+      count: filteredDevices.length,
+    });
+  }));
+
+  // ===== OBTER COMANDOS PENDENTES =====
+  router.get('/commands', auth, getApiLimiter, [
+    query('serial_number').notEmpty().trim().escape(),
+  ], asyncHandler(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      throw validationErrorHandler(errors);
+    }
+
+    const { serial_number } = req.query;
+
+    // Verifica permissões de setor
+    if (req.user.role === 'user') {
+      const device = await Device.findOne({ serial_number }).lean();
+      
+      if (device && device.sector !== req.user.sector) {
+        throw new ForbiddenError('Acesso negado ao dispositivo');
+      }
+    }
+
+    const commands = await Command.find({ 
+      serial_number, 
+      status: 'pending' 
+    }).lean();
+
+    if (commands.length > 0) {
+      await Command.updateMany(
+        { serial_number, status: 'pending' },
+        { status: 'sent' }
+      );
+      
+      logger.logDeviceOperation('commands_sent', {
+        serial_number,
+      }, {
+        count: commands.length,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      commands: commands.map(cmd => ({
+        id: cmd._id.toString(),
+        command_type: cmd.command,
+        parameters: cmd.parameters,
+      }))
+    });
+  }));
+
+  // ===== EXECUTAR COMANDO =====
+  router.post('/executeCommand', auth, modifyApiLimiter, [
+    body('serial_number').notEmpty().trim().escape(),
+    body('command').notEmpty().trim(),
+  ], asyncHandler(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      throw validationErrorHandler(errors);
+    }
+
+    const { 
+      device_name, 
+      serial_number, 
+      command, 
+      packageName, 
+      apkUrl,
+      maintenance_status,
+      maintenance_ticket,
+      maintenance_reason,
+      maintenance_history_entry 
+    } = req.body;
+
+    // Verifica se o dispositivo existe e permissões
+    const device = await Device.findOne({ serial_number });
+    
+    if (!device) {
+      throw new NotFoundError(`Dispositivo não encontrado: ${serial_number}`);
+    }
+
+    if (req.user.role === 'user' && device.sector !== req.user.sector) {
+      throw new ForbiddenError('Acesso negado ao dispositivo');
+    }
+
+    // Comando de manutenção
+    if (command === 'set_maintenance') {
+      if (typeof maintenance_status !== 'boolean') {
+        throw new BadRequestError('maintenance_status deve ser booleano');
+      }
+
+      const updateFields = {
+        maintenance_status,
+        maintenance_ticket: maintenance_ticket || '',
+        maintenance_reason: maintenance_reason || '',
+      };
+
+      if (maintenance_history_entry) {
+        try {
+          const historyEntry = JSON.parse(maintenance_history_entry);
+          
+          if (!historyEntry.timestamp || !historyEntry.status) {
+            throw new BadRequestError(
+              'maintenance_history_entry inválido: faltam timestamp ou status'
+            );
+          }
+          
+          updateFields.$push = { maintenance_history: historyEntry };
+        } catch (err) {
+          throw new BadRequestError(
+            'Formato inválido para maintenance_history_entry'
+          );
+        }
+      }
+
+      const updatedDevice = await Device.findOneAndUpdate(
         { serial_number },
-        { last_seen: new Date() },
+        updateFields,
         { new: true }
       );
 
-      if (!device) {
-        logger.warn(`Dispositivo não encontrado para heartbeat: ${serial_number}`);
-        return res.status(404).json({ error: 'Dispositivo não encontrado' });
-      }
+      logger.logDeviceOperation('maintenance_updated', {
+        serial_number,
+        device_name: updatedDevice.device_name,
+      }, {
+        status: maintenance_status,
+        ticket: maintenance_ticket,
+        by: req.user.username,
+      });
 
-      logger.info(`Heartbeat recebido de: ${serial_number}`);
-      res.status(200).json({ message: 'Heartbeat registrado com sucesso' });
-    } catch (err) {
-      logger.error(`Erro no heartbeat de ${req.ip}: ${err.message}`);
-      res.status(500).json({ error: 'Erro interno do servidor' });
-    }
-  });
-
-  // Listar dispositivos com filtragem por setor para usuários comuns
-  router.get('/', auth, getApiLimiter, async (req, res) => {
-    try {
-      // Buscar TODOS os dispositivos primeiro
-      const allDevices = await Device.find({}).lean();
-      let filteredDevices = allDevices;
-
-      // Se o usuário não for admin, filtrar por nome do dispositivo
-      if (req.user.role === 'user') {
-        const userSector = req.user.sector;
-        if (userSector && userSector !== 'Global') {
-          // Separar os prefixos por vírgula e limpar espaços
-          const prefixes = userSector.split(',').map(p => p.trim().toLowerCase());
-          
-          // Filtrar dispositivos cujo nome começa com algum dos prefixos
-          filteredDevices = allDevices.filter(device => {
-            const deviceName = (device.device_name || '').toLowerCase();
-            return prefixes.some(prefix => deviceName.startsWith(prefix));
-          });
-          
-          logger.info(`Usuário '${req.user.username}' (prefixos: ${prefixes.join(', ')}) - ${filteredDevices.length} dispositivos filtrados de ${allDevices.length} totais.`);
-        } else {
-          logger.warn(`Usuário '${req.user.username}' com role 'user' mas sem setor definido ou setor 'Global'.`);
-          return res.status(403).json({ error: 'Acesso negado: Setor do usuário não definido ou inválido para esta operação.' });
-        }
-      } else {
-        logger.info(`Usuário '${req.user.username}' (role: ${req.user.role}) solicitando TODOS os dispositivos.`);
-      }
-
-      // Aplicar mapIpToUnit apenas nos dispositivos filtrados
-      const devicesWithUnit = await Promise.all(filteredDevices.map(async (device) => {
-        const unit = await mapIpToUnit(device.ip_address);
-        return { ...device, unit };
-      }));
-      
-      logger.info(`Lista de dispositivos retornada: ${devicesWithUnit.length} dispositivos (Role: ${req.user.role}, Setor: ${req.user.sector || 'N/A'})`);
-      res.status(200).json(devicesWithUnit);
-    } catch (err) {
-      logger.error(`Erro ao obter dispositivos: ${err.message}`);
-      res.status(500).json({ error: 'Erro interno do servidor' });
-    }
-  });;
-
-  // Obter comandos pendentes
-  router.get('/commands', auth, getApiLimiter, [
-    query('serial_number').notEmpty().withMessage('serial_number é obrigatório').trim(),
-  ], async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      logger.warn(`Erros de validação: ${JSON.stringify(errors.array())}`);
-      return res.status(400).json({ errors: errors.array() });
+      return res.status(200).json({ 
+        success: true,
+        message: `Status de manutenção atualizado` 
+      });
     }
 
-    try {
-      const { serial_number } = req.query;
-      // Adicionar filtro por setor para usuários comuns também aqui, se necessário
-      const device = await Device.findOne({ serial_number });
-      if (req.user.role === 'user' && device && device.sector !== req.user.sector) {
-        logger.warn(`Usuário '${req.user.username}' tentou acessar comandos para dispositivo fora do seu setor: ${serial_number}`);
-        return res.status(403).json({ error: 'Acesso negado: Dispositivo fora do seu setor de permissão.' });
-      }
+    // Outros comandos
+    await Command.create({
+      device_name,
+      serial_number,
+      command,
+      parameters: { packageName, apkUrl },
+    });
 
-      const commands = await Command.find({ serial_number, status: 'pending' }).lean();
-      if (commands.length > 0) {
-        await Command.updateMany({ serial_number, status: 'pending' }, { status: 'sent' });
-        logger.info(`Comandos pendentes encontrados para ${serial_number}: ${commands.length}`);
-      }
+    logger.logDeviceOperation('command_created', {
+      serial_number,
+      device_name,
+    }, {
+      command,
+      by: req.user.username,
+    });
 
-      res.status(200).json(commands.map(cmd => ({
-        id: cmd._id.toString(),
-        command_type: cmd.command,
-        parameters: cmd.parameters
-      })));
-    } catch (err) {
-      logger.error(`Erro ao obter comandos: ${err.message}`);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+    res.status(200).json({ 
+      success: true,
+      message: `Comando ${command} registrado` 
+    });
+  }));
+
+  // ===== REPORTAR RESULTADO DE COMANDO =====
+  router.post('/command-result', auth, modifyApiLimiter, asyncHandler(async (req, res) => {
+    const { command_id, serial_number, success, result, error_message } = req.body;
+
+    if (!serial_number && !command_id) {
+      throw new BadRequestError('serial_number ou command_id é obrigatório');
     }
-  });
 
-  // Executar comando
-  router.post('/executeCommand', auth, modifyApiLimiter, [
-    body('serial_number').notEmpty().withMessage('serial_number é obrigatório').trim(),
-    body('command').notEmpty().withMessage('command é obrigatório').trim(),
-  ], async (req, res) => {
-    const { device_name, serial_number, command, packageName, apkUrl, maintenance_status, maintenance_ticket, maintenance_history_entry, maintenance_reason } = req.body;
-
-    try {
-      if (!serial_number || !command) {
-        logger.warn('Faltam campos obrigatórios: device_name ou command');
-        return res.status(400).json({ error: 'device_name e command são obrigatórios' });
-      }
-
-      // Verificação de setor antes de executar o comando
-      const device = await Device.findOne({ serial_number });
-      if (!device) {
-        logger.warn(`Dispositivo não encontrado: ${serial_number}`);
-        return res.status(404).json({ error: 'Dispositivo não encontrado' });
-      }
-      if (req.user.role === 'user' && device.sector !== req.user.sector) {
-        logger.warn(`Usuário '${req.user.username}' tentou executar comando em dispositivo fora do seu setor: ${serial_number}`);
-        return res.status(403).json({ error: 'Acesso negado: Dispositivo fora do seu setor de permissão.' });
-      }
-
-      if (command === 'set_maintenance') {
-        if (typeof maintenance_status !== 'boolean') {
-          logger.warn(`maintenance_status deve ser booleano para ${serial_number}`);
-          return res.status(400).json({ error: 'maintenance_status deve ser um valor booleano' });
-        }
-
-        const updateFields = {
-          maintenance_status,
-          maintenance_ticket: maintenance_ticket || '',
-          maintenance_reason: maintenance_reason || '',
-        };
-
-        if (maintenance_history_entry) {
-          try {
-            const historyEntry = JSON.parse(maintenance_history_entry);
-            if (!historyEntry.timestamp || !historyEntry.status) {
-              logger.warn(`maintenance_history_entry inválido para ${serial_number}`);
-              return res.status(400).json({ error: 'maintenance_history_entry deve conter timestamp e status' });
-            }
-            updateFields.$push = { maintenance_history: historyEntry };
-          } catch (err) {
-            logger.error(`Erro ao parsear maintenance_history_entry para ${serial_number}: ${err.message}`);
-            return res.status(400).json({ error: 'Formato inválido para maintenance_history_entry' });
-          }
-        }
-
-        const updatedDevice = await Device.findOneAndUpdate(
-          { serial_number },
-          updateFields,
-          { new: true }
-        );
-
-        if (!updatedDevice) { // Dupla checagem, embora já verificada acima
-          logger.warn(`Dispositivo não encontrado: ${serial_number}`);
-          return res.status(404).json({ error: 'Dispositivo não encontrado' });
-        }
-
-        logger.info(`Comando set_maintenance executado para ${serial_number}: status=${maintenance_status}`);
-        return res.status(200).json({ message: `Status de manutenção atualizado para ${serial_number}` });
-      } else {
-        await Command.create({
-          device_name,
-          serial_number,
-          command,
-          parameters: { packageName, apkUrl }
-        });
-        logger.info(`Comando "${command}" registrado para ${serial_number}`);
-        res.status(200).json({ message: `Comando ${command} registrado para ${device_name}` });
-      }
-    } catch (err) {
-      logger.error(`Erro ao processar comando: ${err.message}`);
-      return res.status(500).json({ error: 'Erro interno do servidor' });
-    }
-  });
-
-  // Reportar resultado de comando
-  router.post('/command-result', auth, modifyApiLimiter, async (req, res) => {
-    try {
-      const { command_id, serial_number, success, result, error_message } = req.body;
-
-      if (!serial_number && !command_id) {
-        logger.warn('serial_number ou command_id ausente');
-        return res.status(400).json({ error: 'serial_number ou command_id é obrigatório' });
-      }
-
-      let command;
-      if (command_id) {
-        command = await Command.findByIdAndUpdate(command_id, {
+    let command;
+    
+    if (command_id) {
+      command = await Command.findByIdAndUpdate(
+        command_id,
+        {
           status: success ? 'completed' : 'failed',
           result: result || error_message,
           executedAt: new Date(),
-        }, { new: true });
-      } else {
-        command = await Command.findOneAndUpdate(
-          { serial_number, status: 'sent' },
-          {
-            status: success ? 'completed' : 'failed',
-            result: result || error_message,
-            executedAt: new Date()
-          },
-          { new: true, sort: { createdAt: -1 } }
-        );
-      }
-
-      if (!command) {
-        logger.warn(`Comando não encontrado para serial_number: ${serial_number}`);
-        return res.status(404).json({ error: 'Comando não encontrado' });
-      }
-
-      // Verificação de setor para garantir que o usuário não manipule comandos de outros setores
-      const device = await Device.findOne({ serial_number: command.serial_number });
-      if (req.user.role === 'user' && device && device.sector !== req.user.sector) {
-        logger.warn(`Usuário '${req.user.username}' tentou reportar comando para dispositivo fora do seu setor: ${serial_number}`);
-        return res.status(403).json({ error: 'Acesso negado: Dispositivo fora do seu setor de permissão.' });
-      }
-
-
-      logger.info(`Resultado do comando recebido: ${command.command} para ${serial_number} - ${success ? 'sucesso' : 'falha'}`);
-      res.status(200).json({ message: 'Resultado do comando registrado' });
-
-    } catch (err) {
-      logger.error(`Erro ao registrar resultado do comando: ${err.message}`);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+        },
+        { new: true }
+      );
+    } else {
+      command = await Command.findOneAndUpdate(
+        { serial_number, status: 'sent' },
+        {
+          status: success ? 'completed' : 'failed',
+          result: result || error_message,
+          executedAt: new Date(),
+        },
+        { new: true, sort: { createdAt: -1 } }
+      );
     }
-  });
 
-  // Excluir dispositivo
-  router.delete('/:serial_number', auth, modifyApiLimiter, async (req, res) => {
-    try {
-      const { serial_number } = req.params;
-      // Verificação de setor antes de excluir
-      const device = await Device.findOne({ serial_number: serial_number });
-      if (!device) {
-        logger.warn(`Dispositivo não encontrado: ${serial_number}`);
-        return res.status(404).json({ error: 'Dispositivo não encontrado' });
-      }
-      if (req.user.role === 'user' && device.sector !== req.user.sector) {
-        logger.warn(`Usuário '${req.user.username}' tentou excluir dispositivo fora do seu setor: ${serial_number}`);
-        return res.status(403).json({ error: 'Acesso negado: Dispositivo fora do seu setor de permissão.' });
-      }
-
-      const deletedDevice = await Device.findOneAndDelete({ serial_number: serial_number });
-      logger.info(`Dispositivo excluído: ${serial_number}`);
-      res.status(200).json({ message: `Dispositivo ${serial_number} excluído com sucesso` });
-    } catch (err) {
-      logger.error(`Erro ao excluir dispositivo: ${err.message}`);
-      res.status(500).json({ error: 'Erro interno do servidor', details: err.message });
+    if (!command) {
+      throw new NotFoundError('Comando não encontrado');
     }
-  });
 
-  // Obter histórico de localização
-  router.get('/:serial_number/location-history', auth, getApiLimiter, async (req, res) => {
-    try {
-      const { serial_number } = req.params;
-
-      // Opcional: Adicionar verificação de permissão para ver este dispositivo específico
-      // if (req.user.role === 'user') { ... }
-
-      const history = await LocationHistory.find({ serial_number: serial_number })
-        .sort({ timestamp: -1 }) // Ordena do mais recente para o mais antigo
-        .limit(20) // Limita aos últimos 20 registos
-        .lean();
-
-      logger.info(`Histórico de localização solicitado para ${serial_number}: ${history.length} registos encontrados.`);
-
-      res.status(200).json({
-        success: true,
-        history
-      });
-
-    } catch (err) {
-      logger.error(`Erro ao obter histórico de localização: ${err.message}`);
-      res.status(500).json({ success: false, message: 'Erro interno do servidor' });
+    // Verifica permissões
+    if (req.user.role === 'user') {
+      const device = await Device.findOne({ serial_number: command.serial_number }).lean();
+      
+      if (device && device.sector !== req.user.sector) {
+        throw new ForbiddenError('Acesso negado');
+      }
     }
-  });
+
+    logger.logDeviceOperation('command_result', {
+      serial_number: command.serial_number,
+    }, {
+      command: command.command,
+      success,
+      result: result || error_message,
+    });
+
+    res.status(200).json({ 
+      success: true,
+      message: 'Resultado registrado' 
+    });
+  }));
+
+  // ===== EXCLUIR DISPOSITIVO =====
+  router.delete('/:serial_number', auth, modifyApiLimiter, asyncHandler(async (req, res) => {
+    const { serial_number } = req.params;
+
+    const device = await Device.findOne({ serial_number });
+    
+    if (!device) {
+      throw new NotFoundError(`Dispositivo não encontrado: ${serial_number}`);
+    }
+
+    // Verifica permissões
+    if (req.user.role === 'user' && device.sector !== req.user.sector) {
+      throw new ForbiddenError('Acesso negado');
+    }
+
+    await Device.findOneAndDelete({ serial_number });
+
+    logger.logDeviceOperation('device_deleted', {
+      serial_number,
+      device_name: device.device_name,
+    }, {
+      by: req.user.username,
+    });
+
+    res.status(200).json({ 
+      success: true,
+      message: `Dispositivo ${serial_number} excluído` 
+    });
+  }));
+
+  // ===== HISTÓRICO DE LOCALIZAÇÃO =====
+  router.get('/:serial_number/location-history', auth, getApiLimiter, asyncHandler(async (req, res) => {
+    const { serial_number } = req.params;
+
+    const history = await LocationHistory.find({ serial_number })
+      .sort({ timestamp: -1 })
+      .limit(20)
+      .lean();
+
+    logger.debug('Histórico de localização solicitado', {
+      serial_number,
+      count: history.length,
+    });
+
+    res.status(200).json({
+      success: true,
+      history,
+    });
+  }));
 
   return router;
 };
