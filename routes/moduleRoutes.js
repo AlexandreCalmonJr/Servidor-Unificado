@@ -9,8 +9,52 @@ const Notebook = require('../models/Notebook');
 const Panel = require('../models/Panel');
 const Printer = require('../models/Printer');
 
-module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
+module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => {
   const router = express.Router();
+
+  // ===== MIDDLEWARE DE AUTENTICAÇÃO FLEXÍVEL =====
+  /**
+   * Tenta autenticar com JWT (auth). Se falhar, tenta autenticar
+   * com Legacy Token (deviceAuth) e "promove" a sessão para admin.
+   */
+  const flexibleAuth = (req, res, next) => {
+    // 1. Tenta autenticação padrão com JWT (usuário do painel)
+    auth(req, res, (err) => {
+      if (!err) {
+        // Sucesso! É um usuário JWT. req.user está populado.
+        return next();
+      }
+
+      // 2. Auth JWT falhou. Tenta autenticação com Legacy Token (deviceAuth)
+      deviceAuth(req, res, (err2) => {
+        if (!err2) {
+          // Sucesso! É o Legacy Token.
+          logger.warn('Autenticação de fallback: Legacy Token usado em rota de módulos', {
+            ip: req.ip,
+            path: req.originalUrl,
+            userAgent: req.get('User-Agent')
+          });
+
+          // "Fabrica" um usuário admin para o Legacy Token
+          req.user = {
+            id: 'legacy_token_agent',
+            username: 'agent_system',
+            role: 'admin',
+            sector: 'Global',
+            permissions: ['mobile', 'totem', 'admin']
+          };
+          return next();
+        }
+
+        // 3. Ambas as autenticações falharam.
+        if (err && (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError')) {
+          return res.status(401).json({ success: false, message: `Token inválido: ${err.message}` });
+        }
+        
+        return res.status(401).json({ success: false, message: 'Autenticação falha' });
+      });
+    });
+  };
 
   // Helper para obter o modelo correto baseado no tipo
   const getModelByType = (type) => {
@@ -19,7 +63,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
       'notebook': Notebook,
       'panel': Panel,
       'printer': Printer,
-      // Adicione outros modelos conforme necessário
     };
     return models[type] || null;
   };
@@ -27,12 +70,12 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   /**
    * GET /api/modules
    * Lista todos os módulos de configuração
+   * ALTERADO: Usa flexibleAuth
    */
-  router.get('/', auth, getApiLimiter, async (req, res) => {
+  router.get('/', flexibleAuth, getApiLimiter, async (req, res) => {
     try {
       const modules = await AssetModuleConfig.find().sort({ created_at: -1 }).lean();
 
-      // Para cada módulo, conta quantos ativos existem
       const modulesWithCount = await Promise.all(
         modules.map(async (module) => {
           const Model = getModelByType(module.type);
@@ -75,8 +118,9 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   /**
    * GET /api/modules/:moduleId
    * Obtém um módulo específico
+   * ALTERADO: Usa flexibleAuth
    */
-  router.get('/:moduleId', auth, getApiLimiter, async (req, res) => {
+  router.get('/:moduleId', flexibleAuth, getApiLimiter, async (req, res) => {
     try {
       const module = await AssetModuleConfig.findById(req.params.moduleId).lean();
 
@@ -112,6 +156,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   /**
    * POST /api/modules
    * Cria um novo módulo
+   * MANTÉM: Apenas auth (somente admin do painel)
    */
   router.post('/',
     auth,
@@ -145,7 +190,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
         const { name, description, type, custom_fields, settings, table_columns } = req.body;
 
         const existingModule = await AssetModuleConfig.findOne({
-          name: { $regex: new RegExp(`^${name}$`, 'i') } // Corrigido Regex
+          name: { $regex: new RegExp(`^${name}$`, 'i') }
         });
 
         if (existingModule) {
@@ -191,6 +236,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   /**
    * PUT /api/modules/:moduleId
    * Atualiza um módulo existente
+   * MANTÉM: Apenas auth
    */
   router.put('/:moduleId',
     auth,
@@ -247,7 +293,8 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
 
   /**
    * DELETE /api/modules/:moduleId
-   * Deleta um módulo (CORRIGIDO)
+   * Deleta um módulo
+   * MANTÉM: Apenas auth
    */
   router.delete('/:moduleId', auth, modifyApiLimiter, async (req, res) => {
     if (req.user.role !== 'admin') {
@@ -267,7 +314,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
         });
       }
 
-      // ✅ CORREÇÃO: Verifica ativos na coleção correta
       const Model = getModelByType(module.type);
 
       if (Model) {
@@ -282,7 +328,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
         }
       }
 
-      // ✅ CORREÇÃO: Usa findByIdAndDelete
       await AssetModuleConfig.findByIdAndDelete(req.params.moduleId);
 
       logger.info(`Módulo excluído: ${module.name} (${module.type}) por ${req.user.username}`);
@@ -304,8 +349,9 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   /**
    * GET /api/modules/:moduleId/assets
    * Lista ativos de um módulo
+   * ALTERADO: Usa flexibleAuth (permite agentes)
    */
-  router.get('/:moduleId/assets', auth, getApiLimiter, async (req, res) => {
+  router.get('/:moduleId/assets', flexibleAuth, getApiLimiter, async (req, res) => {
     try {
       const module = await AssetModuleConfig.findById(req.params.moduleId);
 
@@ -366,8 +412,91 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   });
 
   /**
+   * POST /api/modules/:moduleId/assets
+   * Cria um novo ativo (usado pelos agentes)
+   * ALTERADO: Usa flexibleAuth (permite agentes)
+   */
+  router.post('/:moduleId/assets', flexibleAuth, modifyApiLimiter, async (req, res) => {
+    try {
+      const module = await AssetModuleConfig.findById(req.params.moduleId);
+
+      if (!module) {
+        return res.status(404).json({
+          success: false,
+          message: 'Módulo não encontrado'
+        });
+      }
+
+      const Model = getModelByType(module.type);
+
+      if (!Model) {
+        return res.status(400).json({
+          success: false,
+          message: 'Modelo de dados não encontrado para este tipo de módulo'
+        });
+      }
+
+      const assetData = req.body;
+      
+      // Define o asset_type baseado no tipo do módulo
+      assetData.asset_type = module.type;
+      
+      // Define status como online quando receber dados
+      assetData.status = 'online';
+      assetData.last_seen = new Date();
+
+      // Verifica se já existe um ativo com esse serial_number
+      const existingAsset = await Model.findOne({ 
+        serial_number: assetData.serial_number 
+      });
+
+      if (existingAsset) {
+        // Atualiza o ativo existente
+        Object.keys(assetData).forEach(key => {
+          if (key !== '_id' && key !== 'created_at') {
+            existingAsset[key] = assetData[key];
+          }
+        });
+        
+        existingAsset.updated_at = new Date();
+        await existingAsset.save();
+
+        logger.info(`Ativo atualizado: ${existingAsset.asset_name} (${existingAsset.serial_number}) por ${req.user.username}`);
+
+        return res.status(200).json({
+          success: true,
+          message: 'Ativo atualizado com sucesso',
+          asset: existingAsset,
+          updated: true
+        });
+      }
+
+      // Cria novo ativo
+      const newAsset = new Model(assetData);
+      await newAsset.save();
+
+      logger.info(`Novo ativo criado: ${newAsset.asset_name} (${newAsset.serial_number}) por ${req.user.username}`);
+
+      res.status(201).json({
+        success: true,
+        message: 'Ativo criado com sucesso',
+        asset: newAsset,
+        updated: false
+      });
+    } catch (error) {
+      logger.error(`Erro ao criar/atualizar ativo: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        message: 'Erro ao criar/atualizar ativo',
+        error: error.message
+      });
+    }
+  });
+
+  /**
    * PUT /api/modules/:moduleId/assets/:assetId
    * Atualiza um ativo
+   * MANTÉM: Apenas auth
    */
   router.put('/:moduleId/assets/:assetId', auth, modifyApiLimiter, async (req, res) => {
     try {
@@ -428,6 +557,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   /**
    * DELETE /api/modules/:moduleId/assets/:assetId
    * Deleta um ativo
+   * MANTÉM: Apenas auth
    */
   router.delete('/:moduleId/assets/:assetId', auth, modifyApiLimiter, async (req, res) => {
     try {
@@ -477,6 +607,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   /**
    * GET /api/modules/:moduleId/permissions
    * Obtém lista de usuários com permissão
+   * MANTÉM: Apenas auth
    */
   router.get('/:moduleId/permissions', auth, async (req, res) => {
     if (req.user.role !== 'admin') {
@@ -515,6 +646,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   /**
    * PUT /api/modules/:moduleId/permissions
    * Atualiza permissões de usuários
+   * MANTÉM: Apenas auth
    */
   router.put('/:moduleId/permissions', auth, modifyApiLimiter, async (req, res) => {
     if (req.user.role !== 'admin') {
@@ -546,13 +678,11 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth) => {
 
       const permissionKey = `module:${module.type}`;
 
-      // Adiciona permissão para os IDs selecionados
       await User.updateMany(
         { _id: { $in: userIds } },
         { $addToSet: { permissions: permissionKey } }
       );
 
-      // Remove permissão dos IDs não selecionados
       await User.updateMany(
         { _id: { $nin: userIds } },
         { $pull: { permissions: permissionKey } }

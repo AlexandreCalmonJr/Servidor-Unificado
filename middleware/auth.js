@@ -67,22 +67,18 @@ const auth = async (req, res, next) => {
     next();
 
   } catch (error) {
-    if (error.name === 'JsonWebTokenError') {
-      logger.warn(`Token inválido - IP: ${req.ip} - Erro: ${error.message}`);
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Token inválido' 
-      });
-    }
-    
-    if (error.name === 'TokenExpiredError') {
-      logger.warn(`Token expirado - IP: ${req.ip}`);
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Token expirado. Faça login novamente.' 
-      });
+    // Se for um erro de JWT (token inválido ou expirado), não envie a resposta.
+    // Em vez disso, passe o erro para o próximo handler (o callback no flexibleAuth).
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      
+      // Loga a tentativa, mas permite o fallback
+      logger.debug(`Falha na autenticação JWT (tentando fallback): ${error.message}`);
+      
+      // Passa o erro para o próximo handler
+      return next(error); 
     }
 
+    // Se for um erro 500 (ex: falha ao buscar usuário no DB), encerre a requisição.
     logger.error(`Erro na autenticação - IP: ${req.ip} - Erro: ${error.message}`);
     res.status(500).json({ 
       success: false, 

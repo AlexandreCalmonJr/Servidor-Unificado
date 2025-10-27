@@ -114,8 +114,8 @@ app.get('/health', (req, res) => {
 });
 
 // ===== ROTAS =====
-const auth = require('./middleware/auth');           // JWT para painel web
-const deviceAuth = require('./middleware/deviceAuth'); // Token simples para dispositivos
+const auth = require('./middleware/auth');           
+const deviceAuth = require('./middleware/deviceAuth'); 
 const { getApiLimiter, modifyApiLimiter, enrollLimiter } = require('./middleware/rateLimiters');
 const { errorHandler } = require('./middleware/error');
 
@@ -140,20 +140,19 @@ app.use('/api/auth', authRoutes(logger, getApiLimiter, modifyApiLimiter));
 app.use('/api', publicRoutes(logger, getApiLimiter));
 
 // ===== ROTAS DE DISPOSITIVOS (usam deviceAuth - token simples) =====
-// Estas rotas são acessadas pelos agentes/dispositivos no campo
 app.post('/api/monitor', modifyApiLimiter, deviceAuth, totemController.handleTotemData);
-
-// ⚠️ IMPORTANTE: Passa AMBOS os middlewares (deviceAuth e auth)
 app.use('/api/devices', deviceRoutes(logger, getApiLimiter, modifyApiLimiter, deviceAuth, auth));
 
-// ===== ROTAS DO PAINEL WEB (usam auth - JWT) =====
-// Estas rotas são acessadas pelo painel de controle web
+// ===== ROTAS DO PAINEL WEB E AGENTES (HÍBRIDO) =====
 app.get('/provision/:token', provisioningRoutes.renderProvisioningPage(logger));
 app.use('/api/provisioning', provisioningRoutes(logger, modifyApiLimiter, enrollLimiter, auth));
 app.use('/api/config-profiles', configProfileRoutes(logger, modifyApiLimiter, auth));
 app.use('/api/units', unitRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
 app.use('/api/bssid-mappings', bssidRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
-app.use('/api/modules', moduleRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
+
+// ⭐ CRÍTICO: Passa deviceAuth como 5º parâmetro
+app.use('/api/modules', moduleRoutes(logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth));
+
 app.use('/api/assets', assetModuleRoutes(logger, getApiLimiter));
 app.use('/api/monitoring', monitoringRoutes(logger, modifyApiLimiter, auth));
 app.use('/api/server', serverRoutes(logger, getApiLimiter, auth));
@@ -162,7 +161,7 @@ app.use('/api/server', serverRoutes(logger, getApiLimiter, auth));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.get('/dashboard', auth, serverRoutes.renderDashboard(logger));
-app.use(express.static(path.join(__dirname, 'public', 'web'))); // Serve arquivos estáticos da pasta web
+app.use(express.static(path.join(__dirname, 'public', 'web')));
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'web', 'index.html'));
 });
@@ -186,6 +185,7 @@ app.use((req, res) => {
 // ===== ERROR HANDLER =====
 app.use(errorHandler(logger));
 
+// ===== CRON JOB =====
 // ===== TAREFA AGENDADA =====
 cron.schedule('*/5 * * * *', async () => {
   logger.debug('Executando tarefa agendada de verificação de status');
