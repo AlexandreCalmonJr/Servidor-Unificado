@@ -5,6 +5,7 @@ const cors = require('cors');
 
 const { modifyApiLimiter, getApiLimiter, enrollLimiter } = require('../middleware/rateLimiters');
 const auth = require('../middleware/auth');
+const deviceAuth = require('../middleware/deviceAuth'); // Import para autenticação de dispositivos
 const authorize = require('../middleware/role');
 const { requestLogger } = require('../middleware/logging');
 const errorHandler = require('../middleware/error');
@@ -50,20 +51,16 @@ const expressConfig = (app, logger) => {
   // Rotas de módulos de ativos
   app.use('/api/assets', assetModuleRoutes(logger, getApiLimiter));
 
-  // --- ROTAS ORIGINAIS PARA CLIENTES (COMPATIBILIDADE MANTIDA) ---
+  // --- ROTAS PARA CLIENTES (DISPOSITIVOS) ---
+  // Rota para monitoramento (totem)
+  app.post('/api/monitor', modifyApiLimiter, deviceAuth, totemController.handleTotemData);
 
-  // Rota original do cliente de monitoramento (totem)
-  app.post('/api/monitor', totemController.handleTotemData);
+  // Rota para dispositivos MDM
+  // CORRIGIDO: Inclui deviceAuth antes de auth, como em server.js
+  app.use('/api/devices', mdmDeviceRoutes(logger, getApiLimiter, modifyApiLimiter, deviceAuth, auth));
 
-  // Rota original do cliente MDM (dispositivos móveis)
-  app.use('/api/devices', mdmDeviceRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
-
-  // --- NOVAS ROTAS MODULARES PARA O PAINEL DE CONTROLE ---
-
-  // Módulo de Monitoramento para o Painel (protegido por autenticação)
+  // --- ROTAS PARA O PAINEL DE CONTROLE ---
   app.use('/api/monitoring', monitoringRoutes(logger, modifyApiLimiter, auth));
-
-  // Outras rotas do MDM (usadas pelo painel e provisionamento)
   app.use('/api/provisioning', provisioningRoutes(logger, modifyApiLimiter, enrollLimiter, auth));
   app.use('/api/config-profiles', configProfileRoutes(logger, modifyApiLimiter, auth));
   app.use('/api/units', unitRoutes(logger, getApiLimiter, modifyApiLimiter, auth));

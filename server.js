@@ -1,4 +1,3 @@
-// server.js - VERSÃO MELHORADA COM VALIDAÇÃO E LOGS
 require('dotenv').config();
 const path = require('path');
 const cron = require('node-cron');
@@ -94,7 +93,6 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // Servir arquivos estáticos
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
-
 // ===== HEALTH CHECK =====
 app.get('/health', (req, res) => {
   const uptime = process.uptime();
@@ -116,7 +114,8 @@ app.get('/health', (req, res) => {
 });
 
 // ===== ROTAS =====
-const auth = require('./middleware/auth');
+const auth = require('./middleware/auth');           // JWT para painel web
+const deviceAuth = require('./middleware/deviceAuth'); // Token simples para dispositivos
 const { getApiLimiter, modifyApiLimiter, enrollLimiter } = require('./middleware/rateLimiters');
 const { errorHandler } = require('./middleware/error');
 
@@ -136,20 +135,28 @@ const publicRoutes = require('./routes/publicRoutes');
 const provisioningRoutes = require('./routes/provisioningRoutes');
 const configProfileRoutes = require('./routes/configProfileRoutes');
 
-// Montagem de rotas
+// ===== ROTAS PÚBLICAS (sem autenticação) =====
 app.use('/api/auth', authRoutes(logger, getApiLimiter, modifyApiLimiter));
-app.post('/api/monitor', modifyApiLimiter, totemController.handleTotemData);
+app.use('/api', publicRoutes(logger, getApiLimiter));
+
+// ===== ROTAS DE DISPOSITIVOS (usam deviceAuth - token simples) =====
+// Estas rotas são acessadas pelos agentes/dispositivos no campo
+app.post('/api/monitor', modifyApiLimiter, deviceAuth, totemController.handleTotemData);
+
+// ⚠️ IMPORTANTE: Passa AMBOS os middlewares (deviceAuth e auth)
+app.use('/api/devices', deviceRoutes(logger, getApiLimiter, modifyApiLimiter, deviceAuth, auth));
+
+// ===== ROTAS DO PAINEL WEB (usam auth - JWT) =====
+// Estas rotas são acessadas pelo painel de controle web
 app.get('/provision/:token', provisioningRoutes.renderProvisioningPage(logger));
 app.use('/api/provisioning', provisioningRoutes(logger, modifyApiLimiter, enrollLimiter, auth));
 app.use('/api/config-profiles', configProfileRoutes(logger, modifyApiLimiter, auth));
-app.use('/api/devices', deviceRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
 app.use('/api/units', unitRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
 app.use('/api/bssid-mappings', bssidRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
 app.use('/api/modules', moduleRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
 app.use('/api/assets', assetModuleRoutes(logger, getApiLimiter));
 app.use('/api/monitoring', monitoringRoutes(logger, modifyApiLimiter, auth));
 app.use('/api/server', serverRoutes(logger, getApiLimiter, auth));
-app.use('/api', publicRoutes(logger, getApiLimiter));
 
 // ===== DASHBOARD (OPCIONAL) =====
 app.set('view engine', 'ejs');
@@ -159,6 +166,7 @@ app.use(express.static(path.join(__dirname, 'public', 'web'))); // Serve arquivo
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'web', 'index.html'));
 });
+
 // ===== ROTA 404 =====
 app.use((req, res) => {
   logger.warn('Rota não encontrada', {
