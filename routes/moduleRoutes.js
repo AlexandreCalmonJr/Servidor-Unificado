@@ -1,4 +1,4 @@
-// File: routes/moduleRoutes.js (CORREÇÃO COMPLETA)
+// File: routes/moduleRoutes.js (VERSÃO FINAL UNIFICADA)
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const AssetModuleConfig = require('../models/AssetModuleConfig');
@@ -12,7 +12,7 @@ const Printer = require('../models/Printer');
 module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => {
   const router = express.Router();
 
-  // ===== MIDDLEWARE DE AUTENTICAÇÃO FLEXÍVEL =====
+  // ===== MIDDLEWARE DE AUTENTICAÇÃO FLEXÍVEL (Versão Robusta do Arq 1) =====
   /**
    * Tenta autenticar com JWT (auth). Se falhar, tenta autenticar
    * com Legacy Token (deviceAuth) e "promove" a sessão para admin.
@@ -70,7 +70,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   /**
    * GET /api/modules
    * Lista todos os módulos de configuração
-   * ALTERADO: Usa flexibleAuth
    */
   router.get('/', flexibleAuth, getApiLimiter, async (req, res) => {
     try {
@@ -118,7 +117,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   /**
    * GET /api/modules/:moduleId
    * Obtém um módulo específico
-   * ALTERADO: Usa flexibleAuth
    */
   router.get('/:moduleId', flexibleAuth, getApiLimiter, async (req, res) => {
     try {
@@ -156,7 +154,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   /**
    * POST /api/modules
    * Cria um novo módulo
-   * MANTÉM: Apenas auth (somente admin do painel)
    */
   router.post('/',
     auth,
@@ -236,7 +233,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   /**
    * PUT /api/modules/:moduleId
    * Atualiza um módulo existente
-   * MANTÉM: Apenas auth
    */
   router.put('/:moduleId',
     auth,
@@ -294,7 +290,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   /**
    * DELETE /api/modules/:moduleId
    * Deleta um módulo
-   * MANTÉM: Apenas auth
    */
   router.delete('/:moduleId', auth, modifyApiLimiter, async (req, res) => {
     if (req.user.role !== 'admin') {
@@ -349,7 +344,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   /**
    * GET /api/modules/:moduleId/assets
    * Lista ativos de um módulo
-   * ALTERADO: Usa flexibleAuth (permite agentes)
    */
   router.get('/:moduleId/assets', flexibleAuth, getApiLimiter, async (req, res) => {
     try {
@@ -414,7 +408,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   /**
    * POST /api/modules/:moduleId/assets
    * Cria um novo ativo (usado pelos agentes)
-   * ALTERADO: Usa flexibleAuth (permite agentes)
+   * (UNIFICADO COM LÓGICA DE LOCALIZAÇÃO DO ARQ 2)
    */
   router.post('/:moduleId/assets', flexibleAuth, modifyApiLimiter, async (req, res) => {
     try {
@@ -438,12 +432,80 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
 
       const assetData = req.body;
       
-      // Define o asset_type baseado no tipo do módulo
+      // ===== INÍCIO DA LÓGICA DE LOCALIZAÇÃO (DO ARQUIVO 2) =====
+      
+      // 1. Define o asset_type baseado no tipo do módulo
       assetData.asset_type = module.type;
       
-      // Define status como online quando receber dados
+      // 2. Define status como online quando receber dados
       assetData.status = 'online';
       assetData.last_seen = new Date();
+
+      // 3. PROCESSA LOCALIZAÇÃO - Prioriza dados enviados pelo agente
+      if (!assetData.location || assetData.location === '' || assetData.location === 'N/D') {
+        // Se não veio localização, tenta construir dos campos individuais
+        const locationParts = [];
+        
+        if (assetData.unit && assetData.unit !== 'N/A') {
+          locationParts.push(assetData.unit);
+        }
+        
+        if (assetData.sector && assetData.sector !== 'Desconhecido') {
+          locationParts.push(assetData.sector);
+        }
+        
+        if (assetData.floor && assetData.floor !== 'Desconhecido') {
+          locationParts.push(assetData.floor);
+        }
+        
+        assetData.location = locationParts.length > 0 
+          ? locationParts.join(' - ') 
+          : 'N/D';
+      }
+
+      // 4. Garante que unit, sector e floor existam (não podem ser undefined)
+      if (!assetData.unit || assetData.unit === '') {
+        assetData.unit = 'N/A';
+      }
+      
+      if (!assetData.sector || assetData.sector === '') {
+        assetData.sector = 'Desconhecido';
+      }
+      
+      if (!assetData.floor || assetData.floor === '') {
+        assetData.floor = 'Desconhecido';
+      }
+
+      // 5. BACKUP: Se veio sector/floor em custom_data, usa como fallback
+      if (assetData.custom_data) {
+        if (!assetData.sector || assetData.sector === 'Desconhecido') {
+          assetData.sector = assetData.custom_data.sector || 'Desconhecido';
+        }
+        
+        if (!assetData.floor || assetData.floor === 'Desconhecido') {
+          assetData.floor = assetData.custom_data.floor || 'Desconhecido';
+        }
+        
+        // Remove do custom_data para evitar duplicação
+        if (assetData.sector !== 'Desconhecido') {
+          delete assetData.custom_data.sector;
+        }
+        if (assetData.floor !== 'Desconhecido') {
+          delete assetData.custom_data.floor;
+        }
+      }
+
+      // 6. LOG PARA DEBUG (DO ARQUIVO 2)
+      logger.info(`📍 Processando localização para ${assetData.asset_name}:`, {
+        location: assetData.location,
+        unit: assetData.unit,
+        sector: assetData.sector,
+        floor: assetData.floor,
+        ip: assetData.ip_address,
+        mac: assetData.mac_address
+      });
+      // ===== FIM DA LÓGICA DE LOCALIZAÇÃO =====
+
 
       // Verifica se já existe um ativo com esse serial_number
       const existingAsset = await Model.findOne({ 
@@ -453,15 +515,23 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       if (existingAsset) {
         // Atualiza o ativo existente
         Object.keys(assetData).forEach(key => {
-          if (key !== '_id' && key !== 'created_at') {
+          if (key !== '_id' && key !== 'created_at' && key !== 'createdAt') { // Checagem do Arq 2
             existingAsset[key] = assetData[key];
           }
         });
         
         existingAsset.updated_at = new Date();
+        existingAsset.updatedAt = new Date(); // Adicionado (de Arq 2)
         await existingAsset.save();
 
-        logger.info(`Ativo atualizado: ${existingAsset.asset_name} (${existingAsset.serial_number}) por ${req.user.username}`);
+        // LOG MELHORADO (DO ARQUIVO 2)
+        logger.info(`✅ Ativo atualizado: ${existingAsset.asset_name} (${existingAsset.serial_number})`, {
+          location: existingAsset.location,
+          unit: existingAsset.unit,
+          sector: existingAsset.sector,
+          floor: existingAsset.floor,
+          updated_by: req.user.username
+        });
 
         return res.status(200).json({
           success: true,
@@ -475,7 +545,14 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       const newAsset = new Model(assetData);
       await newAsset.save();
 
-      logger.info(`Novo ativo criado: ${newAsset.asset_name} (${newAsset.serial_number}) por ${req.user.username}`);
+      // LOG MELHORADO (DO ARQUIVO 2)
+      logger.info(`✅ Novo ativo criado: ${newAsset.asset_name} (${newAsset.serial_number})`, {
+        location: newAsset.location,
+        unit: newAsset.unit,
+        sector: newAsset.sector,
+        floor: newAsset.floor,
+        created_by: req.user.username
+      });
 
       res.status(201).json({
         success: true,
@@ -484,7 +561,12 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
         updated: false
       });
     } catch (error) {
-      logger.error(`Erro ao criar/atualizar ativo: ${error.message}`);
+      // LOG DE ERRO MELHORADO (DO ARQUIVO 2)
+      logger.error(`❌ Erro ao criar/atualizar ativo: ${error.message}`, {
+        stack: error.stack,
+        body: req.body
+      });
+      
       res.status(500).json({
         success: false,
         message: 'Erro ao criar/atualizar ativo',
@@ -496,7 +578,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   /**
    * PUT /api/modules/:moduleId/assets/:assetId
    * Atualiza um ativo
-   * MANTÉM: Apenas auth
    */
   router.put('/:moduleId/assets/:assetId', auth, modifyApiLimiter, async (req, res) => {
     try {
@@ -557,7 +638,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   /**
    * DELETE /api/modules/:moduleId/assets/:assetId
    * Deleta um ativo
-   * MANTÉM: Apenas auth
    */
   router.delete('/:moduleId/assets/:assetId', auth, modifyApiLimiter, async (req, res) => {
     try {
@@ -582,7 +662,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       const asset = await Model.findByIdAndDelete(req.params.assetId);
 
       if (!asset) {
-        return res.status(404).json({
+        return res.status(44).json({
           success: false,
           message: 'Ativo não encontrado'
         });
@@ -604,10 +684,158 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
     }
   });
 
+  // ========== NOVAS ROTAS DE MANUTENÇÃO (DO ARQUIVO 2) ==========
+  
+  /**
+   * PATCH /api/modules/:moduleId/assets/:assetId/maintenance
+   * Marca/desmarca ativo para manutenção
+   */
+  router.patch('/:moduleId/assets/:assetId/maintenance', 
+    auth, 
+    modifyApiLimiter, 
+    async (req, res) => {
+      try {
+        const { moduleId, assetId } = req.params;
+        const { maintenance_mode, maintenance_reason } = req.body;
+
+        const module = await AssetModuleConfig.findById(moduleId);
+        if (!module) {
+          return res.status(404).json({ 
+            success: false, 
+            message: 'Módulo não encontrado' 
+          });
+        }
+
+        const Model = getModelByType(module.type);
+        if (!Model) {
+          return res.status(400).json({ 
+            success: false, 
+            message: 'Modelo não encontrado' 
+          });
+        }
+
+        const asset = await Model.findById(assetId);
+        if (!asset) {
+          return res.status(404).json({ 
+            success: false, 
+            message: 'Ativo não encontrado' 
+          });
+        }
+
+        // Define o status baseado no modo de manutenção
+        if (maintenance_mode === true) {
+          asset.status = 'maintenance';
+          
+          // Salva o motivo se fornecido
+          if (maintenance_reason) {
+            if (!asset.custom_data) {
+              asset.custom_data = {};
+            }
+            asset.custom_data.maintenance_reason = maintenance_reason;
+            asset.custom_data.maintenance_started = new Date();
+            asset.custom_data.maintenance_by = req.user.username;
+          }
+          
+          logger.info(`Ativo em manutenção: ${asset.asset_name} por ${req.user.username}`);
+        } else {
+          asset.status = 'online'; 
+          
+          // Remove dados de manutenção
+          if (asset.custom_data) {
+            delete asset.custom_data.maintenance_reason;
+            delete asset.custom_data.maintenance_started;
+            delete asset.custom_data.maintenance_by;
+          }
+          
+          logger.info(`Ativo retornou à produção: ${asset.asset_name} por ${req.user.username}`);
+        }
+
+        asset.updated_at = new Date();
+        await asset.save();
+
+        res.json({
+          success: true,
+          message: maintenance_mode 
+            ? 'Ativo marcado para manutenção' 
+            : 'Ativo retornou à produção',
+          asset: asset
+        });
+
+      } catch (error) {
+        logger.error(`Erro ao alterar status de manutenção: ${error.message}`);
+        res.status(500).json({
+          success: false,
+          message: 'Erro ao processar manutenção',
+          error: error.message
+        });
+      }
+    }
+  );
+
+  /**
+   * PATCH /api/modules/:moduleId/assets/:assetId/status
+   * Atualiza apenas o status de um ativo
+   */
+  router.patch('/:moduleId/assets/:assetId/status', 
+    auth, 
+    modifyApiLimiter, 
+    async (req, res) => {
+      try {
+        const { moduleId, assetId } = req.params;
+        const { status } = req.body;
+
+        // Valida status
+        const validStatuses = ['online', 'offline', 'maintenance', 'sem monitorar'];
+        if (!validStatuses.includes(status)) {
+          return res.status(400).json({
+            success: false,
+            message: `Status inválido. Valores aceitos: ${validStatuses.join(', ')}`
+          });
+        }
+
+        const module = await AssetModuleConfig.findById(moduleId);
+        if (!module) {
+          return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
+        }
+
+        const Model = getModelByType(module.type);
+        if (!Model) {
+          return res.status(400).json({ success: false, message: 'Modelo não encontrado' });
+        }
+
+        const asset = await Model.findById(assetId);
+        if (!asset) {
+          return res.status(404).json({ success: false, message: 'Ativo não encontrado' });
+        }
+
+        asset.status = status;
+        asset.updated_at = new Date();
+        await asset.save();
+
+        logger.info(`Status do ativo alterado: ${asset.asset_name} -> ${status} por ${req.user.username}`);
+
+        res.json({
+          success: true,
+          message: 'Status atualizado com sucesso',
+          asset: asset
+        });
+
+      } catch (error) {
+        logger.error(`Erro ao atualizar status: ${error.message}`);
+        res.status(500).json({
+          success: false,
+          message: 'Erro ao atualizar status',
+          error: error.message
+        });
+      }
+    }
+  );
+
+  // ========== ROTAS DE PERMISSÕES ==========
+
   /**
    * GET /api/modules/:moduleId/permissions
    * Obtém lista de usuários com permissão
-   * MANTÉM: Apenas auth
    */
   router.get('/:moduleId/permissions', auth, async (req, res) => {
     if (req.user.role !== 'admin') {
@@ -646,7 +874,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   /**
    * PUT /api/modules/:moduleId/permissions
    * Atualiza permissões de usuários
-   * MANTÉM: Apenas auth
    */
   router.put('/:moduleId/permissions', auth, modifyApiLimiter, async (req, res) => {
     if (req.user.role !== 'admin') {
@@ -678,11 +905,13 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
 
       const permissionKey = `module:${module.type}`;
 
+      // Adiciona permissão para quem está na lista
       await User.updateMany(
         { _id: { $in: userIds } },
         { $addToSet: { permissions: permissionKey } }
       );
 
+      // Remove permissão de quem não está na lista
       await User.updateMany(
         { _id: { $nin: userIds } },
         { $pull: { permissions: permissionKey } }
