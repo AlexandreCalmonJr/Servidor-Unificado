@@ -410,149 +410,67 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
    * Cria um novo ativo (usado pelos agentes)
    * (UNIFICADO COM LÓGICA DE LOCALIZAÇÃO DO ARQ 2)
    */
-  router.post('/:moduleId/assets', flexibleAuth, modifyApiLimiter, async (req, res) => {
-    try {
-      const module = await AssetModuleConfig.findById(req.params.moduleId);
+  // POST /api/modules/:moduleId/assets
+router.post('/:moduleId/assets', flexibleAuth, modifyApiLimiter, async (req, res) => {
+  try {
+    const module = await AssetModuleConfig.findById(req.params.moduleId);
 
-      if (!module) {
-        return res.status(404).json({
-          success: false,
-          message: 'Módulo não encontrado'
-        });
-      }
+    if (!module) {
+      return res.status(404).json({
+        success: false,
+        message: 'Módulo não encontrado'
+      });
+    }
 
-      const Model = getModelByType(module.type);
+    const Model = getModelByIdentifier(module.type);
 
-      if (!Model) {
-        return res.status(400).json({
-          success: false,
-          message: 'Modelo de dados não encontrado para este tipo de módulo'
-        });
-      }
+    if (!Model) {
+      return res.status(400).json({
+        success: false,
+        message: 'Modelo de dados não encontrado para este tipo de módulo'
+      });
+    }
 
       const assetData = req.body;
       
-      // ===== INÍCIO DA LÓGICA DE LOCALIZAÇÃO (DO ARQUIVO 2) =====
-      
-      // 1. Define o asset_type baseado no tipo do módulo
+      // Define o asset_type baseado no tipo do módulo
       assetData.asset_type = module.type;
       
-      // 2. Define status como online quando receber dados
+      // Define status como online quando receber dados
       assetData.status = 'online';
       assetData.last_seen = new Date();
 
-      // 3. PROCESSA LOCALIZAÇÃO - Prioriza dados enviados pelo agente
-      if (!assetData.location || assetData.location === '' || assetData.location === 'N/D') {
-        // Se não veio localização, tenta construir dos campos individuais
-        const locationParts = [];
-        
-        if (assetData.unit && assetData.unit !== 'N/A') {
-          locationParts.push(assetData.unit);
-        }
-        
-        if (assetData.sector && assetData.sector !== 'Desconhecido') {
-          locationParts.push(assetData.sector);
-        }
-        
-        if (assetData.floor && assetData.floor !== 'Desconhecido') {
-          locationParts.push(assetData.floor);
-        }
-        
-        assetData.location = locationParts.length > 0 
-          ? locationParts.join(' - ') 
-          : 'N/D';
-      }
-
-      // 4. Garante que unit, sector e floor existam (não podem ser undefined)
-      if (!assetData.unit || assetData.unit === '') {
-        assetData.unit = 'N/A';
-      }
-      
-      if (!assetData.sector || assetData.sector === '') {
-        assetData.sector = 'Desconhecido';
-      }
-      
-      if (!assetData.floor || assetData.floor === '') {
-        assetData.floor = 'Desconhecido';
-      }
-
-      // 5. BACKUP: Se veio sector/floor em custom_data, usa como fallback
-      if (assetData.custom_data) {
-        if (!assetData.sector || assetData.sector === 'Desconhecido') {
-          assetData.sector = assetData.custom_data.sector || 'Desconhecido';
-        }
-        
-        if (!assetData.floor || assetData.floor === 'Desconhecido') {
-          assetData.floor = assetData.custom_data.floor || 'Desconhecido';
-        }
-        
-        // Remove do custom_data para evitar duplicação
-        if (assetData.sector !== 'Desconhecido') {
-          delete assetData.custom_data.sector;
-        }
-        if (assetData.floor !== 'Desconhecido') {
-          delete assetData.custom_data.floor;
-        }
-      }
-
-      // 6. LOG PARA DEBUG (DO ARQUIVO 2)
-      logger.info(`📍 Processando localização para ${assetData.asset_name}:`, {
-        location: assetData.location,
-        unit: assetData.unit,
-        sector: assetData.sector,
-        floor: assetData.floor,
-        ip: assetData.ip_address,
-        mac: assetData.mac_address
-      });
-      // ===== FIM DA LÓGICA DE LOCALIZAÇÃO =====
-
-
-      // Verifica se já existe um ativo com esse serial_number
-      const existingAsset = await Model.findOne({ 
-        serial_number: assetData.serial_number 
-      });
+    // Verifica se já existe um ativo com esse serial_number
+    const existingAsset = await Model.findOne({ 
+      serial_number: assetData.serial_number 
+    });
 
       if (existingAsset) {
         // Atualiza o ativo existente
         Object.keys(assetData).forEach(key => {
-          if (key !== '_id' && key !== 'created_at' && key !== 'createdAt') { // Checagem do Arq 2
+          if (key !== '_id' && key !== 'created_at') {
             existingAsset[key] = assetData[key];
           }
         });
         
         existingAsset.updated_at = new Date();
-        existingAsset.updatedAt = new Date(); // Adicionado (de Arq 2)
         await existingAsset.save();
 
-        // LOG MELHORADO (DO ARQUIVO 2)
-        logger.info(`✅ Ativo atualizado: ${existingAsset.asset_name} (${existingAsset.serial_number})`, {
-          location: existingAsset.location,
-          unit: existingAsset.unit,
-          sector: existingAsset.sector,
-          floor: existingAsset.floor,
-          updated_by: req.user.username
-        });
+        logger.info(`Ativo atualizado: ${existingAsset.asset_name} (${existingAsset.serial_number}) por ${req.user.username}`);
 
-        return res.status(200).json({
-          success: true,
-          message: 'Ativo atualizado com sucesso',
-          asset: existingAsset,
-          updated: true
-        });
-      }
-
-      // Cria novo ativo
-      const newAsset = new Model(assetData);
-      await newAsset.save();
-
-      // LOG MELHORADO (DO ARQUIVO 2)
-      logger.info(`✅ Novo ativo criado: ${newAsset.asset_name} (${newAsset.serial_number})`, {
-        location: newAsset.location,
-        unit: newAsset.unit,
-        sector: newAsset.sector,
-        floor: newAsset.floor,
-        created_by: req.user.username
+      return res.status(200).json({
+        success: true,
+        message: 'Ativo atualizado com sucesso',
+        asset: existingAsset,
+        updated: true
       });
+    }
+
+    // Cria novo ativo
+    const newAsset = new Model(assetData);
+    await newAsset.save();
+
+      logger.info(`Novo ativo criado: ${newAsset.asset_name} (${newAsset.serial_number}) por ${req.user.username}`);
 
       res.status(201).json({
         success: true,
@@ -561,12 +479,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
         updated: false
       });
     } catch (error) {
-      // LOG DE ERRO MELHORADO (DO ARQUIVO 2)
-      logger.error(`❌ Erro ao criar/atualizar ativo: ${error.message}`, {
-        stack: error.stack,
-        body: req.body
-      });
-      
+      logger.error(`Erro ao criar/atualizar ativo: ${error.message}`);
       res.status(500).json({
         success: false,
         message: 'Erro ao criar/atualizar ativo',

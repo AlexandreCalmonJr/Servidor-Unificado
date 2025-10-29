@@ -1,4 +1,3 @@
-// routes/deviceRoutes.js - VERSÃO MODIFICADA COM AUTH FLEXÍVEL
 const express = require('express');
 const { body, validationResult, query } = require('express-validator');
 const Device = require('../models/Device');
@@ -7,93 +6,44 @@ const LocationHistory = require('../models/LocationHistory');
 const locationService = require('../services/locationService');
 const { asyncHandler, validationErrorHandler, NotFoundError, BadRequestError, ForbiddenError } = require('../middleware/error');
 
-// =====================================================
-// NOVA MIDDLEWARE DE AUTENTICAÇÃO FLEXÍVEL (HÍBRIDA)
-// =====================================================
-/**
- * Tenta autenticar com JWT (auth). Se falhar, tenta autenticar
- * com Legacy Token (deviceAuth) e "promove" a sessão para admin.
- * @param {Function} auth - Middleware JWT (para usuários do painel)
- * @param {Function} deviceAuth - Middleware Legacy Token (para dispositivos)
- * @param {Object} logger - Logger do Winston
- */
-const flexibleAuth = (auth, deviceAuth, logger) => {
-  return (req, res, next) => {
-    
-    // 1. Tenta autenticação padrão com JWT (usuário do painel)
+// ===== FUNÇÃO PRINCIPAL =====
+const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, deviceAuth, auth) => {
+  const router = express.Router();
+
+  // ===== MIDDLEWARE DE AUTENTICAÇÃO FLEXÍVEL =====
+  const flexibleAuth = (req, res, next) => {
     auth(req, res, (err) => {
       if (!err) {
-        // Sucesso! É um usuário JWT. req.user está populado.
         return next();
       }
-
-      // 2. Auth JWT falhou. Tenta autenticação com Legacy Token (deviceAuth)
-      // Isso acontece se o cliente enviar o AUTH_TOKEN em vez de um JWT.
       deviceAuth(req, res, (err2) => {
         if (!err2) {
-          // Sucesso! É o Legacy Token.
-          
-          // As rotas do painel (como GET /) precisam de req.user
-          // Vamos "fabricar" um req.user com privilégios de admin
-          // para que o resto da rota funcione.
-          
-          // ATENÇÃO: Risco de segurança. O token estático agora tem
-          // privilégios de administrador para estas rotas.
-          
           logger.warn('Autenticação de fallback: Legacy Token usado em rota de painel (auth)', {
             ip: req.ip,
             path: req.originalUrl,
             userAgent: req.get('User-Agent')
           });
-
-          // "Fabrica" um usuário admin para o Legacy Token
           req.user = {
             id: 'legacy_token_user',
             username: 'legacy_device_admin',
-            role: 'admin', // Necessário para passar as verificações de permissão
+            role: 'admin',
             sector: 'Global',
             permissions: ['mobile', 'totem', 'admin']
           };
           return next();
         }
-
-        // 3. Ambas as autenticações falharam.
-        // Retorna o erro original do JWT (ex: "jwt malformed", "TokenExpiredError")
         if (err && (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError')) {
             return res.status(401).json({ success: false, message: `Token inválido: ${err.message}` });
         }
-        
-        // Retorna um erro genérico se ambos falharem de outra forma
         return res.status(401).json({ success: false, message: 'Autenticação falha' });
       });
     });
   };
-};
 
-
-/**
- * Rotas de dispositivos MDM
- * @param {Object} logger - Logger do Winston
- * @param {Function} getApiLimiter - Rate limiter para GET
- * @param {Function} modifyApiLimiter - Rate limiter para POST/PUT/DELETE
- * @param {Function} deviceAuth - Middleware de autenticação para dispositivos (token simples)
- * @param {Function} auth - Middleware de autenticação JWT (para painel web)
- */
-const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, deviceAuth, auth) => {
-  const router = express.Router();
-
-  // Cria a instância da nova middleware flexível
-  const hybridAuth = flexibleAuth(auth, deviceAuth, logger);
-
-  // =====================================================
-  // ROTAS USADAS PELOS DISPOSITIVOS (agentes no campo)
-  // Usam deviceAuth (token simples AUTH_TOKEN)
-  // (Sem alteração aqui)
-  // =====================================================
-
-  // ===== RECEBER E SALVAR DADOS DO DISPOSITIVO =====
+  // ===== ROTAS PARA DISPOSITIVOS (AGENTES) =====
+  
+  // Receber dados
   router.post('/data', deviceAuth, modifyApiLimiter, [
-    // Validações...
     body('device_id').notEmpty().trim().escape().withMessage('device_id é obrigatório'),
     body('device_name').notEmpty().trim().escape()
       .isLength({ max: 100 }).withMessage('device_name muito longo'),
@@ -116,7 +66,6 @@ const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, deviceAuth, auth)
     body('device_model').optional().trim().escape(),
     body('imei').optional().trim().escape().isLength({ max: 20 }),
   ], asyncHandler(async (req, res) => {
-    // ... (lógica original sem alteração)
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       throw validationErrorHandler(errors);
@@ -201,11 +150,10 @@ const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, deviceAuth, auth)
     });
   }));
 
-  // ===== HEARTBEAT =====
+  // Heartbeat
   router.post('/heartbeat', deviceAuth, modifyApiLimiter, [
     body('serial_number').notEmpty().trim().escape(),
   ], asyncHandler(async (req, res) => {
-    // ... (lógica original sem alteração)
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       throw validationErrorHandler(errors);
@@ -229,11 +177,10 @@ const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, deviceAuth, auth)
     });
   }));
 
-  // ===== OBTER COMANDOS PENDENTES =====
+  // Obter comandos pendentes
   router.get('/commands', deviceAuth, getApiLimiter, [
     query('serial_number').notEmpty().trim().escape(),
   ], asyncHandler(async (req, res) => {
-    // ... (lógica original sem alteração)
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       throw validationErrorHandler(errors);
@@ -264,9 +211,8 @@ const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, deviceAuth, auth)
     });
   }));
 
-  // ===== REPORTAR RESULTADO DE COMANDO =====
+  // Reportar resultado de comando
   router.post('/command-result', deviceAuth, modifyApiLimiter, asyncHandler(async (req, res) => {
-    // ... (lógica original sem alteração)
     const { command_id, serial_number, success, result, error_message } = req.body;
     if (!serial_number && !command_id) {
       throw new BadRequestError('serial_number ou command_id é obrigatório');
@@ -309,33 +255,44 @@ const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, deviceAuth, auth)
     });
   }));
 
-  // =====================================================
-  // ROTAS USADAS PELO PAINEL WEB
-  // AGORA USAM 'hybridAuth' EM VEZ DE 'auth'
-  // =====================================================
+  // ===== ROTAS PARA PAINEL WEB =====
 
-  // ===== LISTAR DISPOSITIVOS =====
-  // Alterado de 'auth' para 'hybridAuth'
-  router.get('/', hybridAuth, getApiLimiter, asyncHandler(async (req, res) => {
-    // A lógica interna permanece idêntica, pois agora req.user
-    // estará preenchido seja por JWT ou pelo Legacy Token "fabricado".
+  // 🔧 LISTAR DISPOSITIVOS (COM FILTROS)
+  router.get('/', flexibleAuth, getApiLimiter, asyncHandler(async (req, res) => {
     const startTime = Date.now();
-    const allDevices = await Device.find({}).lean();
-    let filteredDevices = allDevices;
-
+    
+    // 🔧 CAPTURA QUERY PARAMETERS
+    const { sector, floor, unit, status } = req.query;
+    
+    // 🔧 CONSTRUIR FILTRO DO MONGODB
+    const filter = {};
+    
+    if (sector) filter.sector = { $regex: new RegExp(sector, 'i') };
+    if (floor) filter.floor = { $regex: new RegExp(floor, 'i') };
+    if (unit) filter.unit = { $regex: new RegExp(unit, 'i') };
+    if (status) filter.status = status;
+    
+    // Aplicar filtro de permissão de usuário
     if (req.user.role === 'user') {
       const userSector = req.user.sector;
       if (userSector && userSector !== 'Global') {
         const prefixes = userSector.split(',').map(p => p.trim().toLowerCase());
-        filteredDevices = allDevices.filter(device => {
-          const deviceName = (device.device_name || '').toLowerCase();
-          return prefixes.some(prefix => deviceName.startsWith(prefix));
-        });
+        const deviceNameFilter = {
+          $regex: new RegExp(`^(${prefixes.join('|')})`, 'i')
+        };
+        // Combina com filtros existentes
+        if (filter.device_name) {
+          filter.$and = [
+            { device_name: filter.device_name },
+            { device_name: deviceNameFilter }
+          ];
+        } else {
+          filter.device_name = deviceNameFilter;
+        }
+        
         logger.debug('Dispositivos filtrados por setor', {
           username: req.user.username,
           prefixes,
-          total: allDevices.length,
-          filtered: filteredDevices.length,
         });
       } else {
         logger.warn('Usuário sem setor definido tentou acessar dispositivos', {
@@ -349,27 +306,31 @@ const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, deviceAuth, auth)
       }
     }
     
+    // 🔧 BUSCAR COM FILTROS
+    const devices = await Device.find(filter).lean();
+    
     const duration = Date.now() - startTime;
     logger.info('Lista de dispositivos retornada', {
       username: req.user.username,
       role: req.user.role,
-      count: filteredDevices.length,
+      count: devices.length,
+      filters: { sector, floor, unit, status },
       duration: `${duration}ms`,
     });
+    
     res.status(200).json({
       success: true,
-      devices: filteredDevices,
-      count: filteredDevices.length,
+      devices,
+      count: devices.length,
+      filters: { sector, floor, unit, status }
     });
   }));
 
-  // ===== EXECUTAR COMANDO (do painel para o dispositivo) =====
-  // Alterado de 'auth' para 'hybridAuth'
-  router.post('/executeCommand', hybridAuth, modifyApiLimiter, [
+  // Executar comando
+  router.post('/executeCommand', flexibleAuth, modifyApiLimiter, [
     body('serial_number').notEmpty().trim().escape(),
     body('command').notEmpty().trim(),
   ], asyncHandler(async (req, res) => {
-    // A lógica interna permanece idêntica
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       throw validationErrorHandler(errors);
@@ -453,10 +414,8 @@ const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, deviceAuth, auth)
     });
   }));
 
-  // ===== EXCLUIR DISPOSITIVO =====
-  // Alterado de 'auth' para 'hybridAuth'
-  router.delete('/:serial_number', hybridAuth, modifyApiLimiter, asyncHandler(async (req, res) => {
-    // A lógica interna permanece idêntica
+  // Excluir dispositivo
+  router.delete('/:serial_number', flexibleAuth, modifyApiLimiter, asyncHandler(async (req, res) => {
     const { serial_number } = req.params;
     const device = await Device.findOne({ serial_number });
     if (!device) {
@@ -478,10 +437,8 @@ const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, deviceAuth, auth)
     });
   }));
 
-  // ===== HISTÓRICO DE LOCALIZAÇÃO =====
-  // Alterado de 'auth' para 'hybridAuth'
-  router.get('/:serial_number/location-history', hybridAuth, getApiLimiter, asyncHandler(async (req, res) => {
-    // A lógica interna permanece idêntica
+  // Histórico de localização
+  router.get('/:serial_number/location-history', flexibleAuth, getApiLimiter, asyncHandler(async (req, res) => {
     const { serial_number } = req.params;
     const history = await LocationHistory.find({ serial_number })
       .sort({ timestamp: -1 })
@@ -497,7 +454,94 @@ const deviceRoutes = (logger, getApiLimiter, modifyApiLimiter, deviceAuth, auth)
     });
   }));
 
+  // 🔧 NOVO ENDPOINT: RESUMO DE LOCALIZAÇÕES
+  router.get('/locations/summary', flexibleAuth, getApiLimiter, asyncHandler(async (req, res) => {
+    try {
+      // Agregação para contar dispositivos por localização
+      const locations = await Device.aggregate([
+        {
+          $group: {
+            _id: {
+              unit: '$unit',
+              sector: '$sector',
+              floor: '$floor'
+            },
+            count: { $sum: 1 },
+            online: {
+              $sum: { $cond: [{ $eq: ['$status', 'online'] }, 1, 0] }
+            },
+            offline: {
+              $sum: { $cond: [{ $eq: ['$status', 'offline'] }, 1, 0] }
+            },
+            maintenance: {
+              $sum: { $cond: [{ $eq: ['$maintenance_status', true] }, 1, 0] }
+            }
+          }
+        },
+        { 
+          $sort: { 
+            '_id.unit': 1, 
+            '_id.sector': 1, 
+            '_id.floor': 1 
+          } 
+        }
+      ]);
+
+      logger.info('Resumo de localizações solicitado', {
+        username: req.user.username,
+        totalLocations: locations.length,
+      });
+
+      res.status(200).json({
+        success: true,
+        locations: locations.map(loc => ({
+          unit: loc._id.unit || 'N/A',
+          sector: loc._id.sector || 'Desconhecido',
+          floor: loc._id.floor || 'Desconhecido',
+          total: loc.count,
+          online: loc.online,
+          offline: loc.offline,
+          maintenance: loc.maintenance,
+        }))
+      });
+    } catch (error) {
+      logger.error('Erro ao gerar resumo de localizações', {
+        error: error.message,
+        stack: error.stack,
+      });
+      res.status(500).json({
+        success: false,
+        message: 'Erro ao gerar resumo de localizações',
+      });
+    }
+  }));
+
+  router.get('/test-location', auth, getApiLimiter, asyncHandler(async (req, res) => {
+    const { bssid } = req.query;
+    
+    if (!bssid) {
+      throw new BadRequestError('Parâmetro "bssid" é obrigatório');
+    }
+  
+    const location = await locationService.mapDeviceLocation({
+      ip_address: 'N/A', // Não testa IP
+      mac_address_radio: bssid,
+      device_name: 'Teste'
+    });
+  
+    res.json({
+      success: true,
+      bssid_testado: bssid,
+      resultado: location,
+      mensagem: location.sector !== 'Desconhecido' 
+        ? '✅ BSSID encontrado no banco'
+        : '⚠️ BSSID NÃO cadastrado. Cadastre em Admin → Localizações.'
+    });
+  }));
+
+  // 🔧 RETORNAR O ROUTER AQUI (DENTRO DA FUNÇÃO!)
   return router;
 };
 
+// 🔧 EXPORTAR A FUNÇÃO (NÃO O ROUTER!)
 module.exports = deviceRoutes;
