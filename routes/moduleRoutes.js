@@ -411,6 +411,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
    * (UNIFICADO COM LÓGICA DE LOCALIZAÇÃO DO ARQ 2)
    */
   // POST /api/modules/:moduleId/assets
+// POST /api/modules/:moduleId/assets
 router.post('/:moduleId/assets', flexibleAuth, modifyApiLimiter, async (req, res) => {
   try {
     const module = await AssetModuleConfig.findById(req.params.moduleId);
@@ -422,7 +423,8 @@ router.post('/:moduleId/assets', flexibleAuth, modifyApiLimiter, async (req, res
       });
     }
 
-    const Model = getModelByIdentifier(module.type);
+    // AQUI ESTÁ A CORREÇÃO
+    const Model = getModelByType(module.type); 
 
     if (!Model) {
       return res.status(400).json({
@@ -431,32 +433,32 @@ router.post('/:moduleId/assets', flexibleAuth, modifyApiLimiter, async (req, res
       });
     }
 
-      const assetData = req.body;
+    const assetData = req.body;
       
-      // Define o asset_type baseado no tipo do módulo
-      assetData.asset_type = module.type;
+    // Define o asset_type baseado no tipo do módulo
+    assetData.asset_type = module.type;
       
-      // Define status como online quando receber dados
-      assetData.status = 'online';
-      assetData.last_seen = new Date();
+    // Define status como online quando receber dados
+    assetData.status = 'online';
+    assetData.last_seen = new Date();
 
     // Verifica se já existe um ativo com esse serial_number
     const existingAsset = await Model.findOne({ 
       serial_number: assetData.serial_number 
     });
 
-      if (existingAsset) {
-        // Atualiza o ativo existente
-        Object.keys(assetData).forEach(key => {
-          if (key !== '_id' && key !== 'created_at') {
-            existingAsset[key] = assetData[key];
-          }
-        });
+    if (existingAsset) {
+      // Atualiza o ativo existente
+      Object.keys(assetData).forEach(key => {
+        if (key !== '_id' && key !== 'created_at') {
+          existingAsset[key] = assetData[key];
+        }
+      });
         
-        existingAsset.updated_at = new Date();
-        await existingAsset.save();
+      existingAsset.updated_at = new Date();
+      await existingAsset.save();
 
-        logger.info(`Ativo atualizado: ${existingAsset.asset_name} (${existingAsset.serial_number}) por ${req.user.username}`);
+      logger.info(`Ativo atualizado: ${existingAsset.asset_name} (${existingAsset.serial_number}) por ${req.user.username}`);
 
       return res.status(200).json({
         success: true,
@@ -470,23 +472,23 @@ router.post('/:moduleId/assets', flexibleAuth, modifyApiLimiter, async (req, res
     const newAsset = new Model(assetData);
     await newAsset.save();
 
-      logger.info(`Novo ativo criado: ${newAsset.asset_name} (${newAsset.serial_number}) por ${req.user.username}`);
+    logger.info(`Novo ativo criado: ${newAsset.asset_name} (${newAsset.serial_number}) por ${req.user.username}`);
 
-      res.status(201).json({
-        success: true,
-        message: 'Ativo criado com sucesso',
-        asset: newAsset,
-        updated: false
-      });
-    } catch (error) {
-      logger.error(`Erro ao criar/atualizar ativo: ${error.message}`);
-      res.status(500).json({
-        success: false,
-        message: 'Erro ao criar/atualizar ativo',
-        error: error.message
-      });
-    }
-  });
+    res.status(201).json({
+      success: true,
+      message: 'Ativo criado com sucesso',
+      asset: newAsset,
+      updated: false
+    });
+  } catch (error) {
+    logger.error(`Erro ao criar/atualizar ativo: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao criar/atualizar ativo',
+      error: error.message
+    });
+  }
+});
 
   /**
    * PUT /api/modules/:moduleId/assets/:assetId

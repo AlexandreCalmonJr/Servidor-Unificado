@@ -152,7 +152,7 @@ app.use('/api/bssid-mappings', bssidRoutes(logger, getApiLimiter, modifyApiLimit
 
 // ⭐ CRÍTICO: Passa deviceAuth como 5º parâmetro
 app.use('/api/modules', moduleRoutes(logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth));
-
+app.use('/api/assets', assetModuleRoutes(logger, getApiLimiter));
 app.use('/api/assets', assetModuleRoutes(logger, getApiLimiter));
 app.use('/api/monitoring', monitoringRoutes(logger, modifyApiLimiter, auth));
 app.use('/api/server', serverRoutes(logger, getApiLimiter, auth));

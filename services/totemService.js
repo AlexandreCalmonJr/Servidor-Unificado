@@ -14,7 +14,25 @@ const _calculateStatus = (device) => {
     status = 'Com Erro';
   }
 
-  return { ...device, status };
+  // ===== INÍCIO DA CORREÇÃO =====
+
+  // 1. Renomeia 'unitRoutes' para 'location' para compatibilidade com o frontend
+  const { unitRoutes, ...rest } = device;
+  const location = unitRoutes || 'Desconhecida'; // Garante que não seja nulo
+
+  // 2. Adiciona valores padrão para campos que o frontend espera, mas o modelo não tem
+  const mozillaVersion = device.mozillaVersion || 'N/A';
+  const javaVersion = device.javaVersion || 'N/A';
+
+  return { 
+    ...rest, 
+    status, 
+    location,         // Campo renomeado
+    mozillaVersion, // Campo com valor padrão
+    javaVersion       // Campo com valor padrão
+  };
+  
+  // ===== FIM DA CORREÇÃO =====
 };
 
 
