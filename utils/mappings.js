@@ -100,24 +100,24 @@ async function mapMacAddressRadioToLocation(macAddress) {
     return defaultLocation;
   }
 
-  // Verifica se é o endereço genérico problemático
+  // ⚠️ ALERTA: BSSID genérico (dispositivo pode não estar conectado a rede real)
   if (macAddress === '02:00:00:00:00:00') {
-    console.warn(`⚠️ BSSID genérico detectado (${macAddress}) - Dispositivo pode não estar conectado a uma rede real`);
+    console.warn(`⚠️ BSSID genérico detectado (${macAddress}) - Dispositivo pode não estar conectado`);
     return defaultLocation;
   }
 
   try {
-    // Normaliza o formato (remove - e substitui por :)
     const normalizedMac = macAddress.toUpperCase().replace(/-/g, ':').replace(/\./g, ':');
     
-    console.log(`🔍 Buscando mapeamento para BSSID: ${normalizedMac}`);
+    console.log(`🔍 Buscando BSSID: ${normalizedMac}`);
 
     const mapping = await BssidMapping.findOne({ 
       mac_address_radio: normalizedMac 
     }).lean();
 
     if (mapping) {
-      console.log(`✅ BSSID ${normalizedMac} mapeado: ${mapping.sector} - ${mapping.floor} (Unidade: ${mapping.unitName || 'N/D'})`);
+      // ✅ SUCESSO: BSSID encontrado
+      console.log(`✅ BSSID ${normalizedMac} → ${mapping.sector} / ${mapping.floor} (Unidade: ${mapping.unitName || 'N/D'})`);
       return {
         sector: mapping.sector || 'Desconhecido',
         floor: mapping.floor || 'Desconhecido',
@@ -125,10 +125,12 @@ async function mapMacAddressRadioToLocation(macAddress) {
       };
     }
 
-    console.log(`⚠️ BSSID ${normalizedMac} não encontrado no mapeamento`);
+    // ⚠️ BSSID não cadastrado
+    console.log(`⚠️ BSSID ${normalizedMac} NÃO ENCONTRADO no banco. Cadastre em Admin → Localizações → BSSIDs.`);
     return defaultLocation;
+    
   } catch (error) {
-    console.error(`❌ Erro ao mapear BSSID para localização:`, error.message);
+    console.error(`❌ Erro ao mapear BSSID: ${error.message}`);
     return defaultLocation;
   }
 }

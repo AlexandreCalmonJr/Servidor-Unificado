@@ -416,82 +416,96 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
    * Cria um novo ativo (usado pelos agentes)
    * ALTERADO: Usa flexibleAuth (permite agentes)
    */
-  router.post('/:moduleId/assets', flexibleAuth, modifyApiLimiter, async (req, res) => {
-    try {
-      const module = await AssetModuleConfig.findById(req.params.moduleId);
+  // POST /api/modules/:moduleId/assets
+router.post('/:moduleId/assets', flexibleAuth, modifyApiLimiter, async (req, res) => {
+  try {
+    const module = await AssetModuleConfig.findById(req.params.moduleId);
 
-      if (!module) {
-        return res.status(404).json({
-          success: false,
-          message: 'Módulo não encontrado'
-        });
-      }
-
-      const Model = getModelByType(module.type);
-
-      if (!Model) {
-        return res.status(400).json({
-          success: false,
-          message: 'Modelo de dados não encontrado para este tipo de módulo'
-        });
-      }
-
-      const assetData = req.body;
-      
-      // Define o asset_type baseado no tipo do módulo
-      assetData.asset_type = module.type;
-      
-      // Define status como online quando receber dados
-      assetData.status = 'online';
-      assetData.last_seen = new Date();
-
-      // Verifica se já existe um ativo com esse serial_number
-      const existingAsset = await Model.findOne({ 
-        serial_number: assetData.serial_number 
-      });
-
-      if (existingAsset) {
-        // Atualiza o ativo existente
-        Object.keys(assetData).forEach(key => {
-          if (key !== '_id' && key !== 'created_at') {
-            existingAsset[key] = assetData[key];
-          }
-        });
-        
-        existingAsset.updated_at = new Date();
-        await existingAsset.save();
-
-        logger.info(`Ativo atualizado: ${existingAsset.asset_name} (${existingAsset.serial_number}) por ${req.user.username}`);
-
-        return res.status(200).json({
-          success: true,
-          message: 'Ativo atualizado com sucesso',
-          asset: existingAsset,
-          updated: true
-        });
-      }
-
-      // Cria novo ativo
-      const newAsset = new Model(assetData);
-      await newAsset.save();
-
-      logger.info(`Novo ativo criado: ${newAsset.asset_name} (${newAsset.serial_number}) por ${req.user.username}`);
-
-      res.status(201).json({
-        success: true,
-        message: 'Ativo criado com sucesso',
-        asset: newAsset,
-        updated: false
-      });
-    } catch (error) {
-      logger.error(`Erro ao criar/atualizar ativo: ${error.message}`);
-      res.status(500).json({
+    if (!module) {
+      return res.status(404).json({
         success: false,
-        message: 'Erro ao criar/atualizar ativo',
-        error: error.message
+        message: 'Módulo não encontrado'
       });
     }
-  });
+
+    const Model = getModelByIdentifier(module.type);
+
+    if (!Model) {
+      return res.status(400).json({
+        success: false,
+        message: 'Modelo de dados não encontrado para este tipo de módulo'
+      });
+    }
+
+    const assetData = req.body;
+    
+    // ✅ ADICIONADO: Mapeamento de localização
+    const locationService = require('../services/locationService');
+    const location = await locationService.mapDeviceLocation({
+      ip_address: assetData.ip_address || 'N/A',
+      mac_address_radio: assetData.mac_address_radio || assetData.mac_address || 'N/A',
+      device_name: assetData.asset_name || assetData.hostname || 'N/A',
+    });
+
+    // ✅ Adiciona dados de localização mapeados
+    assetData.unit = location.unit;
+    assetData.sector = location.sector;
+    assetData.floor = location.floor;
+    
+    // Define o asset_type baseado no tipo do módulo
+    assetData.asset_type = module.type;
+    
+    // Define status como online quando receber dados
+    assetData.status = 'online';
+    assetData.last_seen = new Date();
+
+    // Verifica se já existe um ativo com esse serial_number
+    const existingAsset = await Model.findOne({ 
+      serial_number: assetData.serial_number 
+    });
+
+    if (existingAsset) {
+      // Atualiza o ativo existente
+      Object.keys(assetData).forEach(key => {
+        if (key !== '_id' && key !== 'created_at') {
+          existingAsset[key] = assetData[key];
+        }
+      });
+      
+      existingAsset.updated_at = new Date();
+      await existingAsset.save();
+
+      logger.info(`Ativo atualizado: ${existingAsset.asset_name} (${existingAsset.serial_number}) - Localização: ${location.unit} - ${location.sector} / ${location.floor}`);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Ativo atualizado com sucesso',
+        asset: existingAsset,
+        updated: true
+      });
+    }
+
+    // Cria novo ativo
+    const newAsset = new Model(assetData);
+    await newAsset.save();
+
+    logger.info(`Novo ativo criado: ${newAsset.asset_name} (${newAsset.serial_number}) - Localização: ${location.unit} - ${location.sector} / ${location.floor}`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Ativo criado com sucesso',
+      asset: newAsset,
+      updated: false
+    });
+  } catch (error) {
+    logger.error(`Erro ao criar/atualizar ativo: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao criar/atualizar ativo',
+      error: error.message
+    });
+  }
+});
 
   /**
    * PUT /api/modules/:moduleId/assets/:assetId
