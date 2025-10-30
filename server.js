@@ -18,6 +18,7 @@ const mongoose = require('mongoose');
 const logger = require('./utils/logger');
 const { requestLogger } = require('./middleware/requestLogger');
 const updateDeviceStatus = require('./scripts/updateDeviceStatus');
+const assetStatusUpdater = require('./scripts/assetStatusUpdater'); // Novo import
 const { getLocalIPAddress } = require('./utils/helpers');
 
 const app = express();
@@ -135,6 +136,7 @@ const publicRoutes = require('./routes/publicRoutes');
 const provisioningRoutes = require('./routes/provisioningRoutes');
 const configProfileRoutes = require('./routes/configProfileRoutes');
 
+
 // ===== ROTAS PÚBLICAS (sem autenticação) =====
 app.use('/api/auth', authRoutes(logger, getApiLimiter, modifyApiLimiter));
 app.use('/api', publicRoutes(logger, getApiLimiter));
@@ -192,6 +194,7 @@ cron.schedule('*/5 * * * *', async () => {
   
   try {
     await updateDeviceStatus(logger);
+    await assetStatusUpdater(logger);
   } catch (error) {
     logger.error('Erro na tarefa agendada:', {
       message: error.message,
