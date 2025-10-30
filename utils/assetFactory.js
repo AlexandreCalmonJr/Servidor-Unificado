@@ -1,4 +1,3 @@
-// ===================================================================
 // File: utils/assetFactory.js
 // Sistema unificado de Factory + Validações + Transformações
 // ===================================================================
@@ -8,6 +7,7 @@ const Notebook = require('../models/Notebook');
 const Panel = require('../models/Panel');
 const Printer = require('../models/Printer');
 const { body, validationResult } = require('express-validator');
+const locationService = require('../services/locationService'); // Importa o serviço de localização
 
 // ===================================================================
 // 1. REGISTRO DE MODELOS
@@ -264,7 +264,7 @@ const validateByModuleId = async (req, res, next) => {
  * @param {string} moduleType - Tipo do módulo
  * @returns {Object} Dados sanitizados
  */
-function sanitizeAssetData(data, moduleType) {
+async function sanitizeAssetData(data, moduleType) {
   const sanitized = { ...data };
   
   // Remove campos vazios ou "N/A" desnecessários
@@ -294,6 +294,35 @@ function sanitizeAssetData(data, moduleType) {
   
   if (!sanitized.last_seen) {
     sanitized.last_seen = new Date();
+  }
+
+  // Integração com locationService: Prioriza dados existentes, fallback para mapeamento
+  let locationMapped = false;
+  if (
+    (!sanitized.unit || sanitized.unit === 'N/A' || sanitized.unit === 'Desconhecido') ||
+    (!sanitized.sector || sanitized.sector === 'Desconhecido') ||
+    (!sanitized.floor || sanitized.floor === 'Desconhecido')
+  ) {
+    const deviceData = {
+      ip_address: sanitized.ip_address || sanitized.host_computer_ip || 'N/A', // Para printers USB
+      mac_address_radio: sanitized.mac_address || sanitized.macAddress || 'N/A',
+      device_name: sanitized.asset_name || sanitized.hostname || 'N/A',
+    };
+    
+    const location = await locationService.mapDeviceLocation(deviceData);
+    
+    // Aplica apenas campos ausentes/inválidos
+    if (sanitized.unit === 'N/A' || sanitized.unit === 'Desconhecido') {
+      sanitized.unit = location.unit;
+    }
+    if (sanitized.sector === 'Desconhecido') {
+      sanitized.sector = location.sector;
+    }
+    if (sanitized.floor === 'Desconhecido') {
+      sanitized.floor = location.floor;
+    }
+    
+    locationMapped = true;
   }
   
   return sanitized;
@@ -328,7 +357,7 @@ function transformAssetForOutput(asset) {
  */
 async function createAsset(moduleType, data) {
   const Model = getModelByType(moduleType);
-  const sanitized = sanitizeAssetData(data, moduleType);
+  const sanitized = await sanitizeAssetData(data, moduleType); // Agora async por causa do locationService
   
   const asset = new Model(sanitized);
   await asset.save();
@@ -345,7 +374,7 @@ async function createAsset(moduleType, data) {
  */
 async function updateAsset(moduleType, assetId, data) {
   const Model = getModelByType(moduleType);
-  const sanitized = sanitizeAssetData(data, moduleType);
+  const sanitized = await sanitizeAssetData(data, moduleType); // Agora async
   
   const asset = await Model.findByIdAndUpdate(
     assetId,
