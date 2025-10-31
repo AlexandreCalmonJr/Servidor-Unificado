@@ -296,29 +296,46 @@ async function sanitizeAssetData(data, moduleType) {
     sanitized.last_seen = new Date();
   }
 
-  // Integração com locationService: Prioriza dados existentes, fallback para mapeamento
+  // =================================================================
+  // ✅ INÍCIO DA CORREÇÃO
+  // =Data
+  // 1. Prioriza dados de 'sector' e 'floor' vindos do custom_data (enviados pelo agente)
+  if (sanitized.custom_data) {
+    if (sanitized.custom_data.sector && (sanitized.sector === 'Desconhecido' || !sanitized.sector)) {
+      sanitized.sector = sanitized.custom_data.sector;
+    }
+    if (sanitized.custom_data.floor && (sanitized.floor === 'Desconhecido' || !sanitized.floor)) {
+      sanitized.floor = sanitized.custom_data.floor;
+    }
+  }
+
+  // 2. Integração com locationService:
+  //    Tenta mapear APENAS se os campos AINDA estiverem como "Desconhecido" ou "N/A"
+  // =================================================================
+  
   let locationMapped = false;
-  if (
-    (!sanitized.unit || sanitized.unit === 'N/A' || sanitized.unit === 'Desconhecido') ||
-    (!sanitized.sector || sanitized.sector === 'Desconhecido') ||
-    (!sanitized.floor || sanitized.floor === 'Desconhecido')
-  ) {
+  const unitUnknown = (!sanitized.unit || sanitized.unit === 'N/A' || sanitized.unit === 'Desconhecido');
+  const sectorUnknown = (!sanitized.sector || sanitized.sector === 'Desconhecido');
+  const floorUnknown = (!sanitized.floor || sanitized.floor === 'Desconhecido');
+
+  if (unitUnknown || sectorUnknown || floorUnknown) {
     const deviceData = {
       ip_address: sanitized.ip_address || sanitized.host_computer_ip || 'N/A', // Para printers USB
       mac_address_radio: sanitized.mac_address || sanitized.macAddress || 'N/A',
       device_name: sanitized.asset_name || sanitized.hostname || 'N/A',
     };
     
+    // O locationService (mappings.js) será chamado
     const location = await locationService.mapDeviceLocation(deviceData);
     
-    // Aplica apenas campos ausentes/inválidos
-    if (sanitized.unit === 'N/A' || sanitized.unit === 'Desconhecido') {
+    // Aplica apenas campos que AINDA estão ausentes
+    if (unitUnknown) {
       sanitized.unit = location.unit;
     }
-    if (sanitized.sector === 'Desconhecido') {
+    if (sectorUnknown) {
       sanitized.sector = location.sector;
     }
-    if (sanitized.floor === 'Desconhecido') {
+    if (floorUnknown) {
       sanitized.floor = location.floor;
     }
     
