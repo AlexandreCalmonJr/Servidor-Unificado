@@ -277,51 +277,63 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   // MANUTENÇÃO
   // ===================================================================
 
-  router.patch('/:moduleId/assets/:assetId/maintenance', auth, modifyApiLimiter, async (req, res) => {
-    try {
-      const { moduleId, assetId } = req.params;
-      const { maintenance_mode, maintenance_reason } = req.body;
-
-      const module = await AssetModuleConfig.findById(moduleId);
-      if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
-
-      const Model = getModelByType(module.type);
-      const asset = await Model.findById(assetId);
-      if (!asset) return res.status(404).json({ success: false, message: 'Ativo não encontrado' });
-
-      if (maintenance_mode) {
-        asset.status = 'maintenance';
-        asset.custom_data = asset.custom_data || {};
-        if (maintenance_reason) {
-          asset.custom_data.maintenance_reason = maintenance_reason;
-          asset.custom_data.maintenance_started = new Date();
-          asset.custom_data.maintenance_by = req.user.username;
+  router.patch('/:moduleId/assets/:assetId', auth, modifyApiLimiter, async (req, res) => {
+      try {
+        const { moduleId, assetId } = req.params;
+        
+        const module = await AssetModuleConfig.findById(moduleId);
+        if (!module) {
+          return res.status(404).json({ 
+            success: false, 
+            message: 'Módulo não encontrado' 
+          });
         }
-        logger.info(`Ativo em manutenção: ${asset.asset_name}`);
-      } else {
-        asset.status = 'online';
-        if (asset.custom_data) {
-          delete asset.custom_data.maintenance_reason;
-          delete asset.custom_data.maintenance_started;
-          delete asset.custom_data.maintenance_by;
+  
+        const Model = getModelByType(module.type);
+        const asset = await Model.findById(assetId);
+        
+        if (!asset) {
+          return res.status(404).json({ 
+            success: false, 
+            message: 'Ativo não encontrado' 
+          });
         }
-        logger.info(`Ativo voltou: ${asset.asset_name}`);
+  
+        // Campos que podem ser atualizados via PATCH
+        const allowedFields = [
+          'location', 'assigned_to', 'status', 'notes',
+          'maintenance_status', 'maintenance_ticket', 'maintenance_reason'
+        ];
+  
+        // Atualiza apenas campos permitidos
+        Object.keys(req.body).forEach(key => {
+          if (allowedFields.includes(key)) {
+            asset[key] = req.body[key];
+          }
+        });
+  
+        asset.updated_at = new Date();
+        await asset.save();
+  
+        logger.info(`Ativo atualizado (PATCH): ${asset.asset_name} por ${req.user.username}`);
+        
+        res.json({
+          success: true,
+          message: 'Ativo atualizado',
+          asset: transformAssetForOutput(asset),
+        });
+      } catch (error) {
+        logger.error(`Erro no PATCH: ${error.message}`);
+        res.status(500).json({ 
+          success: false, 
+          message: 'Erro na atualização', 
+          error: error.message 
+        });
       }
-
-      asset.updated_at = new Date();
-      await asset.save();
-
-      res.json({
-        success: true,
-        message: maintenance_mode ? 'Em manutenção' : 'Retornou',
-        asset: transformAssetForOutput(asset),
-      });
-    } catch (error) {
-      logger.error(`Erro na manutenção: ${error.message}`);
-      res.status(500).json({ success: false, message: 'Erro', error: error.message });
     }
-  });
+  );
 
+  
   // ===================================================================
   // PERMISSÕES
   // ===================================================================
@@ -363,6 +375,86 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       res.status(500).json({ success: false, message: 'Erro', error: error.message });
     }
   });
+
+  router.put('/:moduleId/assets/:assetId', auth, modifyApiLimiter, validateByModuleId, async (req, res) => {
+      try {
+        const moduleType = req.moduleType;
+        const asset = await updateAsset(moduleType, req.params.assetId, req.body);
+        
+        logger.info(`Ativo editado via painel: ${asset.asset_name} por ${req.user.username}`);
+        
+        res.json({ 
+          success: true, 
+          message: 'Ativo atualizado com sucesso', 
+          asset: transformAssetForOutput(asset) 
+        });
+      } catch (error) {
+        logger.error(`Erro ao editar ativo: ${error.message}`);
+        
+        const statusCode = error.message.includes('não encontrado') ? 404 : 500;
+        res.status(statusCode).json({
+          success: false,
+          message: error.message.includes('não encontrado') 
+            ? 'Ativo não encontrado' 
+            : 'Erro ao atualizar ativo',
+          error: error.message,
+        });
+      }
+    }
+  );
+  
+  router.get('/:moduleId/assets/:assetId/history', auth, getApiLimiter, async (req, res) => {
+      try {
+        const { moduleId, assetId } = req.params;
+        
+        const module = await AssetModuleConfig.findById(moduleId);
+        if (!module) {
+          return res.status(404).json({ 
+            success: false, 
+            message: 'Módulo não encontrado' 
+          });
+        }
+  
+        const Model = getModelByType(module.type);
+        const asset = await Model.findById(assetId).lean();
+        
+        if (!asset) {
+          return res.status(404).json({ 
+            success: false, 
+            message: 'Ativo não encontrado' 
+          });
+        }
+  
+        // Retorna histórico de manutenção
+        const history = asset.maintenance_history || [];
+        
+        logger.info(`Histórico solicitado: ${asset.asset_name} por ${req.user.username}`);
+        
+        res.json({
+          success: true,
+          history: history.sort((a, b) => 
+            new Date(b.timestamp) - new Date(a.timestamp)
+          ),
+          asset: {
+            id: asset._id,
+            name: asset.asset_name,
+            serial: asset.serial_number,
+            status: asset.status,
+          }
+        });
+      } catch (error) {
+        logger.error(`Erro ao buscar histórico: ${error.message}`);
+        res.status(500).json({ 
+          success: false, 
+          message: 'Erro ao buscar histórico', 
+          error: error.message 
+        });
+      }
+    }
+  );
+  
+  
+
 
   return router;
 };

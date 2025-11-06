@@ -71,8 +71,12 @@ const NotebookSchema = new Schema({
 });
 
 // --- Índices (definidos UMA ÚNICA VEZ) ---
+NotebookSchema.index({ serial_number: 1, asset_type: 1 }, { 
+  unique: true, 
+  sparse: true,
+  name: 'idx_notebook_serial_type'
+});
 NotebookSchema.index({ asset_name: 1 });
-NotebookSchema.index({ serial_number: 1 }, { unique: true, sparse: true });
 NotebookSchema.index({ unit: 1 });
 NotebookSchema.index({ assigned_to: 1 });
 NotebookSchema.index({ mac_address: 1 });

@@ -73,8 +73,12 @@ const PanelSchema = new Schema({
 });
 
 // --- Índices (definidos UMA ÚNICA VEZ) ---
+PanelSchema.index({ serial_number: 1, asset_type: 1 }, { 
+  unique: true, 
+  sparse: true,
+  name: 'idx_panel_serial_type'
+});
 PanelSchema.index({ asset_name: 1 });
-PanelSchema.index({ serial_number: 1 }, { unique: true, sparse: true });
 PanelSchema.index({ unit: 1 });
 PanelSchema.index({ sector: 1, floor: 1 });
 PanelSchema.index({ ip_address: 1 });

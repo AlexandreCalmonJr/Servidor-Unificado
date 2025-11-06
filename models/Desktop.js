@@ -77,8 +77,12 @@ const DesktopSchema = new Schema({
 });
 
 // --- Índices (definidos UMA ÚNICA VEZ) ---
+DesktopSchema.index({ serial_number: 1, asset_type: 1 }, { 
+  unique: true, 
+  sparse: true,
+  name: 'idx_desktop_serial_type' // Nome explícito
+});
 DesktopSchema.index({ asset_name: 1 });
-DesktopSchema.index({ serial_number: 1 }, { unique: true, sparse: true });
 DesktopSchema.index({ unit: 1 });
 DesktopSchema.index({ sector: 1, floor: 1 });
 DesktopSchema.index({ ip_address: 1 });

@@ -82,12 +82,17 @@ const PrinterSchema = new Schema({
 });
 
 // --- Índices (definidos UMA ÚNICA VEZ) ---
+PrinterSchema.index({ serial_number: 1, asset_type: 1 }, { 
+  unique: true, 
+  sparse: true,
+  name: 'idx_printer_serial_type'
+});
 PrinterSchema.index({ asset_name: 1 });
-PrinterSchema.index({ serial_number: 1 }, { unique: true, sparse: true });
 PrinterSchema.index({ unit: 1 });
 PrinterSchema.index({ ip_address: 1 });
 PrinterSchema.index({ mac_address: 1 });
 PrinterSchema.index({ host_computer_name: 1 });
+
 
 const Printer = mongoose.model('Printer', PrinterSchema);
 
