@@ -35,9 +35,12 @@ module.exports = async (logger) => {
 
     // Configuração de conexão (REMOVIDAS as opções deprecadas)
     await mongoose.connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 5000, // Timeout para seleção de servidor
-      socketTimeoutMS: 45000, // Timeout para sockets
-      family: 4, // IPv4 only
+      maxPoolSize: 50,        // ⭐ Aumenta pool de conexões
+      minPoolSize: 10,        // ⭐ Mantém conexões ativas
+      maxIdleTimeMS: 30000,   // ⭐ Timeout para conexões ociosas
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      family: 4,
     });
 
     logger.info('Conexão MongoDB configurada com reconexão automática');

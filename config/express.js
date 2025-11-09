@@ -31,7 +31,14 @@ const expressConfig = (app, logger) => {
   app.locals.logger = logger;
 
   // Configurações básicas
-  app.use(compression());
+  app.use(compression({
+    filter: (req, res) => {
+      if (req.headers['x-no-compression']) return false;
+      return compression.filter(req, res);
+    },
+    level: 6, // ⭐ Balance entre CPU e tamanho (1-9, padrão é 6)
+    threshold: 1024, // ⭐ Só comprime respostas > 1KB
+  }));
   app.use(cors());
   app.use(express.json());
   app.set('view engine', 'ejs');

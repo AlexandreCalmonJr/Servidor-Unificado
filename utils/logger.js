@@ -23,12 +23,15 @@ const customFormat = winston.format.printf(({ level, message, timestamp, ...meta
 
 // Configuração do logger
 const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
-    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    winston.format.timestamp(),
     winston.format.errors({ stack: true }),
-    winston.format.splat(),
-    winston.format.json()
+    winston.format.json(),
+    winston.format((info) => {
+      info.service = 'mdm-server'; // ⭐ Identificador do serviço
+      info.trace_id = info.trace_id || require('crypto').randomUUID(); // ⭐ Trace
+      return info;
+    })()
   ),
   defaultMeta: { 
     service: 'mdm-server',

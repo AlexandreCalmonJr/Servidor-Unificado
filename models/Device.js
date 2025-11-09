@@ -70,8 +70,21 @@ DeviceSchema.pre('validate', function (next) {
   next();
 });
 
+DeviceSchema.set('toJSON', {
+  versionKey: false, // Remove __v
+  transform: (doc, ret) => {
+    delete ret.provisioning_token; // ⭐ Remove dados sensíveis
+    delete ret.security_policies;  // ⭐ Reduz tamanho do JSON
+    return ret;
+  }
+});
+
+
 DeviceSchema.index({ serial_number: 1 }, { unique: true, sparse: true });
 DeviceSchema.index({ bssid: 1 });
+DeviceSchema.index({ status: 1, last_seen: -1 });
+DeviceSchema.index({ sector: 1, floor: 1, status: 1 });
+DeviceSchema.index({ unit: 1, maintenance_status: 1 });
 
 const Device = mongoose.model('Device', DeviceSchema);
 

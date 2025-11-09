@@ -21,6 +21,10 @@ const updateDeviceStatus = require('./scripts/updateDeviceStatus');
 const assetStatusUpdater = require('./scripts/assetStatusUpdater'); // Novo import
 const { getLocalIPAddress } = require('./utils/helpers');
 
+// 🔧 ===== CORREÇÃO: Corrigindo o caminho do cache =====
+// (O arquivo está em 'services/cacheService.js', não 'utils/cache.js')
+const cache = require('./services/cacheService'); 
+
 const app = express();
 const port = process.env.PORT || 3000;
 const ip = '0.0.0.0';
@@ -95,23 +99,24 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
 // ===== HEALTH CHECK =====
-app.get('/health', (req, res) => {
-  const uptime = process.uptime();
-  const memoryUsage = process.memoryUsage();
-  
-  res.json({
-    status: 'OK',
+app.get('/health', async (req, res) => {
+  const checks = {
+    mongodb: mongoose.connection.readyState === 1,
+    uptime: process.uptime(),
+    memory: process.memoryUsage().heapUsed / 1024 / 1024, // MB
     timestamp: new Date().toISOString(),
-    uptime: Math.floor(uptime),
-    uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`,
-    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    memory: {
-      heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`,
-      heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`,
-    },
-    version: process.env.npm_package_version || '1.0.0',
-    environment: process.env.NODE_ENV || 'development',
-  });
+  };
+  
+  // ⭐ Verifica se MongoDB responde
+  try {
+    await mongoose.connection.db.admin().ping();
+    checks.mongodb_ping = 'ok';
+  } catch (err) {
+    checks.mongodb_ping = 'error';
+  }
+  
+  const status = checks.mongodb && checks.mongodb_ping === 'ok' ? 200 : 503;
+  res.status(status).json(checks);
 });
 
 // ===== ROTAS =====
@@ -143,7 +148,9 @@ app.use('/api', publicRoutes(logger, getApiLimiter));
 
 // ===== ROTAS DE DISPOSITIVOS (usam deviceAuth - token simples) =====
 app.post('/api/monitor', modifyApiLimiter, deviceAuth, totemController.handleTotemData);
-app.use('/api/devices', deviceRoutes(logger, getApiLimiter, modifyApiLimiter, deviceAuth, auth));
+
+// 🔧 ===== CORREÇÃO (2/2): Adicionado 'cache' como 2º argumento =====
+app.use('/api/devices', deviceRoutes(logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth, auth));
 
 // ===== ROTAS DO PAINEL WEB E AGENTES (HÍBRIDO) =====
 app.get('/provision/:token', provisioningRoutes.renderProvisioningPage(logger));

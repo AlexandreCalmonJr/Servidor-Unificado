@@ -28,6 +28,8 @@
     "node-cache": "^5.1.2",
     "node-cron": "^3.0.2",
     "os": "^0.1.2",
+    "rate-limit-redis": "^4.2.3",
+    "redis": "^5.9.0",
     "winston": "^3.8.2"
   }
 }
