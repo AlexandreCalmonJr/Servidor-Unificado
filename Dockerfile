@@ -1,29 +1,33 @@
 # Dockerfile
-
-# ===== Estágio 1: Builder =====
-# Usa uma imagem Node.js para instalar as dependências
-FROM node:18-alpine AS builder
-WORKDIR /usr/src/app
-
-# Copia os arquivos de definição de pacotes
-COPY package.json package-lock.json* ./
-
-# Instala as dependências (usar 'npm ci' é mais rápido e seguro se você tiver package-lock.json)
-RUN npm ci
-
-# ===== Estágio 2: Final =====
-# Usa uma imagem 'slim' para produção
 FROM node:18-alpine
+
+# Metadados
+LABEL maintainer="seu@email.com"
+LABEL description="Servidor MDM Unificado"
+
+# Diretório de trabalho
 WORKDIR /usr/src/app
 
-# Copia as dependências já instaladas do estágio 'builder'
-COPY --from=builder /usr/src/app/node_modules ./node_modules
+# Copiar package.json e package-lock.json primeiro (cache de layers)
+COPY package*.json ./
 
-# Copia todo o código-fonte da aplicação
+# Instalar dependências de produção
+# --omit=dev pula devDependencies
+# --legacy-peer-deps resolve conflitos de versão
+RUN npm ci --omit=dev --legacy-peer-deps
+
+# Copiar o resto do código
 COPY . .
 
-# [cite_start]Expõe a porta que seu servidor usa (do seu .env, o padrão é 3000) [cite: 1]
+# Criar diretórios necessários
+RUN mkdir -p logs public backups
+
+# Expor porta
 EXPOSE 3000
 
-# Define o comando para iniciar o servidor
-CMD [ "node", "server.js" ]
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+# Comando de inicialização
+CMD ["node", "server.js"]

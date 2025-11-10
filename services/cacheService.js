@@ -1,10 +1,10 @@
-// services/cacheService.js - CACHE COM REDIS OPCIONAL
+// services/cacheService.js - CACHE COM REDIS OPCIONAL (CORRIGIDO)
 const redis = require('redis');
 const logger = require('../utils/logger');
 
 // ===== CONFIGURAÇÃO =====
-const REDIS_ENABLED = process.env.REDIS_ENABLED === 'true'; // Novo flag
-const redisUrl = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
+const REDIS_ENABLED = process.env.REDIS_ENABLED === 'true';
+const redisUrl = process.env.REDIS_URL || 'redis://redis:6379'; // 🔧 Use 'redis' no Docker
 
 let client = null;
 let isReady = false;
@@ -20,7 +20,6 @@ class MemoryCache {
     const item = this.cache.get(key);
     if (!item) return null;
     
-    // Verifica expiração
     if (item.expires && Date.now() > item.expires) {
       this.cache.delete(key);
       this.timers.delete(key);
@@ -34,12 +33,10 @@ class MemoryCache {
     const expires = Date.now() + (ttl * 1000);
     this.cache.set(key, { value, expires });
 
-    // Limpa timer anterior
     if (this.timers.has(key)) {
       clearTimeout(this.timers.get(key));
     }
 
-    // Define timer para limpeza automática
     const timer = setTimeout(() => {
       this.cache.delete(key);
       this.timers.delete(key);
@@ -71,25 +68,23 @@ const memoryCache = new MemoryCache();
 
 // ===== CONEXÃO REDIS (SE HABILITADO) =====
 if (REDIS_ENABLED) {
-  logger.info('🔧 Redis habilitado, tentando conectar...');
+  logger.info('🔧 Redis habilitado, tentando conectar...', { redisUrl });
   
   client = redis.createClient({
     url: redisUrl,
-    legacyMode: false,
-  });
-
-  // Conecta de forma assíncrona
-  (async () => {
-    try {
-      await client.connect();
-    } catch (err) {
-      logger.error('❌ Falha ao conectar ao Redis - usando cache em memória', {
-        error: err.message,
-        redisUrl,
-      });
-      client = null;
+    socket: {
+      connectTimeout: 5000,
+      reconnectStrategy: (retries) => {
+        if (retries > 10) {
+          logger.error('❌ Redis: Máximo de tentativas atingido, desistindo');
+          return new Error('Máximo de reconexões atingido');
+        }
+        const delay = Math.min(retries * 100, 3000);
+        logger.warn(`⏳ Redis: Reconectando em ${delay}ms (tentativa ${retries})`);
+        return delay;
+      }
     }
-  })();
+  });
 
   // --- Eventos ---
   client.on('connect', () => {
@@ -105,12 +100,22 @@ if (REDIS_ENABLED) {
     isReady = false;
     logger.warn('⚠️ Erro no Redis - usando cache em memória', {
       message: err.message,
+      code: err.code
     });
   });
 
   client.on('end', () => {
     isReady = false;
     logger.warn('⚠️ Conexão com Redis fechada - usando cache em memória');
+  });
+
+  // Conecta de forma assíncrona (SEM bloquear a inicialização)
+  client.connect().catch(err => {
+    logger.error('❌ Falha ao conectar ao Redis - usando cache em memória', {
+      error: err.message,
+      redisUrl,
+    });
+    client = null;
   });
 } else {
   logger.info('ℹ️ Redis desabilitado - usando cache em memória');
@@ -134,7 +139,6 @@ const get = async (key) => {
         key, 
         error: err.message 
       });
-      // Fallback para memória
       return await memoryCache.get(key);
     }
   }
@@ -161,7 +165,6 @@ const set = async (key, value, ttl = 60) => {
         key, 
         error: err.message 
       });
-      // Fallback para memória
       return await memoryCache.set(key, value, ttl);
     }
   }
@@ -175,7 +178,6 @@ const set = async (key, value, ttl = 60) => {
  * @param {string} key 
  */
 const del = async (key) => {
-  // Se Redis está disponível, usa ele
   if (isReady && client) {
     try {
       await client.del(key);
@@ -185,12 +187,10 @@ const del = async (key) => {
         key, 
         error: err.message 
       });
-      // Fallback para memória
       return await memoryCache.del(key);
     }
   }
   
-  // Senão, usa cache em memória
   return await memoryCache.del(key);
 };
 
@@ -214,11 +214,17 @@ const getStats = () => {
 };
 
 /**
- * Limpa todo o cache (apenas para memória)
+ * Limpa todo o cache
  */
 const clear = async () => {
   if (isReady && client) {
-    logger.warn('Clear não implementado para Redis (use FLUSHDB manualmente)');
+    try {
+      await client.flushDb();
+      logger.info('✅ Cache Redis limpo');
+    } catch (err) {
+      logger.warn('⚠️ Erro ao limpar Redis, limpando memória', { error: err.message });
+      memoryCache.clear();
+    }
     return;
   }
   
@@ -226,12 +232,20 @@ const clear = async () => {
   logger.info('✅ Cache em memória limpo');
 };
 
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  if (client && isReady) {
+    logger.info('🛑 Fechando conexão com Redis...');
+    await client.quit();
+  }
+});
+
 module.exports = {
   get,
   set,
   del,
   getStats,
   clear,
-  client, // Exporta para rate limiter (pode ser null)
+  client,
   isReady: () => isReady,
 };

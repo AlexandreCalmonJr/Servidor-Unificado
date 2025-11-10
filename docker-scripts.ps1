@@ -6,7 +6,7 @@ param([string]$Command, [string]$Arg)
 
 # Funções de cor
 function Write-ColorOutput($message, $color = "White") {
-    Write-Host "$message" -ForegroundColor $color
+    Write-Host $message -ForegroundColor $color
 }
 
 # ===================================================================
@@ -29,7 +29,7 @@ function Initialize-Environment {
     
     # Criar .env se não existir
     if (!(Test-Path .env)) {
-        Write-ColorOutput "⚠️  Arquivo .env não encontrado. Criando..." "Yellow"
+        Write-ColorOutput "⚠️ Arquivo .env não encontrado. Criando..." "Yellow"
         
         # Gerar JWT_SECRET
         $bytes = New-Object byte[] 64
@@ -46,10 +46,17 @@ AUTH_TOKEN=hap@2025
 PORT=3000
 NODE_ENV=production
 LOG_LEVEL=info
+
+# Redis (habilitado por padrão no Docker)
+REDIS_ENABLED=true
+REDIS_URL=redis://redis:6379
+
+# MongoDB (use o nome do serviço do docker-compose)
+MONGO_URI=mongodb://mongodb:27017/mdm
 "@ | Out-File -FilePath .env -Encoding UTF8
         
         Write-ColorOutput "✅ Arquivo .env criado com JWT_SECRET aleatório" "Green"
-        Write-ColorOutput "⚠️  IMPORTANTE: Altere o AUTH_TOKEN antes de usar em produção!" "Yellow"
+        Write-ColorOutput "⚠️ IMPORTANTE: Altere o AUTH_TOKEN antes de usar em produção!" "Yellow"
     }
     
     # Criar diretórios
@@ -97,13 +104,14 @@ function Get-Status {
     Write-ColorOutput "`n📊 Status dos Serviços`n" "Blue"
     docker-compose ps
     
-    Write-ColorOutput "`n🏥 Health Checks`n" "Blue"
+    Write-ColorOutput "`n🩺 Health Checks`n" "Blue"
     
     # Check MDM Server
     try {
         $response = Invoke-WebRequest -Uri "http://localhost:3000/health" -UseBasicParsing -TimeoutSec 2
         if ($response.StatusCode -eq 200) {
-            Write-ColorOutput "✅ MDM Server: Rodando (http://localhost:3000)" "Green"
+            $url = "http://localhost:3000"
+            Write-ColorOutput "✅ MDM Server: Rodando ($url)" "Green"
         }
     } catch {
         Write-ColorOutput "❌ MDM Server: Não acessível" "Red"
@@ -111,7 +119,7 @@ function Get-Status {
     
     # Check MongoDB
     try {
-        docker-compose exec -T mongodb mongosh --eval "db.adminCommand('ping')" 2>$null | Out-Null
+        $result = docker-compose exec -T mongodb mongosh --eval "db.adminCommand('ping')" 2>$null
         if ($LASTEXITCODE -eq 0) {
             Write-ColorOutput "✅ MongoDB: Conectado" "Green"
         } else {
@@ -123,7 +131,7 @@ function Get-Status {
     
     # Check Redis
     try {
-        docker-compose exec -T redis redis-cli ping 2>$null | Out-Null
+        $result = docker-compose exec -T redis redis-cli ping 2>$null
         if ($LASTEXITCODE -eq 0) {
             Write-ColorOutput "✅ Redis: Conectado" "Green"
         } else {
@@ -147,7 +155,7 @@ function Show-Logs {
 # SHELL - Acessar shell
 # ===================================================================
 function Enter-Shell {
-    Write-ColorOutput "🖥️  Acessando shell do servidor..." "Blue"
+    Write-ColorOutput "🖥️ Acessando shell do servidor..." "Blue"
     docker-compose exec mdm-server sh
 }
 
@@ -186,7 +194,7 @@ function Restore-Backup {
     }
     
     Write-ColorOutput "📥 Restaurando backup de $BackupDir..." "Yellow"
-    Write-ColorOutput "⚠️  ATENÇÃO: Isso substituirá os dados atuais!" "Red"
+    Write-ColorOutput "⚠️ ATENÇÃO: Isso substituirá os dados atuais!" "Red"
     
     $confirm = Read-Host "Tem certeza? (s/N)"
     if ($confirm -ne "s") {
@@ -203,7 +211,7 @@ function Restore-Backup {
 # ===================================================================
 function Clear-Environment {
     Write-ColorOutput "🧹 Limpando ambiente Docker..." "Yellow"
-    Write-ColorOutput "⚠️  ATENÇÃO: Isso irá APAGAR TODOS OS DADOS!" "Red"
+    Write-ColorOutput "⚠️ ATENÇÃO: Isso irá APAGAR TODOS OS DADOS!" "Red"
     
     $confirm = Read-Host "Tem certeza? Digite 'LIMPAR' para confirmar"
     if ($confirm -ne "LIMPAR") {
@@ -228,6 +236,22 @@ function Update-Services {
     docker-compose up -d
     
     Write-ColorOutput "✅ Atualização concluída!" "Green"
+}
+
+# ===================================================================
+# REBUILD - Reconstruir (NOVO)
+# ===================================================================
+function Rebuild-Services {
+    Write-ColorOutput "🔨 Reconstruindo imagens do zero..." "Blue"
+    
+    docker-compose down
+    docker-compose build --no-cache
+    docker-compose up -d
+    
+    Start-Sleep -Seconds 5
+    Get-Status
+    
+    Write-ColorOutput "✅ Reconstrução concluída!" "Green"
 }
 
 # ===================================================================
@@ -258,13 +282,14 @@ Comandos Disponíveis:
   start           Iniciar todos os serviços
   stop            Parar todos os serviços
   restart         Reiniciar todos os serviços
+  rebuild         Reconstruir imagens do zero
   status          Ver status e health checks
   logs [serviço]  Ver logs (padrão: mdm-server)
   shell           Acessar shell do container
   create-admin    Criar usuário administrador
   backup          Fazer backup do MongoDB
   restore <dir>   Restaurar backup
-  clean           Limpar tudo (⚠️  APAGA DADOS)
+  clean           Limpar tudo (⚠️ APAGA DADOS)
   update          Atualizar e reiniciar
   stats           Ver estatísticas
   help            Mostrar esta ajuda
@@ -274,6 +299,7 @@ Exemplos:
   .\docker-scripts.ps1 init
   .\docker-scripts.ps1 start
   .\docker-scripts.ps1 logs mongodb
+  .\docker-scripts.ps1 rebuild
   .\docker-scripts.ps1 backup
 
 ═══════════════════════════════════════════════════════════════
@@ -284,13 +310,12 @@ Exemplos:
 # MAIN - Processar comando
 # ===================================================================
 
-
-
 switch ($Command) {
     "init"         { Initialize-Environment }
     "start"        { Start-Services }
     "stop"         { Stop-Services }
     "restart"      { Restart-Services }
+    "rebuild"      { Rebuild-Services }
     "status"       { Get-Status }
     "logs"         { Show-Logs -Service $Arg }
     "shell"        { Enter-Shell }
@@ -300,5 +325,5 @@ switch ($Command) {
     "clean"        { Clear-Environment }
     "update"       { Update-Services }
     "stats"        { Get-Stats }
-    default        { Show-Help }
+    "backup"       { Backup-Services }
 }
