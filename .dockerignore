@@ -1,0 +1,14 @@
+# .dockerignore
+
+# Ignora dependências (serão instaladas dentro do container)
+node_modules
+
+# Ignora arquivos .env (serão injetados pelo docker-compose)
+.env
+.env.example
+
+# Ignora logs e outros arquivos locais
+logs
+npm-debug.log*
+*.log
+backups

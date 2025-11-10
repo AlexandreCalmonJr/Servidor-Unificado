@@ -1,0 +1,61 @@
+# docker-compose.yml
+version: "3.8"
+
+services:
+  # 1. O seu servidor MDM (Node.js)
+  mdm-server:
+    build: . # Assume que você tem um Dockerfile na raiz
+    container_name: mdm-server
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/usr/src/app/logs
+      - ./public:/usr/src/app/public
+      - backups-data:/backups # Volume compartilhado para backups
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - mdm-network
+
+  # 2. O banco de dados MongoDB
+  mongodb:
+    image: mongo:5.0 # Use uma versão específica, ex: 5.0 ou 6.0
+    container_name: mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017" # Mapeia para o host (opcional, bom para debug)
+    volumes:
+      - mongo-data:/data/db
+      - backups-data:/backups # Volume compartilhado para backups
+    networks:
+      - mdm-network
+    # NOTA: Para produção, adicione as variáveis MONGO_INITDB_ROOT_USERNAME/PASSWORD
+    # e atualize sua MONGO_URI no .env
+
+  # 3. O servidor Redis (o que você pediu)
+  redis:
+    image: redis:7-alpine # Imagem leve
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379" # Mapeia para o host (opcional, bom para debug)
+    command: redis-server --save 60 1 --loglevel warning # Config de persistência
+    volumes:
+      - redis-data:/data
+    networks:
+      - mdm-network
+
+# Redes
+networks:
+  mdm-network:
+    driver: bridge
+
+# Volumes para persistir os dados
+volumes:
+  mongo-data:
+  redis-data:
+  backups-data:
