@@ -21,10 +21,6 @@ const updateDeviceStatus = require('./scripts/updateDeviceStatus');
 const assetStatusUpdater = require('./scripts/assetStatusUpdater'); // Novo import
 const { getLocalIPAddress } = require('./utils/helpers');
 
-// 🔧 ===== CORREÇÃO: Corrigindo o caminho do cache =====
-// (O arquivo está em 'services/cacheService.js', não 'utils/cache.js')
-const cache = require('./services/cacheService'); 
-
 const app = express();
 const port = process.env.PORT || 3000;
 const ip = '0.0.0.0';
@@ -99,24 +95,23 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
 // ===== HEALTH CHECK =====
-app.get('/health', async (req, res) => {
-  const checks = {
-    mongodb: mongoose.connection.readyState === 1,
-    uptime: process.uptime(),
-    memory: process.memoryUsage().heapUsed / 1024 / 1024, // MB
+app.get('/health', (req, res) => {
+  const uptime = process.uptime();
+  const memoryUsage = process.memoryUsage();
+  
+  res.json({
+    status: 'OK',
     timestamp: new Date().toISOString(),
-  };
-  
-  // ⭐ Verifica se MongoDB responde
-  try {
-    await mongoose.connection.db.admin().ping();
-    checks.mongodb_ping = 'ok';
-  } catch (err) {
-    checks.mongodb_ping = 'error';
-  }
-  
-  const status = checks.mongodb && checks.mongodb_ping === 'ok' ? 200 : 503;
-  res.status(status).json(checks);
+    uptime: Math.floor(uptime),
+    uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`,
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    memory: {
+      heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`,
+      heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`,
+    },
+    version: process.env.npm_package_version || '1.0.0',
+    environment: process.env.NODE_ENV || 'development',
+  });
 });
 
 // ===== ROTAS =====
@@ -140,8 +135,6 @@ const serverRoutes = require('./routes/serverRoutes');
 const publicRoutes = require('./routes/publicRoutes');
 const provisioningRoutes = require('./routes/provisioningRoutes');
 const configProfileRoutes = require('./routes/configProfileRoutes');
-const diagnosticRoutes = require('./routes/diagnosticRoutes');
-
 
 
 // ===== ROTAS PÚBLICAS (sem autenticação) =====
@@ -150,9 +143,7 @@ app.use('/api', publicRoutes(logger, getApiLimiter));
 
 // ===== ROTAS DE DISPOSITIVOS (usam deviceAuth - token simples) =====
 app.post('/api/monitor', modifyApiLimiter, deviceAuth, totemController.handleTotemData);
-
-// 🔧 ===== CORREÇÃO (2/2): Adicionado 'cache' como 2º argumento =====
-app.use('/api/devices', deviceRoutes(logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth, auth));
+app.use('/api/devices', deviceRoutes(logger, getApiLimiter, modifyApiLimiter, deviceAuth, auth));
 
 // ===== ROTAS DO PAINEL WEB E AGENTES (HÍBRIDO) =====
 app.get('/provision/:token', provisioningRoutes.renderProvisioningPage(logger));
@@ -160,8 +151,6 @@ app.use('/api/provisioning', provisioningRoutes(logger, modifyApiLimiter, enroll
 app.use('/api/config-profiles', configProfileRoutes(logger, modifyApiLimiter, auth));
 app.use('/api/units', unitRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
 app.use('/api/bssid-mappings', bssidRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
-app.use('/api/diagnostics', diagnosticRoutes(logger, getApiLimiter, auth));
-
 
 // ⭐ CRÍTICO: Passa deviceAuth como 5º parâmetro
 app.use('/api/modules', moduleRoutes(logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth));
