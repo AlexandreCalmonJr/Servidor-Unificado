@@ -140,6 +140,8 @@ const serverRoutes = require('./routes/serverRoutes');
 const publicRoutes = require('./routes/publicRoutes');
 const provisioningRoutes = require('./routes/provisioningRoutes');
 const configProfileRoutes = require('./routes/configProfileRoutes');
+const diagnosticRoutes = require('./routes/diagnosticRoutes');
+
 
 
 // ===== ROTAS PÚBLICAS (sem autenticação) =====
@@ -158,6 +160,8 @@ app.use('/api/provisioning', provisioningRoutes(logger, modifyApiLimiter, enroll
 app.use('/api/config-profiles', configProfileRoutes(logger, modifyApiLimiter, auth));
 app.use('/api/units', unitRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
 app.use('/api/bssid-mappings', bssidRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
+app.use('/api/diagnostics', diagnosticRoutes(logger, getApiLimiter, auth));
+
 
 // ⭐ CRÍTICO: Passa deviceAuth como 5º parâmetro
 app.use('/api/modules', moduleRoutes(logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth));

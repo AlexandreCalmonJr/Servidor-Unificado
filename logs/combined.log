@@ -5216,3 +5216,141 @@
 {"environment":"development","ip":"0.0.0.0","level":"info","localIp":"10.71.48.177","message":"System: server_started","port":"3000","service":"mdm-server","timestamp":"2025-11-10T16:40:24.783Z","version":"1.0.0"}
 {"database":"mdm","environment":"development","host":"localhost","level":"info","message":"System: mongodb_connected","service":"mdm-server","timestamp":"2025-11-10T16:40:24.797Z","version":"1.0.0"}
 {"environment":"development","level":"info","message":"System: shutdown_initiated","service":"mdm-server","signal":"SIGINT","timestamp":"2025-11-10T16:43:54.618Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"ℹ️ Redis desabilitado - usando cache em memória","service":"mdm-server","timestamp":"2025-11-10T17:12:29.807Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"System: server_starting","nodeVersion":"v22.14.0","port":"3000","service":"mdm-server","timestamp":"2025-11-10T17:12:29.810Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Conectando ao MongoDB...","service":"mdm-server","timestamp":"2025-11-10T17:12:29.810Z","version":"1.0.0"}
+{"environment":"production","ip":"0.0.0.0","level":"info","localIp":"10.71.48.177","message":"System: server_started","port":"3000","service":"mdm-server","timestamp":"2025-11-10T17:12:30.023Z","version":"1.0.0"}
+{"context":"mongodb_connection","environment":"production","level":"error","message":"CRITICAL ERROR getaddrinfo ENOTFOUND mongodb","mongoUri":"mongodb://mongodb:27017/mdm","service":"mdm-server","stack":"MongooseServerSelectionError: getaddrinfo ENOTFOUND mongodb\n    at _handleConnectionErrors (C:\\Users\\alexandrej\\Desktop\\TEST Modulares\\Servidor Unificado\\node_modules\\mongoose\\lib\\connection.js:1165:11)\n    at NativeConnection.openUri (C:\\Users\\alexandrej\\Desktop\\TEST Modulares\\Servidor Unificado\\node_modules\\mongoose\\lib\\connection.js:1096:11)\n    at async connectDB (C:\\Users\\alexandrej\\Desktop\\TEST Modulares\\Servidor Unificado\\server.js:44:5)","timestamp":"2025-11-10T17:12:34.834Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"ℹ️ Redis desabilitado - usando cache em memória","service":"mdm-server","timestamp":"2025-11-10T17:13:10.398Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"System: server_starting","nodeVersion":"v22.14.0","port":"3000","service":"mdm-server","timestamp":"2025-11-10T17:13:10.401Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Conectando ao MongoDB...","service":"mdm-server","timestamp":"2025-11-10T17:13:10.401Z","version":"1.0.0"}
+{"environment":"production","ip":"0.0.0.0","level":"info","localIp":"10.71.48.177","message":"System: server_started","port":"3000","service":"mdm-server","timestamp":"2025-11-10T17:13:10.610Z","version":"1.0.0"}
+{"database":"mdm","environment":"production","host":"localhost","level":"info","message":"System: mongodb_connected","service":"mdm-server","timestamp":"2025-11-10T17:13:10.624Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin1, Setor: Global","service":"mdm-server","timestamp":"2025-11-10T17:13:45.137Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:13:46.181Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:13:46.186Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Módulos listados: 1 por admin1","service":"mdm-server","timestamp":"2025-11-10T17:13:46.205Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:13:48.523Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:13:48.527Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","service":"mdm-server","timestamp":"2025-11-10T17:13:48.529Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:13:48.564Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:13:48.567Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"📡 BSSIDs listados: 1 mapeamentos","service":"mdm-server","timestamp":"2025-11-10T17:13:48.568Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:13:48.598Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:13:48.602Z","version":"1.0.0"}
+{"count":2,"duration":"4ms","environment":"production","filters":{},"level":"info","message":"Lista de dispositivos retornada (do DB)","role":"admin","service":"mdm-server","timestamp":"2025-11-10T17:13:48.606Z","username":"admin1","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:13:51.855Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:13:51.859Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","service":"mdm-server","timestamp":"2025-11-10T17:13:51.861Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:13:51.865Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:13:51.868Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"📡 BSSIDs listados: 1 mapeamentos","service":"mdm-server","timestamp":"2025-11-10T17:13:51.869Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:13:51.875Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:13:51.877Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:13:57.635Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:13:57.639Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","service":"mdm-server","timestamp":"2025-11-10T17:13:57.641Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:13:57.645Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:13:57.647Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"📡 BSSIDs listados: 1 mapeamentos","service":"mdm-server","timestamp":"2025-11-10T17:13:57.650Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:13:57.659Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:13:57.662Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Ativos listados: 1/1 do módulo Notebook","service":"mdm-server","timestamp":"2025-11-10T17:13:57.671Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:14:04.503Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:14:04.506Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Lista de utilizadores solicitada por admin1: 2 utilizadores","service":"mdm-server","timestamp":"2025-11-10T17:14:04.509Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:14:06.463Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:14:06.466Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Lista de utilizadores solicitada por admin1: 2 utilizadores","service":"mdm-server","timestamp":"2025-11-10T17:14:06.469Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:14:07.559Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:14:07.563Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Módulos listados: 1 por admin1","service":"mdm-server","timestamp":"2025-11-10T17:14:07.565Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:14:13.644Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:14:13.647Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Lista de utilizadores solicitada por admin1: 2 utilizadores","service":"mdm-server","timestamp":"2025-11-10T17:14:13.649Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:14:14.038Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:14:14.040Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:14:14.042Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:14:14.044Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","service":"mdm-server","timestamp":"2025-11-10T17:14:14.045Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"📡 BSSIDs listados: 1 mapeamentos","service":"mdm-server","timestamp":"2025-11-10T17:14:14.046Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:14:14.976Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:14:14.979Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"🔍 BSSIDs por unidade 'Hospital Teresa de Lisieux': 1 encontrados","service":"mdm-server","timestamp":"2025-11-10T17:14:14.981Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:14:16.823Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:14:16.825Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:14:16.827Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:14:16.828Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","service":"mdm-server","timestamp":"2025-11-10T17:14:16.828Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"📡 BSSIDs listados: 1 mapeamentos","service":"mdm-server","timestamp":"2025-11-10T17:14:16.829Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"System: shutdown_initiated","service":"mdm-server","signal":"SIGINT","timestamp":"2025-11-10T17:14:42.219Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"ℹ️ Redis desabilitado - usando cache em memória","service":"mdm-server","timestamp":"2025-11-10T17:14:45.998Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"System: server_starting","nodeVersion":"v22.14.0","port":"3000","service":"mdm-server","timestamp":"2025-11-10T17:14:46.000Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Conectando ao MongoDB...","service":"mdm-server","timestamp":"2025-11-10T17:14:46.001Z","version":"1.0.0"}
+{"environment":"production","ip":"0.0.0.0","level":"info","localIp":"10.71.48.177","message":"System: server_started","port":"3000","service":"mdm-server","timestamp":"2025-11-10T17:14:46.204Z","version":"1.0.0"}
+{"database":"mdm","environment":"production","host":"localhost","level":"info","message":"System: mongodb_connected","service":"mdm-server","timestamp":"2025-11-10T17:14:46.221Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:14:48.964Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:14:48.976Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Módulos listados: 1 por admin1","service":"mdm-server","timestamp":"2025-11-10T17:14:48.982Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2025-11-10T17:15:00.308Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2025-11-10T17:15:00.313Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2025-11-10T17:15:00.313Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Cron job de atualização de status de assets inicializado.","service":"mdm-server","timestamp":"2025-11-10T17:15:00.326Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"System: shutdown_initiated","service":"mdm-server","signal":"SIGINT","timestamp":"2025-11-10T17:15:03.196Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"ℹ️ Redis desabilitado - usando cache em memória","service":"mdm-server","timestamp":"2025-11-10T17:15:05.208Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"System: server_starting","nodeVersion":"v22.14.0","port":"3000","service":"mdm-server","timestamp":"2025-11-10T17:15:05.211Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Conectando ao MongoDB...","service":"mdm-server","timestamp":"2025-11-10T17:15:05.211Z","version":"1.0.0"}
+{"environment":"production","ip":"0.0.0.0","level":"info","localIp":"10.71.48.177","message":"System: server_started","port":"3000","service":"mdm-server","timestamp":"2025-11-10T17:15:05.422Z","version":"1.0.0"}
+{"database":"mdm","environment":"production","host":"localhost","level":"info","message":"System: mongodb_connected","service":"mdm-server","timestamp":"2025-11-10T17:15:05.438Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:15:15.919Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:15:15.930Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","service":"mdm-server","timestamp":"2025-11-10T17:15:15.933Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:15:15.984Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:15:15.987Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"📡 BSSIDs listados: 1 mapeamentos","service":"mdm-server","timestamp":"2025-11-10T17:15:15.989Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:15:16.017Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:15:16.019Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:15:20.021Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:15:20.024Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"🏢 Unidades listadas: 1 unidade(s)","service":"mdm-server","timestamp":"2025-11-10T17:15:20.025Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:15:20.028Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:15:20.030Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"📡 BSSIDs listados: 1 mapeamentos","service":"mdm-server","timestamp":"2025-11-10T17:15:20.031Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:15:20.035Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:15:20.037Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Ativos listados: 1/1 do módulo Notebook","service":"mdm-server","timestamp":"2025-11-10T17:15:20.044Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:15:24.309Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:15:24.311Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Ativo excluído: Desktop TI por admin1","service":"mdm-server","timestamp":"2025-11-10T17:15:24.317Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:15:24.324Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:15:24.327Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:15:24.329Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:15:24.330Z","version":"1.0.0"}
+{"duration":"9ms","environment":"production","ip":"10.71.48.177","level":"warn","message":"HTTP Request","method":"DELETE","path":"/690b5756e49879f4b82a3d87/assets/690de961ce8cd356e8ac2289","role":"admin","service":"mdm-server","statusCode":404,"timestamp":"2025-11-10T17:15:24.333Z","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0","userId":"68a8549dea8e0c82fdfb5708","username":"admin1","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Ativos listados: 0/0 do módulo Notebook","service":"mdm-server","timestamp":"2025-11-10T17:15:24.333Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"System: shutdown_initiated","service":"mdm-server","signal":"SIGINT","timestamp":"2025-11-10T17:15:30.507Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"ℹ️ Redis desabilitado - usando cache em memória","service":"mdm-server","timestamp":"2025-11-10T17:15:50.193Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"System: server_starting","nodeVersion":"v22.14.0","port":"3000","service":"mdm-server","timestamp":"2025-11-10T17:15:50.196Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Conectando ao MongoDB...","service":"mdm-server","timestamp":"2025-11-10T17:15:50.196Z","version":"1.0.0"}
+{"environment":"production","ip":"0.0.0.0","level":"info","localIp":"10.71.48.177","message":"System: server_started","port":"3000","service":"mdm-server","timestamp":"2025-11-10T17:15:50.424Z","version":"1.0.0"}
+{"database":"mdm","environment":"production","host":"localhost","level":"info","message":"System: mongodb_connected","service":"mdm-server","timestamp":"2025-11-10T17:15:50.439Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-10T17:15:50.924Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Autenticação bem-sucedida - User: admin1 (admin)","service":"mdm-server","timestamp":"2025-11-10T17:15:50.934Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Ativos listados: 0/0 do módulo Notebook","service":"mdm-server","timestamp":"2025-11-10T17:15:50.939Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"ℹ️ Redis desabilitado - usando cache em memória","service":"mdm-server","timestamp":"2025-11-11T15:48:14.663Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"System: server_starting","nodeVersion":"v22.14.0","port":"3000","service":"mdm-server","timestamp":"2025-11-11T15:48:14.666Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"Conectando ao MongoDB...","service":"mdm-server","timestamp":"2025-11-11T15:48:14.666Z","version":"1.0.0"}
+{"environment":"production","ip":"0.0.0.0","level":"info","localIp":"10.71.3.146","message":"System: server_started","port":"3000","service":"mdm-server","timestamp":"2025-11-11T15:48:14.975Z","version":"1.0.0"}
+{"database":"mdm","environment":"production","host":"localhost","level":"info","message":"System: mongodb_connected","service":"mdm-server","timestamp":"2025-11-11T15:48:15.026Z","version":"1.0.0"}
+{"environment":"production","level":"info","message":"🔄 Atualizando cache de localização...","service":"mdm-server","timestamp":"2025-11-11T15:48:48.131Z","version":"1.0.0"}
+{"bssids":1,"bssidsInvalidos":0,"duration":"25ms","environment":"production","expiresIn":"120s","level":"info","message":"✅ Cache de localização atualizado","service":"mdm-server","timestamp":"2025-11-11T15:48:48.157Z","units":1,"version":"1.0.0"}
+{"bssid_original":"N/A","device":"galaxy s23 fe","environment":"production","ip":"10.71.48.69","level":"info","message":"🔎 Iniciando mapeamento de localização","service":"mdm-server","timestamp":"2025-11-11T15:48:48.160Z","version":"1.0.0"}
+{"device":"galaxy s23 fe","environment":"production","ip":"10.71.48.69","level":"info","message":"✅ Unit mapeada por IP","service":"mdm-server","timestamp":"2025-11-11T15:48:48.160Z","unit":"Hospital Teresa de Lisieux","version":"1.0.0"}
+{"environment":"production","level":"warn","message":"Formato de MAC inválido após normalização","normalized":"A","original":"N/A","service":"mdm-server","timestamp":"2025-11-11T15:48:48.160Z","version":"1.0.0"}
+{"bssid":"N/A","device":"galaxy s23 fe","environment":"production","level":"warn","message":"⚠️ BSSID genérico ou ausente","service":"mdm-server","timestamp":"2025-11-11T15:48:48.161Z","version":"1.0.0"}
+{"device":"galaxy s23 fe","duration":"1ms","environment":"production","level":"info","message":"📍 Resultado do mapeamento","result":{"confidence":"medium","floor":"Desconhecido","sector":"Desconhecido","source":"ip_mapping","unit":"Hospital Teresa de Lisieux"},"service":"mdm-server","timestamp":"2025-11-11T15:48:48.161Z","version":"1.0.0"}
+{"bssid_original":"c8:66:5d:84:18:64","device":"Galaxy A05 TI","environment":"production","ip":"10.71.48.231","level":"info","message":"🔎 Iniciando mapeamento de localização","service":"mdm-server","timestamp":"2025-11-11T15:48:48.176Z","version":"1.0.0"}
+{"device":"Galaxy A05 TI","environment":"production","ip":"10.71.48.231","level":"info","message":"✅ Unit mapeada por IP","service":"mdm-server","timestamp":"2025-11-11T15:48:48.177Z","unit":"Hospital Teresa de Lisieux","version":"1.0.0"}
+{"bssid":"C8:66:5D:84:18:64","device":"Galaxy A05 TI","environment":"production","floor":"Terreo","level":"info","message":"✅ Localização mapeada por BSSID","sector":"TI","service":"mdm-server","timestamp":"2025-11-11T15:48:48.177Z","unit":"Hospital Teresa de Lisieux","version":"1.0.0"}
+{"device":"Galaxy A05 TI","duration":"1ms","environment":"production","level":"info","message":"📍 Resultado do mapeamento","result":{"confidence":"high","floor":"Terreo","sector":"TI","source":"ip_and_bssid","unit":"Hospital Teresa de Lisieux"},"service":"mdm-server","timestamp":"2025-11-11T15:48:48.177Z","version":"1.0.0"}
+{"environment":"production","failed":0,"level":"info","message":"Correção em massa de localizações concluída","service":"mdm-server","timestamp":"2025-11-11T15:48:48.178Z","total":2,"unchanged":1,"updated":1,"version":"1.0.0"}

@@ -1,4 +1,8 @@
-// services/locationService.js - SERVIÇO DE MAPEAMENTO DE LOCALIZAÇÃO COM CACHE
+// ===================================================================
+// File: services/locationService.js - VERSÃO MELHORADA
+// Sistema robusto de mapeamento de localização com logs detalhados
+// ===================================================================
+
 const UnitMapping = require('../models/UnitMapping');
 const BssidMapping = require('../models/BssidMapping');
 const logger = require('../utils/logger');
@@ -8,16 +12,84 @@ class LocationService {
     this.unitsCache = null;
     this.bssidCache = null;
     this.cacheExpiry = null;
-    this.CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+    this.CACHE_TTL = 2 * 60 * 1000; // 2 minutos (reduzido)
     this.isRefreshing = false;
     this.refreshPromise = null;
   }
 
+  // ===================================================================
+  // NORMALIZAÇÃO DE MAC ADDRESS (CRÍTICO)
+  // ===================================================================
+  
   /**
-   * Atualiza o cache de unidades e BSSIDs
+   * Normaliza MAC address para formato padrão
+   * @param {string} mac - MAC em qualquer formato
+   * @returns {string} MAC normalizado (AA:BB:CC:DD:EE:FF)
    */
+  normalizeMac(mac) {
+    if (!mac || typeof mac !== 'string') {
+      logger.debug('MAC inválido (null/undefined)', { mac });
+      return null;
+    }
+
+    try {
+      // Remove espaços e converte para maiúsculo
+      let normalized = mac.trim().toUpperCase();
+
+      // Remove caracteres inválidos, mantém apenas hex e separadores
+      normalized = normalized.replace(/[^0-9A-F:-]/g, '');
+
+      // Substitui separadores para padrão ':'
+      normalized = normalized.replace(/[-\.]/g, ':');
+
+      // Valida formato básico (12 dígitos hex + 5 separadores)
+      if (!/^([0-9A-F]{2}[:]){5}[0-9A-F]{2}$/.test(normalized)) {
+        // Tenta adicionar ':' se faltar
+        if (/^[0-9A-F]{12}$/.test(normalized)) {
+          normalized = normalized.match(/.{1,2}/g).join(':');
+        } else {
+          logger.warn('Formato de MAC inválido após normalização', { 
+            original: mac, 
+            normalized 
+          });
+          return null;
+        }
+      }
+
+      logger.debug('MAC normalizado', { original: mac, normalized });
+      return normalized;
+    } catch (error) {
+      logger.error('Erro ao normalizar MAC', { mac, error: error.message });
+      return null;
+    }
+  }
+
+  /**
+   * Verifica se MAC é genérico (não-confiável)
+   */
+  isGenericMac(mac) {
+    const genericMacs = [
+      '02:00:00:00:00:00',
+      '00:00:00:00:00:00',
+      'FF:FF:FF:FF:FF:FF',
+      'N/A'
+    ];
+    
+    const normalized = this.normalizeMac(mac);
+    const isGeneric = !normalized || genericMacs.includes(normalized);
+    
+    if (isGeneric) {
+      logger.debug('MAC genérico detectado', { mac, normalized });
+    }
+    
+    return isGeneric;
+  }
+
+  // ===================================================================
+  // GESTÃO DE CACHE
+  // ===================================================================
+
   async refreshCache() {
-    // Evita múltiplas chamadas simultâneas
     if (this.isRefreshing) {
       return this.refreshPromise;
     }
@@ -37,27 +109,48 @@ class LocationService {
     const startTime = Date.now();
     
     try {
-      logger.debug('Atualizando cache de localização...');
+      logger.info('🔄 Atualizando cache de localização...');
 
       const [units, bssids] = await Promise.all([
         UnitMapping.find().lean(),
         BssidMapping.find().lean()
       ]);
 
+      // PRÉ-PROCESSA BSSIDs (normaliza uma vez só)
+      const normalizedBssids = bssids.map(b => ({
+        ...b,
+        mac_normalized: this.normalizeMac(b.mac_address_radio)
+      })).filter(b => b.mac_normalized); // Remove inválidos
+
       this.unitsCache = units;
-      this.bssidCache = bssids;
+      this.bssidCache = normalizedBssids;
       this.cacheExpiry = Date.now() + this.CACHE_TTL;
 
       const duration = Date.now() - startTime;
-      logger.info('Cache de localização atualizado', {
+      
+      logger.info('✅ Cache de localização atualizado', {
         units: units.length,
-        bssids: bssids.length,
+        bssids: normalizedBssids.length,
+        bssidsInvalidos: bssids.length - normalizedBssids.length,
         duration: `${duration}ms`,
         expiresIn: `${this.CACHE_TTL / 1000}s`
       });
 
+      // Log de amostra dos BSSIDs (debug)
+      if (normalizedBssids.length > 0) {
+        const sample = normalizedBssids.slice(0, 3);
+        logger.debug('Amostra de BSSIDs no cache:', {
+          sample: sample.map(b => ({
+            mac: b.mac_normalized,
+            sector: b.sector,
+            floor: b.floor,
+            unit: b.unitName
+          }))
+        });
+      }
+
     } catch (error) {
-      logger.error('Erro ao atualizar cache de localização:', {
+      logger.error('❌ Erro ao atualizar cache de localização', {
         message: error.message,
         stack: error.stack
       });
@@ -65,9 +158,6 @@ class LocationService {
     }
   }
 
-  /**
-   * Retorna o cache, atualizando se necessário
-   */
   async getCache() {
     if (!this.cacheExpiry || Date.now() > this.cacheExpiry) {
       await this.refreshCache();
@@ -78,75 +168,153 @@ class LocationService {
     };
   }
 
-  /**
-   * Invalida o cache manualmente (útil após criar/atualizar mapeamentos)
-   */
   invalidateCache() {
-    logger.debug('Cache de localização invalidado manualmente');
+    logger.info('🗑️ Cache de localização invalidado manualmente');
     this.cacheExpiry = null;
     this.unitsCache = null;
     this.bssidCache = null;
   }
 
+  // ===================================================================
+  // MAPEAMENTO DE LOCALIZAÇÃO (MELHORADO)
+  // ===================================================================
+
   /**
-   * Mapeia a localização de um dispositivo baseado em IP e BSSID
-   * @param {Object} deviceData - Dados do dispositivo
-   * @param {string} deviceData.ip_address - Endereço IP
-   * @param {string} deviceData.mac_address_radio - BSSID (MAC do rádio WiFi)
-   * @param {string} deviceData.device_name - Nome do dispositivo (para logs)
-   * @returns {Object} { unit, sector, floor }
+   * Mapeia localização completa de um dispositivo
    */
   async mapDeviceLocation({ ip_address, mac_address_radio, device_name }) {
     const startTime = Date.now();
     
+    logger.info('🔎 Iniciando mapeamento de localização', {
+      device: device_name,
+      ip: ip_address,
+      bssid_original: mac_address_radio
+    });
+
+    const result = {
+      unit: 'N/A',
+      sector: 'Desconhecido',
+      floor: 'Desconhecido',
+      source: 'default', // Para debug
+      confidence: 'low'  // low, medium, high
+    };
+
     try {
       const { units, bssids } = await this.getCache();
 
-      // Mapeamento por IP (prioridade para Unit)
-      const unit = this._findUnitByIp(ip_address, units);
-      
-      // Mapeamento por BSSID (para setor/andar)
-      const bssidInfo = this._findBssidInfo(mac_address_radio, bssids);
+      // ETAPA 1: Mapear UNIT pelo IP
+      if (ip_address && ip_address !== 'N/A' && ip_address !== '0.0.0.0') {
+        const unit = this._findUnitByIp(ip_address, units);
+        if (unit) {
+          result.unit = unit.name;
+          result.source = 'ip_mapping';
+          result.confidence = 'medium';
+          
+          logger.info('✅ Unit mapeada por IP', {
+            device: device_name,
+            ip: ip_address,
+            unit: unit.name
+          });
+        } else {
+          logger.warn('⚠️ IP não encontrado em nenhuma faixa cadastrada', {
+            device: device_name,
+            ip: ip_address,
+            total_units: units.length
+          });
+        }
+      } else {
+        logger.debug('IP ausente ou inválido', { device: device_name, ip: ip_address });
+      }
 
-      const result = {
-        unit: unit?.name || bssidInfo?.unitName || 'N/A',
-        sector: bssidInfo?.sector || 'Desconhecido',
-        floor: bssidInfo?.floor || 'Desconhecido',
-      };
+      // ETAPA 2: Mapear SETOR/ANDAR pelo BSSID
+      if (mac_address_radio && !this.isGenericMac(mac_address_radio)) {
+        const normalized = this.normalizeMac(mac_address_radio);
+        
+        if (normalized) {
+          const bssidInfo = this._findBssidInfo(normalized, bssids);
+          
+          if (bssidInfo) {
+            result.sector = bssidInfo.sector;
+            result.floor = bssidInfo.floor;
+            result.confidence = 'high';
+            
+            // Se BSSID tem unitName e ainda não temos unit
+            if (bssidInfo.unitName && result.unit === 'N/A') {
+              result.unit = bssidInfo.unitName;
+              result.source = 'bssid_unit';
+            } else if (bssidInfo.unitName) {
+              result.source = 'ip_and_bssid';
+            } else {
+              result.source = 'bssid_location';
+            }
+
+            logger.info('✅ Localização mapeada por BSSID', {
+              device: device_name,
+              bssid: normalized,
+              sector: result.sector,
+              floor: result.floor,
+              unit: bssidInfo.unitName || 'N/D'
+            });
+          } else {
+            logger.warn('⚠️ BSSID não encontrado no banco', {
+              device: device_name,
+              bssid: normalized,
+              total_bssids: bssids.length,
+              sugestao: 'Cadastre em Admin → Localizações → BSSIDs'
+            });
+
+            // DEBUG: Mostra BSSIDs similares (mesmos primeiros 6 dígitos)
+            const prefix = normalized.substring(0, 8); // Ex: AA:BB:CC
+            const similar = bssids
+              .filter(b => b.mac_normalized.startsWith(prefix))
+              .slice(0, 3);
+            
+            if (similar.length > 0) {
+              logger.debug('BSSIDs similares encontrados', {
+                prefix,
+                similar: similar.map(b => b.mac_normalized)
+              });
+            }
+          }
+        }
+      } else {
+        logger.warn('⚠️ BSSID genérico ou ausente', {
+          device: device_name,
+          bssid: mac_address_radio
+        });
+      }
 
       const duration = Date.now() - startTime;
       
-      logger.debug('Localização mapeada', {
+      logger.info('📍 Resultado do mapeamento', {
         device: device_name,
-        ip: ip_address,
-        bssid: mac_address_radio,
-        result,
+        result: {
+          unit: result.unit,
+          sector: result.sector,
+          floor: result.floor,
+          source: result.source,
+          confidence: result.confidence
+        },
         duration: `${duration}ms`
       });
 
       return result;
 
     } catch (error) {
-      logger.error('Erro ao mapear localização', {
+      logger.error('❌ Erro crítico no mapeamento de localização', {
         device: device_name,
-        ip: ip_address,
-        bssid: mac_address_radio,
-        error: error.message
+        error: error.message,
+        stack: error.stack
       });
 
-      // Retorna valores padrão em caso de erro
-      return {
-        unit: 'N/A',
-        sector: 'Desconhecido',
-        floor: 'Desconhecido',
-      };
+      return result; // Retorna valores padrão
     }
   }
 
-  /**
-   * Encontra a unidade pelo endereço IP
-   * @private
-   */
+  // ===================================================================
+  // FUNÇÕES AUXILIARES
+  // ===================================================================
+
   _findUnitByIp(ip, units) {
     if (!ip || ip === 'N/A' || ip === '0.0.0.0') return null;
     
@@ -162,7 +330,6 @@ class LocationService {
           const startNum = this._ipToInt(range.start);
           const endNum = this._ipToInt(range.end);
 
-          // Validação
           if (startNum === 0 || endNum === 0) return false;
           if (startNum > endNum) {
             logger.warn('Faixa de IP inválida', {
@@ -182,42 +349,19 @@ class LocationService {
     }
   }
 
-  /**
-   * Encontra informações de BSSID pelo endereço MAC
-   * @private
-   */
-  _findBssidInfo(mac, bssids) {
-    if (!mac || mac === 'N/A' || mac === '00:00:00:00:00:00') return null;
+  _findBssidInfo(normalizedMac, bssids) {
+    if (!normalizedMac) return null;
     
-    try {
-      const normalized = mac.toUpperCase().replace(/-/g, ':').replace(/\./g, ':');
-      
-      return bssids.find(b => {
-        const bssidNormalized = b.mac_address_radio
-          .toUpperCase()
-          .replace(/-/g, ':')
-          .replace(/\./g, ':');
-        
-        return bssidNormalized === normalized;
-      });
-
-    } catch (error) {
-      logger.warn('Erro ao processar BSSID', { mac, error: error.message });
-      return null;
-    }
+    // Busca direta (cache já tem MACs normalizados)
+    return bssids.find(b => b.mac_normalized === normalizedMac);
   }
 
-  /**
-   * Converte IP string para número inteiro
-   * @private
-   */
   _ipToInt(ip) {
     if (!ip) return 0;
     
     try {
       const parts = ip.split('.').map(Number);
       
-      // Validação básica
       if (parts.length !== 4) return 0;
       if (parts.some(p => isNaN(p) || p < 0 || p > 255)) return 0;
       
@@ -227,9 +371,10 @@ class LocationService {
     }
   }
 
-  /**
-   * Valida se um IP está em formato válido
-   */
+  // ===================================================================
+  // VALIDAÇÕES
+  // ===================================================================
+
   isValidIp(ip) {
     if (!ip || typeof ip !== 'string') return false;
     
@@ -237,19 +382,15 @@ class LocationService {
     return ipv4Regex.test(ip);
   }
 
-  /**
-   * Valida se um MAC está em formato válido
-   */
   isValidMac(mac) {
-    if (!mac || typeof mac !== 'string') return false;
-    
-    const macRegex = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
-    return macRegex.test(mac);
+    const normalized = this.normalizeMac(mac);
+    return normalized !== null && !this.isGenericMac(mac);
   }
 
-  /**
-   * Retorna estatísticas do cache
-   */
+  // ===================================================================
+  // DIAGNÓSTICO
+  // ===================================================================
+
   getCacheStats() {
     const now = Date.now();
     const isExpired = !this.cacheExpiry || now > this.cacheExpiry;
@@ -262,6 +403,77 @@ class LocationService {
       expiresIn: isExpired ? 0 : Math.floor(timeUntilExpiry / 1000),
       lastRefresh: this.cacheExpiry ? new Date(this.cacheExpiry - this.CACHE_TTL) : null,
     };
+  }
+
+  /**
+   * Diagnóstico completo de mapeamento
+   */
+  async diagnose({ ip_address, mac_address_radio }) {
+    const { units, bssids } = await this.getCache();
+    
+    const report = {
+      timestamp: new Date().toISOString(),
+      cache: this.getCacheStats(),
+      input: {
+        ip: ip_address,
+        bssid_original: mac_address_radio,
+        bssid_normalized: this.normalizeMac(mac_address_radio),
+        bssid_is_generic: this.isGenericMac(mac_address_radio)
+      },
+      ip_mapping: null,
+      bssid_mapping: null,
+      recommendations: []
+    };
+
+    // Testa mapeamento de IP
+    if (this.isValidIp(ip_address)) {
+      const unit = this._findUnitByIp(ip_address, units);
+      report.ip_mapping = unit ? {
+        found: true,
+        unit: unit.name,
+        ranges: unit.ip_ranges
+      } : {
+        found: false,
+        total_units: units.length
+      };
+
+      if (!unit) {
+        report.recommendations.push('Cadastre a faixa de IP em Admin → Unidades');
+      }
+    } else {
+      report.recommendations.push('IP inválido ou ausente');
+    }
+
+    // Testa mapeamento de BSSID
+    const normalized = this.normalizeMac(mac_address_radio);
+    if (normalized && !this.isGenericMac(mac_address_radio)) {
+      const bssid = this._findBssidInfo(normalized, bssids);
+      report.bssid_mapping = bssid ? {
+        found: true,
+        sector: bssid.sector,
+        floor: bssid.floor,
+        unit: bssid.unitName
+      } : {
+        found: false,
+        total_bssids: bssids.length
+      };
+
+      if (!bssid) {
+        report.recommendations.push(`Cadastre o BSSID ${normalized} em Admin → BSSIDs`);
+        
+        // Busca similares
+        const prefix = normalized.substring(0, 8);
+        const similar = bssids.filter(b => b.mac_normalized.startsWith(prefix));
+        if (similar.length > 0) {
+          report.similar_bssids = similar.map(b => b.mac_normalized).slice(0, 5);
+          report.recommendations.push(`Existem ${similar.length} BSSIDs com prefixo similar (${prefix})`);
+        }
+      }
+    } else {
+      report.recommendations.push('BSSID genérico ou inválido');
+    }
+
+    return report;
   }
 }
 
