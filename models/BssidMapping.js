@@ -8,6 +8,19 @@ const BssidMappingSchema = new mongoose.Schema({
   unitName: { type: String, trim: false, default: '' }
 });
 
+// CORREÇÃO (Item 7): Adicionar middleware pre('save') para normalizar MAC
+BssidMappingSchema.pre('save', function(next) {
+  // Normaliza apenas se o campo foi modificado ou é novo
+  if (this.isModified('mac_address_radio') && this.mac_address_radio) {
+    this.mac_address_radio = this.mac_address_radio
+      .toUpperCase()
+      .replace(/[-\.]/g, ':') // Substitui hifens e pontos por dois-pontos
+      .trim();
+  }
+  next();
+});
+
+
 const BssidMapping = mongoose.model('BssidMapping', BssidMappingSchema);
 
 module.exports = BssidMapping;

@@ -1,7 +1,7 @@
 const rateLimit = require('express-rate-limit');
 const RedisStore = require('rate-limit-redis');
-// 🔧 AJUSTE: Importa o cliente do seu cacheService
-const { client: redisClient } = require('../services/cacheService'); 
+// 🔧 AJUSTE (Fix 13): Importa o cliente e o status do cacheService
+const { client: redisClient, isReady } = require('../services/cacheService'); 
 
 // Limitador GERAL para rotas de LEITURA (GET) - Mais permissivo
 const getApiLimiter = rateLimit({
@@ -32,13 +32,9 @@ const enrollLimiter = rateLimit({
 
 // ADICIONADO: Função para criar o rate limit AVANÇADO por usuário
 const createAdvancedLimiter = (logger) => {
-  return rateLimit({
-    // 🔧 AJUSTE: Passa o cliente importado para o store
-    store: new RedisStore({ 
-      client: redisClient,
-      // Descomente se o seu Redis tiver prefixo
-      // prefix: 'rl:', 
-    }),
+
+  // CORREÇÃO (Item 13): Opções base
+  const options = {
     windowMs: 15 * 60 * 1000,
     max: async (req) => {
       // Admins têm mais quota
@@ -49,7 +45,20 @@ const createAdvancedLimiter = (logger) => {
       logger.warn(`Rate limit exceeded: ${req.user?.username || req.ip}`);
       res.status(429).json({ message: 'Muitas requisições. Tente novamente mais tarde.' });
     }
-  });
+  };
+
+  // CORREÇÃO (Item 13): Adiciona store Redis apenas se estiver pronto
+  if (isReady() && redisClient) {
+    options.store = new RedisStore({ 
+      client: redisClient,
+      prefix: 'rl:', // Boa prática adicionar prefixo
+    });
+  } else {
+    logger.warn('Rate Limiter Avançado: Redis não está pronto. Usando cache em memória.');
+    // Se não, usa o padrão (em memória) não definindo options.store
+  }
+
+  return rateLimit(options);
 };
 
 module.exports = { 

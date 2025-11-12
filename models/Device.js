@@ -5,7 +5,7 @@ const DeviceSchema = new mongoose.Schema({
   device_name: { type: String, required: true, trim: false },
   device_model: { type: String, trim: false, default: 'N/A' },
   device_id: { type: String, required: true, trim: false },
-  serial_number: { type: String, unique: true, trim: false, sparse: true, default: 'N/A' },
+  serial_number: { type: String, trim: false, default: 'N/A' },
   imei: { type: String, unique: true, trim: false, sparse: true, default: 'N/A' },
   battery: { type: Number, min: 0, max: 100, default: null },
   network: { type: String, trim: false, default: 'N/A' },

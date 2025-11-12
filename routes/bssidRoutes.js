@@ -1,6 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const BssidMapping = require('../models/BssidMapping');
+const UnitMapping = require('../models/UnitMapping'); // CORREÇÃO (Item 6): Importar UnitMapping
 
 const bssidRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   const router = express.Router();
@@ -22,6 +23,22 @@ const bssidRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
     }
     try {
       const { mac_address_radio, sector, floor, unitName } = req.body;
+
+      // CORREÇÃO (Item 6): Validar se unitName existe
+      if (unitName) {
+        const unitExists = await UnitMapping.findOne({ name: unitName });
+        if (!unitExists) {
+          logger.warn(`Tentativa de criar BSSID com unidade inexistente: ${unitName}`);
+          return res.status(400).json({ 
+            errors: [{ 
+              msg: `Unidade '${unitName}' não encontrada.`, 
+              param: 'unitName', 
+              value: unitName 
+            }] 
+          });
+        }
+      }
+
       const mapping = new BssidMapping({ 
         mac_address_radio, 
         sector, 
@@ -90,6 +107,22 @@ const bssidRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
   router.put('/:mac_address_radio', auth, modifyApiLimiter, async (req, res) => {
     try {
       const { sector, floor, unitName } = req.body;
+
+      // CORREÇÃO (Item 6): Validar se unitName existe na atualização
+      if (unitName) {
+        const unitExists = await UnitMapping.findOne({ name: unitName });
+        if (!unitExists) {
+          logger.warn(`Tentativa de atualizar BSSID com unidade inexistente: ${unitName}`);
+          return res.status(400).json({ 
+            errors: [{ 
+              msg: `Unidade '${unitName}' não encontrada.`, 
+              param: 'unitName', 
+              value: unitName 
+            }] 
+          });
+        }
+      }
+
       const mapping = await BssidMapping.findOneAndUpdate(
         { mac_address_radio: req.params.mac_address_radio },
         { sector, floor, unitName: unitName || '' },

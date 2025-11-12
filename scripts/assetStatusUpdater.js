@@ -1,4 +1,5 @@
 // File: jobs/assetStatusUpdater.js
+// CORREÇÃO (Item 15): Removida a lógica de cron daqui
 const cron = require('node-cron');
 const logger = require('../utils/logger'); // Ajuste o path se o logger estiver em outro lugar (ex: ./utils/logger)
 
@@ -7,11 +8,21 @@ const models = [
   require('../models/Notebook'),
   require('../models/Printer'),
   // Adicione mais modelos aqui, ex:
-  // require('../models/Panel'),
+  require('../models/Panel'),
 ];
 
-async function updateAssetStatuses() {
+/**
+ * CORREÇÃO (Item 15): A função agora aceita o logger
+ * e apenas executa a lógica de atualização.
+ */
+async function updateAssetStatuses(logger) {
   const threshold = new Date(Date.now() - 15 * 60 * 1000); // 15 minutos atrás
+  
+  if (!logger || typeof logger.info !== 'function') {
+    console.error('Logger inválido passado para updateAssetStatuses');
+    logger = console; // Fallback
+  }
+
   for (const Model of models) {
     try {
       const result = await Model.updateMany(
@@ -21,17 +32,14 @@ async function updateAssetStatuses() {
         },
         { $set: { status: 'offline' } }
       );
-      logger.info(`Atualização de status: ${result.modifiedCount} assets atualizados para offline em ${Model.modelName}`);
+      if (result.modifiedCount > 0) {
+        logger.info(`Atualização de status: ${result.modifiedCount} assets atualizados para offline em ${Model.modelName}`);
+      }
     } catch (error) {
       logger.error(`Erro ao atualizar statuses em ${Model.modelName}: ${error.message}`);
     }
   }
 }
 
-module.exports = () => {
-  cron.schedule('*/5 * * * *', updateAssetStatuses, {
-    scheduled: true,
-    timezone: 'America/Sao_Paulo' // Ajuste para o seu timezone
-  });
-  logger.info('Cron job de atualização de status de assets inicializado.');
-};
+// CORREÇÃO (Item 15): Exporta a função diretamente
+module.exports = updateAssetStatuses;

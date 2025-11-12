@@ -12,7 +12,8 @@ class LocationService {
     this.unitsCache = null;
     this.bssidCache = null;
     this.cacheExpiry = null;
-    this.CACHE_TTL = 2 * 60 * 1000; // 2 minutos (reduzido)
+    // CORREÇÃO (Item 17): Aumentar TTL para 10 minutos
+    this.CACHE_TTL = 10 * 60 * 1000; // 10 minutos
     this.isRefreshing = false;
     this.refreshPromise = null;
   }

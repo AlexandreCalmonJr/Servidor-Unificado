@@ -39,7 +39,8 @@ const AssetModuleConfigSchema = new Schema({
 });
 
 // --- Índices (definidos UMA ÚNICA VEZ) ---
-AssetModuleConfigSchema.index({ type: 1 }, { unique: true });
+// CORREÇÃO (Item 1): Índice composto único em nome + tipo
+AssetModuleConfigSchema.index({ name: 1, type: 1 }, { unique: true, name: 'idx_name_type' });
 AssetModuleConfigSchema.index({ is_active: 1 });
 
 const AssetModuleConfig = mongoose.model('AssetModuleConfig', AssetModuleConfigSchema);

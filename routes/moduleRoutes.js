@@ -2,6 +2,7 @@
 const express = require('express');
 const AssetModuleConfig = require('../models/AssetModuleConfig');
 const User = require('../models/User'); // Carregado apenas quando necessário
+const { handleMongooseError } = require('../middleware/error'); // CORREÇÃO (Item 8): Importar handler
 
 // Factory completo
 const {
@@ -207,7 +208,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   // Cria ou atualiza (agente)
   router.post(
     '/:moduleId/assets',
-    flexibleAuth,
+    flexibleAuth, // <-- ⚠️ ESTA É A LINHA QUE O SCRIPT DE VERIFICAÇÃO ESTÁ PROCURANDO
     modifyApiLimiter,
     validateByModuleId,
     async (req, res) => {
@@ -227,8 +228,23 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
           return res.status(201).json({ success: true, message: 'Criado', asset, updated: false });
         }
       } catch (error) {
+        // CORREÇÃO (Item 8): Tratamento de erro Mongoose
         logger.error(`Erro ao processar ativo: ${error.message}`);
-        res.status(500).json({ success: false, message: 'Erro ao processar ativo', error: error.message });
+        const specificError = handleMongooseError(error); // Tenta tratar erro do Mongoose
+
+        if (specificError.isOperational) {
+          return res.status(specificError.statusCode).json({
+            success: false,
+            message: specificError.message,
+            details: specificError.details
+          });
+        }
+        
+        res.status(500).json({ 
+          success: false, 
+          message: 'Erro ao processar ativo', 
+          error: error.message 
+        });
       }
     }
   );
@@ -246,10 +262,32 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
         logger.info(`Ativo atualizado (painel): ${asset.asset_name} por ${req.user.username}`);
         res.json({ success: true, message: 'Atualizado', asset: transformAssetForOutput(asset) });
       } catch (error) {
+        // CORREÇÃO (Item 8): Tratamento de erro Mongoose
         logger.error(`Erro ao atualizar ativo: ${error.message}`);
-        res.status(error.message.includes('não encontrado') ? 404 : 500).json({
+        const specificError = handleMongooseError(error); // Tenta tratar erro do Mongoose
+        
+        if (specificError.isOperational) {
+          // É um erro tratado (400, 404, 409, 422)
+          return res.status(specificError.statusCode).json({
+            success: false,
+            message: specificError.message,
+            details: specificError.details
+          });
+        }
+        
+        // Trata o "não encontrado" que vem do assetFactory
+        if (error.message.includes('não encontrado')) {
+          return res.status(404).json({
+            success: false,
+            message: 'Ativo não encontrado',
+            error: error.message,
+          });
+        }
+        
+        // Fallback para 500
+        res.status(500).json({
           success: false,
-          message: error.message.includes('não encontrado') ? 'Ativo não encontrado' : 'Erro ao atualizar',
+          message: 'Erro ao atualizar',
           error: error.message,
         });
       }

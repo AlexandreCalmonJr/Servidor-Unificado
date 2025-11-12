@@ -20,6 +20,7 @@ const { requestLogger } = require('./middleware/requestLogger');
 const updateDeviceStatus = require('./scripts/updateDeviceStatus');
 const assetStatusUpdater = require('./scripts/assetStatusUpdater'); // Novo import
 const { getLocalIPAddress } = require('./utils/helpers');
+const cacheService = require('./services/cacheService'); // <-- ADICIONAR ESTA LINHA
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -129,7 +130,7 @@ const deviceRoutes = require('./routes/deviceRoutes');
 const bssidRoutes = require('./routes/bssidRoutes');
 const unitRoutes = require('./routes/unitRoutes');
 const moduleRoutes = require('./routes/moduleRoutes');
-const assetModuleRoutes = require('./routes/assetModuleRoutes');
+// const assetModuleRoutes = require('./routes/assetModuleRoutes'); // Removido
 const monitoringRoutes = require('./routes/monitoringRoutes');
 const serverRoutes = require('./routes/serverRoutes');
 const publicRoutes = require('./routes/publicRoutes');
@@ -143,7 +144,8 @@ app.use('/api', publicRoutes(logger, getApiLimiter));
 
 // ===== ROTAS DE DISPOSITIVOS (usam deviceAuth - token simples) =====
 app.post('/api/monitor', modifyApiLimiter, deviceAuth, totemController.handleTotemData);
-app.use('/api/devices', deviceRoutes(logger, getApiLimiter, modifyApiLimiter, deviceAuth, auth));
+// CORREÇÃO: Passar o cacheService (que é o 'cache' esperado pela rota)
+app.use('/api/devices', deviceRoutes(logger, cacheService, getApiLimiter, modifyApiLimiter, deviceAuth, auth));
 
 // ===== ROTAS DO PAINEL WEB E AGENTES (HÍBRIDO) =====
 app.get('/provision/:token', provisioningRoutes.renderProvisioningPage(logger));
@@ -152,10 +154,13 @@ app.use('/api/config-profiles', configProfileRoutes(logger, modifyApiLimiter, au
 app.use('/api/units', unitRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
 app.use('/api/bssid-mappings', bssidRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
 
-// ⭐ CRÍTICO: Passa deviceAuth como 5º parâmetro
+// ⭐ CRÍTICO: (Fix 2, 3) Rota correta para módulos/assets
 app.use('/api/modules', moduleRoutes(logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth));
-app.use('/api/assets', assetModuleRoutes(logger, getApiLimiter));
-app.use('/api/assets', assetModuleRoutes(logger, getApiLimiter));
+
+// CORREÇÃO (Fix 4): Removidas rotas duplicadas/conflitantes de /api/assets
+// app.use('/api/assets', assetModuleRoutes(logger, getApiLimiter));
+// app.use('/api/assets', assetModuleRoutes(logger, getApiLimiter));
+
 app.use('/api/monitoring', monitoringRoutes(logger, modifyApiLimiter, auth));
 app.use('/api/server', serverRoutes(logger, getApiLimiter, auth));
 
@@ -194,7 +199,7 @@ cron.schedule('*/5 * * * *', async () => {
   
   try {
     await updateDeviceStatus(logger);
-    await assetStatusUpdater(logger);
+    await assetStatusUpdater(logger); // CORREÇÃO (Item 15): assetStatusUpdater agora é só a função
   } catch (error) {
     logger.error('Erro na tarefa agendada:', {
       message: error.message,

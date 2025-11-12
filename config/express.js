@@ -9,6 +9,7 @@ const deviceAuth = require('../middleware/deviceAuth'); // Import para autentica
 const authorize = require('../middleware/role');
 const { requestLogger } = require('../middleware/logging');
 const errorHandler = require('../middleware/error');
+const cacheService = require('../services/cacheService'); // <-- ADICIONAR ESTA LINHA
 
 // Importar os controladores e rotas
 const authRoutes = require('../routes/authRoutes');
@@ -55,8 +56,8 @@ const expressConfig = (app, logger) => {
   // Rota pública para APKs
   app.use('/', publicRoutes(logger, getApiLimiter));
 
-  // Rotas de módulos de ativos
-  app.use('/api/assets', assetModuleRoutes(logger, getApiLimiter));
+  // CORREÇÃO (Item 2): Rota /api/assets (antiga) removida
+  // app.use('/api/assets', assetModuleRoutes(logger, getApiLimiter));
 
   // --- ROTAS PARA CLIENTES (DISPOSITIVOS) ---
   // Rota para monitoramento (totem)
@@ -64,7 +65,8 @@ const expressConfig = (app, logger) => {
 
   // Rota para dispositivos MDM
   // CORRIGIDO: Inclui deviceAuth antes de auth, como em server.js
-  app.use('/api/devices', mdmDeviceRoutes(logger, getApiLimiter, modifyApiLimiter, deviceAuth, auth));
+  // CORREÇÃO 2: Passar o cacheService como 2º argumento
+  app.use('/api/devices', mdmDeviceRoutes(logger, cacheService, getApiLimiter, modifyApiLimiter, deviceAuth, auth));
 
   // --- ROTAS PARA O PAINEL DE CONTROLE ---
   app.use('/api/monitoring', monitoringRoutes(logger, modifyApiLimiter, auth));
@@ -73,7 +75,9 @@ const expressConfig = (app, logger) => {
   app.use('/api/units', unitRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
   app.use('/api/bssid-mappings', bssidRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
   app.use('/api/server', serverRoutes(logger, getApiLimiter, auth));
-  app.use('/api/modules', moduleRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
+  
+  // CORREÇÃO (Item 2, 3): Rota correta /api/modules com todos os parâmetros
+  app.use('/api/modules', moduleRoutes(logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth));
 
   // Rotas de visualização
   app.get('/', (req, res) => {

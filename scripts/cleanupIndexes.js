@@ -14,35 +14,44 @@ const cleanupIndexes = async () => {
 
     const collections = [
       'desktops',
-      'notebooks', 
+      'notebooks',
       'panels',
       'printers',
-      'assetmoduleconfigs'
+      'assetmoduleconfigs' // Adicionada coleção de configs
     ];
 
     for (const collectionName of collections) {
       try {
         const collection = mongoose.connection.db.collection(collectionName);
-        
+
         // Verifica se a coleção existe
         const collectionExists = await mongoose.connection.db.listCollections({ name: collectionName }).hasNext();
-        
+
         if (!collectionExists) {
           console.log(`⏭️  Coleção '${collectionName}' não existe, pulando...`);
           continue;
         }
 
+        console.log(`\n--- Limpando índices de [${collectionName}] ---`);
+        const indexes = await collection.indexes();
+        console.log(`Índices atuais: ${indexes.map(i => i.name).join(', ')}`);
+
         // Remove todos os índices exceto o _id
-        await collection.dropIndexes();
-        console.log(`🧹 Índices removidos da coleção: ${collectionName}`);
-        
+        for (const index of indexes) {
+          if (index.name !== '_id_') {
+            await collection.dropIndex(index.name);
+            console.log(`🧹 Índice removido: ${index.name}`);
+          }
+        }
+
       } catch (error) {
         console.log(`⚠️  Erro ao limpar índices de ${collectionName}: ${error.message}`);
       }
     }
 
     console.log('\n✨ Limpeza concluída! Reinicie o servidor para recriar os índices corretamente.');
-    
+
+
   } catch (error) {
     console.error('❌ Erro ao conectar ao MongoDB:', error.message);
   } finally {

@@ -1,0 +1,370 @@
+/* Estilos Gerais */
+body {
+    font-family: 'Inter', sans-serif; /* Fonte mais moderna */
+    background-color: #f0f2f5; /* Fundo mais suave */
+    margin: 0;
+    color: #34495e; /* Cor de texto padrão */
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 25px; /* Mais padding */
+}
+
+/* Header e Navegação */
+header {
+    background-color: #2c3e50; /* Azul escuro principal */
+    color: #ecf0f1;
+    padding: 15px 0; /* Mais padding */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.container-header {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 600;
+}
+
+nav a, nav button {
+    color: #ecf0f1;
+    text-decoration: none;
+    margin-left: 25px; /* Mais espaçamento */
+    font-size: 16px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px 15px;
+    border-radius: 6px; /* Bordas mais arredondadas */
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+nav a:hover, nav button:hover {
+    background-color: #34495e;
+    transform: translateY(-2px); /* Efeito suave no hover */
+}
+
+nav a.active {
+    background-color: #4a90e2; /* Azul para item ativo */
+    font-weight: bold;
+}
+
+/* Seções de Conteúdo */
+.content-section {
+    display: none;
+    margin-top: 30px; /* Mais margem superior */
+    background-color: #fff;
+    padding: 30px; /* Mais padding */
+    border-radius: 10px; /* Bordas mais arredondadas */
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08); /* Sombra mais suave */
+}
+
+.content-section.active {
+    display: block;
+}
+
+/* Cartões */
+.card-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); /* Tamanho mínimo ajustado */
+    gap: 25px; /* Mais espaçamento */
+    margin-bottom: 30px;
+}
+
+.card {
+    background-color: #e8f5e9; /* Verde claro suave */
+    border-radius: 10px;
+    padding: 25px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    transition: transform 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px); /* Pequeno lift no hover */
+}
+
+.card h3 {
+    margin-top: 0;
+    color: #2c3e50;
+    font-size: 1.1em;
+}
+
+.card p {
+    font-size: 2.2em; /* Tamanho maior para números */
+    font-weight: bold;
+    color: #4a90e2; /* Azul para números */
+    margin: 10px 0 0;
+}
+
+/* Tabelas */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 25px;
+    background-color: #fff;
+    border-radius: 8px;
+    overflow: hidden; /* Garante que bordas arredondadas funcionem */
+}
+
+table th, table td {
+    border: 1px solid #e0e6ed; /* Bordas mais claras */
+    padding: 15px; /* Mais padding */
+    text-align: left;
+    font-size: 0.95em;
+}
+
+table th {
+    background-color: #2c3e50;
+    color: #ecf0f1;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+table tr:nth-child(even) {
+    background-color: #f8fafd; /* Fundo alternado suave */
+}
+
+table tr:hover {
+    background-color: #eef3f7; /* Hover mais claro */
+}
+
+/* Login Box */
+.login-box {
+    width: 100%;
+    max-width: 450px; /* Largura um pouco maior */
+    margin: 100px auto;
+    background: #fff;
+    padding: 40px; /* Mais padding */
+    border-radius: 10px; /* Bordas mais arredondadas */
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15); /* Sombra mais pronunciada */
+    text-align: center;
+}
+
+.login-box h2 {
+    margin-bottom: 30px;
+    color: #2c3e50;
+    font-size: 2em;
+}
+
+.input-group {
+    margin-bottom: 20px; /* Mais espaçamento */
+    text-align: left;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #555;
+    font-weight: 500;
+}
+
+.input-group input, .input-group select {
+    width: 100%;
+    padding: 12px;
+    box-sizing: border-box;
+    border: 1px solid #ccc;
+    border-radius: 6px; /* Bordas arredondadas */
+    font-size: 1em;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.input-group input:focus, .input-group select:focus {
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
+    outline: none;
+}
+
+button {
+    width: 100%;
+    padding: 12px;
+    background-color: #4a90e2; /* Azul primário */
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 1.1em;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    font-weight: 600;
+}
+
+button:hover {
+    background-color: #357bd8;
+    transform: translateY(-2px);
+}
+
+.error-message {
+    color: #dc3545; /* Vermelho para erro */
+    margin-top: 15px;
+    font-weight: 500;
+}
+
+/* Modais */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000; /* Z-index alto para sobrepor tudo */
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.6); /* Fundo mais escuro */
+    padding-top: 60px;
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: 5% auto;
+    padding: 30px;
+    border: none; /* Remove borda */
+    width: 90%; /* Ajuste para mobile */
+    max-width: 550px;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3); /* Sombra mais forte */
+    position: relative;
+    animation: fadeIn 0.3s ease-out; /* Animação de entrada */
+}
+
+.close-btn {
+    color: #aaa;
+    float: right;
+    font-size: 32px; /* Tamanho maior */
+    font-weight: bold;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.close-btn:hover, .close-btn:focus {
+    color: #333;
+    text-decoration: none;
+}
+
+/* Estilos para botões de ação na tabela */
+.action-btn {
+    padding: 8px 12px;
+    margin-right: 8px; /* Mais espaçamento */
+    border: none;
+    border-radius: 5px; /* Bordas mais arredondadas */
+    cursor: pointer;
+    font-size: 0.9em;
+    color: white;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.action-btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.action-btn.edit-user,
+.action-btn.view-device {
+    background-color: #2ecc71; /* Verde para editar/ver */
+}
+
+.action-btn.delete-user,
+.action-btn.reboot-device {
+    background-color: #dc3545; /* Vermelho para deletar/reiniciar */
+}
+
+/* Botão "Atualizar Apps em Todos os Dispositivos" */
+#update-all-apps-btn {
+    margin-top: 20px;
+    margin-bottom: 20px;
+    background-color: #f39c12; /* Laranja para ação de massa */
+    width: auto; /* Permite que o botão se ajuste ao conteúdo */
+    display: block; /* Ocupa a largura total disponível */
+    padding: 12px 20px;
+    font-size: 1em;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+#update-all-apps-btn:hover {
+    background-color: #e67e22;
+}
+
+/* Filtro de Status de Dispositivos */
+.device-filter-group {
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.device-filter-group label {
+    font-weight: 500;
+    color: #34495e;
+}
+
+.device-filter-group select {
+    padding: 10px 15px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 1em;
+    background-color: #fff;
+    cursor: pointer;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.device-filter-group select:focus {
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
+    outline: none;
+}
+
+/* Animação de entrada do modal */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Media Queries para Responsividade Básica */
+@media (max-width: 768px) {
+    .container, .container-header {
+        padding: 15px;
+    }
+    header h1 {
+        font-size: 20px;
+    }
+    nav {
+        display: flex;
+        flex-wrap: wrap;
+        margin-top: 10px;
+    }
+    nav a, nav button {
+        margin-left: 10px;
+        margin-bottom: 5px;
+        font-size: 14px;
+        padding: 6px 10px;
+    }
+    .card-container {
+        grid-template-columns: 1fr; /* Uma coluna em telas pequenas */
+    }
+    .content-section {
+        padding: 20px;
+    }
+    .login-box {
+        padding: 25px;
+        margin: 50px auto;
+    }
+    table th, table td {
+        padding: 10px;
+        font-size: 0.85em;
+    }
+    .action-btn {
+        padding: 6px 10px;
+        margin-right: 5px;
+        font-size: 0.8em;
+    }
+}

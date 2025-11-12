@@ -14,6 +14,12 @@ const asyncHandler = require('../middleware/asyncHandler');
 const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth, auth) => {
   const router = express.Router();
 
+  // CORREÇÃO (Item 14): Função para escapar Regex
+  const escapeRegex = (str) => {
+    if (typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
   // ===== MIDDLEWARE DE AUTENTICAÇÃO FLEXÍVEL =====
   // Tenta autenticação de usuário (JWT) primeiro, depois autenticação de dispositivo (Token legado)
   const flexibleAuth = (req, res, next) => {
@@ -295,9 +301,10 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
     // CONSTRUIR FILTRO DO MONGODB
     const filter = {};
     
-    if (sector) filter.sector = { $regex: new RegExp(sector, 'i') };
-    if (floor) filter.floor = { $regex: new RegExp(floor, 'i') };
-    if (unit) filter.unit = { $regex: new RegExp(unit, 'i') };
+    // CORREÇÃO (Item 14): Aplicar escape de regex
+    if (sector) filter.sector = { $regex: new RegExp(escapeRegex(sector), 'i') };
+    if (floor) filter.floor = { $regex: new RegExp(escapeRegex(floor), 'i') };
+    if (unit) filter.unit = { $regex: new RegExp(escapeRegex(unit), 'i') };
     if (status) filter.status = status;
     
     // AJUSTE CURSOR: Adiciona o cursor ao filtro, se existir
@@ -385,7 +392,8 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
       filters: { sector, floor, unit, status }
     };
     
-    await cache.set(cacheKey, response, 60); // Cache de 1 minuto
+    // CORREÇÃO (Item 5): Reduzir TTL do cache
+    await cache.set(cacheKey, response, 15); // Cache de 15 segundos
 
     res.status(200).json(response);
   }));
