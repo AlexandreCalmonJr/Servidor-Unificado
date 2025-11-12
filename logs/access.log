@@ -595,3 +595,4 @@
 {"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2025-11-12T00:20:00.886Z","version":"1.0.0"}
 {"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2025-11-12T00:20:00.931Z","version":"1.0.0"}
 {"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2025-11-12T00:20:00.933Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"System: shutdown_initiated","service":"mdm-server","signal":"SIGINT","timestamp":"2025-11-12T00:22:41.553Z","version":"1.0.0"}
