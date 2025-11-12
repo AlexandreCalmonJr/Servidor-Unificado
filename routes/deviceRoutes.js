@@ -14,7 +14,6 @@ const asyncHandler = require('../middleware/asyncHandler');
 const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth, auth) => {
   const router = express.Router();
 
-  // CORREÇÃO (Item 14): Função para escapar Regex
   const escapeRegex = (str) => {
     if (typeof str !== 'string') return '';
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -78,48 +77,53 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
   ], asyncHandler(async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      // Se a validação falhar, ainda lemos do body para logar
+      const { serial_number, device_name } = req.body;
+      logger.warn('Validação falhou para /data', {
+        serial_number,
+        device_name,
+        errors: errors.array(),
+      });
       throw validationErrorHandler(errors);
     }
     
-    // Usa apenas dados validados e sanitizados
-    const data = matchedData(req); 
+    const { body } = req; // Usar req.body diretamente
     
     logger.logDeviceOperation('data_received', {
-      device_name: data.device_name,
-      serial_number: data.serial_number,
+      device_name: body.device_name,
+      serial_number: body.serial_number,
     }, {
       ip: req.ip,
-      battery: data.battery,
+      battery: body.battery,
     });
     
-    // Mapeia localização com base no IP ou BSSID
     const location = await locationService.mapDeviceLocation({
-      ip_address: data.ip_address,
-      mac_address_radio: data.mac_address_radio,
-      device_name: data.device_name,
+      ip_address: body.ip_address || body.ipAddress, 
+      mac_address_radio: body.mac_address_radio || body.macAddressRadio, 
+      device_name: body.device_name,
     });
     
     const deviceData = {
-      device_name: data.device_name || 'unknown',
-      device_model: data.device_model || 'N/A',
-      device_id: data.device_id || 'unknown',
-      serial_number: data.serial_number || 'N/A',
-      imei: data.imei || 'N/A',
-      battery: data.battery != null ? data.battery : null,
-      network: req.body.network || 'N/A', // req.body para campos não validados
-      host: req.body.host || 'N/A',
+      device_name: body.device_name || 'unknown',
+      device_model: body.device_model || body.deviceModel || 'N/A',
+      device_id: body.device_id || 'unknown',
+      serial_number: body.serial_number || 'N/A',
+      imei: body.imei || 'N/A',
+      battery: body.battery != null ? body.battery : null,
+      network: body.network || 'N/A', 
+      host: body.host || 'N/A',
       unit: location.unit,
       sector: location.sector,
       floor: location.floor,
-      mac_address_radio: data.mac_address_radio || 'N/A',
-      last_sync: req.body.last_sync || new Date().toISOString(),
-      secure_android_id: req.body.secure_android_id || 'N/A',
-      ip_address: data.ip_address || 'N/A',
-      wifi_ipv6: req.body.wifi_ipv6 || 'N/A',
-      wifi_gateway_ip: req.body.wifi_gateway_ip || 'N/A',
-      wifi_broadcast: req.body.wifi_broadcast || 'N/A',
-      wifi_submask: req.body.wifi_submask || 'N/A',
-      last_seen: req.body.last_seen || new Date().toISOString(),
+      mac_address_radio: body.mac_address_radio || body.macAddressRadio || 'N/A',
+      last_sync: body.last_sync || body.lastSync || new Date().toISOString(),
+      secure_android_id: body.secure_android_id || body.secureAndroidId || 'N/A',
+      ip_address: body.ip_address || body.ipAddress || 'N/A',
+      wifi_ipv6: body.wifi_ipv6 || body.wifiIpv6 || 'N/A',
+      wifi_gateway_ip: body.wifi_gateway_ip || body.wifiGatewayIp || 'N/A',
+      wifi_broadcast: body.wifi_broadcast || body.wifiBroadcast || 'N/A',
+      wifi_submask: body.wifi_submask || body.wifiSubmask || 'N/A',
+      last_seen: body.last_seen || body.lastSeen || new Date().toISOString(),
       status: 'online',
       is_online: true
     };
@@ -128,7 +132,6 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
       serial_number: deviceData.serial_number 
     }).lean();
     
-    // Salva histórico se a localização (BSSID) mudou
     if (existingDevice && existingDevice.mac_address_radio !== deviceData.mac_address_radio) {
       logger.logDeviceOperation('location_changed', {
         serial_number: deviceData.serial_number,
@@ -147,10 +150,16 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
       await historyEntry.save();
     }
     
-    // Atualiza ou cria o dispositivo (Upsert)
     const device = await Device.findOneAndUpdate(
       { serial_number: deviceData.serial_number },
-      { $set: deviceData },
+      { 
+        $set: deviceData,
+        $setOnInsert: { 
+          maintenance_status: false, // FOCO: Revertido para Boolean
+          maintenance_reason: "", 
+          maintenance_ticket: "" 
+        }
+      },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
     
@@ -181,13 +190,23 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
     if (!errors.isEmpty()) {
       throw validationErrorHandler(errors);
     }
-    const { serial_number } = matchedData(req);
+    
+    const { serial_number } = matchedData(req); 
+    
     const device = await Device.findOneAndUpdate(
-      { serial_number },
-      { last_seen: new Date(), status: 'online', is_online: true },
+      { 
+        serial_number: serial_number, 
+        maintenance_status: { $ne: true } // FOCO: Revertido para Boolean
+      },
+      { $set: { last_seen: new Date(), status: 'online', is_online: true } },
       { new: true }
     );
     if (!device) {
+      const maintenanceDevice = await Device.findOne({ serial_number: serial_number });
+      if (maintenanceDevice) {
+        logger.debug(`Heartbeat recebido (Status: ${maintenanceDevice.maintenance_status})`, { serial_number });
+        return res.status(200).json({ success: true, message: `Heartbeat registrado (Status: ${maintenanceDevice.maintenance_status})` });
+      }
       throw new NotFoundError(`Dispositivo não encontrado: ${serial_number}`);
     }
     logger.debug('Heartbeat recebido', { 
@@ -215,10 +234,9 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
     }).lean();
     
     if (commands.length > 0) {
-      // Marca comandos como 'enviados'
       await Command.updateMany(
-        { serial_number, status: 'pending' },
-        { status: 'sent' }
+        { _id: { $in: commands.map(c => c._id) } },
+        { $set: { status: 'sent' } }
       );
       logger.logDeviceOperation('commands_sent', {
         serial_number,
@@ -244,7 +262,6 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
     }
     let command;
     if (command_id) {
-      // Atualiza pelo ID se fornecido
       command = await Command.findByIdAndUpdate(
         command_id,
         {
@@ -255,7 +272,6 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
         { new: true }
       );
     } else {
-      // Fallback para o último comando 'sent' (enviado)
       command = await Command.findOneAndUpdate(
         { serial_number, status: 'sent' },
         {
@@ -284,38 +300,32 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
 
   // ===== ROTAS PARA PAINEL WEB =====
 
-  // 🔧 LISTAR DISPOSITIVOS (COM FILTROS E PAGINAÇÃO POR CURSOR)
+  // 🔧 LISTAR DISPOSITIVOS
   router.get('/', flexibleAuth, getApiLimiter, asyncHandler(async (req, res) => {
     const startTime = Date.now();
     
-    // CAPTURA QUERY PARAMETERS (AGORA COM PAGINAÇÃO)
     const { 
       sector, 
       floor, 
       unit, 
       status, 
       cursor, 
-      limit = 50 // Limite padrão de 50
+      limit = 2000 // FOCO: Limite aumentado
     } = req.query;
     
-    // CONSTRUIR FILTRO DO MONGODB
     const filter = {};
-    
-    // CORREÇÃO (Item 14): Aplicar escape de regex
     if (sector) filter.sector = { $regex: new RegExp(escapeRegex(sector), 'i') };
     if (floor) filter.floor = { $regex: new RegExp(escapeRegex(floor), 'i') };
     if (unit) filter.unit = { $regex: new RegExp(escapeRegex(unit), 'i') };
     if (status) filter.status = status;
     
-    // AJUSTE CURSOR: Adiciona o cursor ao filtro, se existir
     if (cursor) {
       if (!/^[0-9a-fA-F]{24}$/.test(cursor)) {
         throw new BadRequestError('Cursor inválido');
       }
-      filter._id = { $gt: cursor }; // $gt (greater than)
+      filter._id = { $gt: cursor };
     }
 
-    // Aplicar filtro de permissão de usuário
     if (req.user.role === 'user') {
       const userSector = req.user.sector;
       if (userSector && userSector !== 'Global') {
@@ -331,16 +341,7 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
         } else {
           filter.device_name = deviceNameFilter;
         }
-        
-        logger.debug('Dispositivos filtrados por setor', {
-          username: req.user.username,
-          prefixes,
-        });
       } else {
-        logger.warn('Usuário sem setor definido tentou acessar dispositivos', {
-          username: req.user.username,
-          role: req.user.role,
-        });
         return res.status(403).json({ 
           success: false,
           error: 'Acesso negado: Setor não definido' 
@@ -348,7 +349,6 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
       }
     }
     
-    // AJUSTE CACHE: Chave de cache agora inclui cursor e limit
     const cacheKey = `devices:${req.user.id}:${JSON.stringify(filter)}:cursor:${cursor || 'start'}:limit:${limit}`;
     const cached = await cache.get(cacheKey);
     if (cached) {
@@ -356,33 +356,34 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
       return res.status(200).json(cached);
     }
 
-    // AJUSTE QUERY: Aplicando sort e limit corretos para paginação
-    const queryLimit = parseInt(limit) + 1; // +1 para saber se há mais
+    const queryLimit = parseInt(limit) + 1; 
     
     const devices = await Device
       .find(filter)
-      // Seleciona campos essenciais para a lista (otimização)
-      .select('device_name serial_number status ip_address sector floor') 
-      .sort({ _id: 1 }) // Paginação por cursor requer um sort estável
+      // ===== FOCO: Correção dos campos N/A =====
+      .select(
+        'device_name serial_number status ip_address sector floor ' +
+        'device_model imei last_sync unit battery maintenance_status last_seen'
+      ) 
+      // ==========================================
+      .sort({ _id: 1 }) 
       .limit(queryLimit) 
-      .lean(); // .lean() para performance
+      .lean(); 
     
     const duration = Date.now() - startTime;
     
-    // AJUSTE PAGINAÇÃO: Calcular nextCursor e hasMore
     const hasMore = devices.length > parseInt(limit);
     const results = hasMore ? devices.slice(0, -1) : devices;
-    const nextCursor = hasMore ? results[results.length - 1]._id : null;
+    const nextCursor = hasMore ? results[results.length - 1]?._id : null;
 
     logger.info('Lista de dispositivos retornada (do DB)', {
       username: req.user.username,
       role: req.user.role,
-      count: results.length, // Corrigido para results.length
+      count: results.length,
       filters: { sector, floor, unit, status },
       duration: `${duration}ms`,
     });
     
-    // AJUSTE RESPOSTA: Adicionar dados de paginação
     const response = {
       success: true,
       devices: results,
@@ -392,7 +393,6 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
       filters: { sector, floor, unit, status }
     };
     
-    // CORREÇÃO (Item 5): Reduzir TTL do cache
     await cache.set(cacheKey, response, 15); // Cache de 15 segundos
 
     res.status(200).json(response);
@@ -404,45 +404,66 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
     body('command').notEmpty().trim(),
     body('packageName').optional().trim(),
     body('apkUrl').optional().isURL(),
+    
+    // ===== FOCO: Revertido para Boolean (compatível com painel antigo) =====
     body('maintenance_status').optional().isBoolean(),
+    // ====================================================================
+
     body('maintenance_ticket').optional().trim(),
     body('maintenance_reason').optional().trim(),
     body('maintenance_history_entry').optional().isJSON(),
   ], asyncHandler(async (req, res) => {
+    
+    // FOCO: Ler 'reason' e 'ticket' direto do BODY
+    const raw_maintenance_reason = req.body.maintenance_reason || '';
+    const raw_maintenance_ticket = req.body.maintenance_ticket || '';
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      logger.warn('Erro de validação (422) ao executar comando', {
+        errors: errors.array(),
+        body: req.body
+      });
       throw validationErrorHandler(errors);
     }
     
-    const data = matchedData(req);
+    const data = matchedData(req, { includeOptionals: true }); 
     const { 
       serial_number, 
-      command, 
-      maintenance_status
+      command
     } = data;
     
-    // device_name não é validado, pego do body
+    // FOCO: Pega o status Boolean (true/false) vindo do painel
+    let { maintenance_status } = data;
+    
     const { device_name } = req.body; 
 
     const device = await Device.findOne({ serial_number });
     if (!device) {
       throw new NotFoundError(`Dispositivo não encontrado: ${serial_number}`);
     }
-    // Validação de permissão
     if (req.user.role === 'user' && device.sector !== req.user.sector) {
       throw new ForbiddenError('Acesso negado ao dispositivo');
     }
     
-    // Comando especial 'set_maintenance' (não é enviado ao agente)
     if (command === 'set_maintenance') {
+      
+      // FOCO: A validação agora espera Boolean
       if (typeof maintenance_status !== 'boolean') {
-        throw new BadRequestError('maintenance_status deve ser booleano');
+        // Se não for booleano, tenta converter 'true'/'false' (string) para booleano
+        if (maintenance_status === 'true') maintenance_status = true;
+        else if (maintenance_status === 'false') maintenance_status = false;
+        else {
+          throw new BadRequestError("maintenance_status (boolean) é obrigatório para este comando");
+        }
       }
+
       const updateFields = {
-        maintenance_status,
-        maintenance_ticket: data.maintenance_ticket || '',
-        maintenance_reason: data.maintenance_reason || '',
+        maintenance_status: maintenance_status, // Salva o Boolean (true/false)
+        maintenance_ticket: raw_maintenance_ticket,
+        maintenance_reason: raw_maintenance_reason,
       };
+      
       if (data.maintenance_history_entry) {
         try {
           const historyEntry = JSON.parse(data.maintenance_history_entry);
@@ -458,22 +479,25 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
           );
         }
       }
+      
       const updatedDevice = await Device.findOneAndUpdate(
         { serial_number },
-        updateFields,
+        { $set: updateFields }, 
         { new: true }
       );
+      
       logger.logDeviceOperation('maintenance_updated', {
         serial_number,
         device_name: updatedDevice.device_name,
       }, {
         status: maintenance_status,
-        ticket: data.maintenance_ticket,
+        ticket: raw_maintenance_ticket,
         by: req.user.username,
       });
+      
       return res.status(200).json({ 
         success: true,
-        message: `Status de manutenção atualizado` 
+        message: `Status de manutenção atualizado para: ${maintenance_status}` 
       });
     }
     
@@ -507,7 +531,6 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
     if (!device) {
       throw new NotFoundError(`Dispositivo não encontrado: ${serial_number}`);
     }
-    // Validação de permissão
     if (req.user.role === 'user' && device.sector !== req.user.sector) {
       throw new ForbiddenError('Acesso negado');
     }
@@ -559,9 +582,32 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
             offline: {
               $sum: { $cond: [{ $eq: ['$status', 'offline'] }, 1, 0] }
             },
+            
+            // ===== FOCO: Contador de "Recolhido pela TI" =====
+            collected: {
+              $sum: { $cond: [{
+                $and: [
+                  { $eq: ['$maintenance_status', true] }, // Tem que estar em manutenção
+                  { $or: [ // E o motivo deve conter...
+                     { $regexMatch: { input: "$maintenance_reason", regex: /recolhido/i } },
+                     { $regexMatch: { input: "$maintenance_reason", regex: /collected_by_it/i } }
+                  ]}
+                ]
+              }, 1, 0] }
+            },
+            
+            // ===== FOCO: Contador "Em Manutenção" (Normal) =====
             maintenance: {
-              $sum: { $cond: [{ $eq: ['$maintenance_status', true] }, 1, 0] }
+              $sum: { $cond: [{
+                $and: [
+                  { $eq: ['$maintenance_status', true] }, // Tem que estar em manutenção
+                  // E o motivo NÃO pode conter...
+                  { $not: { $regexMatch: { input: "$maintenance_reason", regex: /recolhido/i } } },
+                  { $not: { $regexMatch: { input: "$maintenance_reason", regex: /collected_by_it/i } } }
+                ]
+              }, 1, 0] }
             }
+            // =============================================
           }
         },
         { 
@@ -587,7 +633,8 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
           total: loc.count,
           online: loc.online,
           offline: loc.offline,
-          maintenance: loc.maintenance,
+          maintenance: loc.maintenance || 0, 
+          collected: loc.collected || 0, 
         }))
       });
     } catch (error) {
