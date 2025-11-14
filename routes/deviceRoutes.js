@@ -360,12 +360,14 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
 
     const devices = await Device
       .find(filter)
-      // ===== FOCO: Correção dos campos N/A =====
+      // ===== ✅ CORREÇÃO 1: Adicionado 'maintenance_history' =====
       .select(
         'device_name serial_number status ip_address sector floor ' +
-        'device_model imei last_sync unit battery maintenance_status last_seen'
+        'device_model imei last_sync unit battery maintenance_status last_seen ' +
+        'maintenance_reason maintenance_ticket ' +
+        'maintenance_history' // <-- CAMPO QUE FALTAVA
       )
-      // ==========================================
+      // ==========================================================
       .sort({ _id: 1 })
       .limit(queryLimit)
       .lean();
@@ -405,7 +407,7 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
     body('packageName').optional().trim(),
     body('apkUrl').optional().isURL(),
 
-    // ✅ CORREÇÃO: Validação correta para maintenance_status
+    // Validação correta para maintenance_status
     body('maintenance_status').optional().isBoolean().toBoolean(),
 
     body('maintenance_ticket').optional().trim().escape(),
@@ -413,7 +415,7 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
     body('maintenance_history_entry').optional().isJSON(),
   ], asyncHandler(async (req, res) => {
 
-    // ✅ CORREÇÃO: Validação ANTES de ler os campos
+    // Validação ANTES de ler os campos
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       logger.warn('Erro de validação (422) ao executar comando', {
@@ -423,7 +425,7 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
       throw validationErrorHandler(errors);
     }
 
-    // ✅ AGORA É SEGURO LER OS DADOS VALIDADOS
+    // AGORA É SEGURO LER OS DADOS VALIDADOS
     const data = matchedData(req, { includeOptionals: true });
     const {
       serial_number,
@@ -447,19 +449,26 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
     // ===== COMANDO: set_maintenance =====
     if (command === 'set_maintenance') {
 
-      // ✅ Validação do campo obrigatório
+      // Validação do campo obrigatório
       if (typeof maintenance_status !== 'boolean') {
         throw new BadRequestError("Campo 'maintenance_status' (boolean) é obrigatório");
       }
 
-      // ✅ Constrói o objeto de atualização
-      const updateFields = {
+      // ===== ✅ CORREÇÃO 2: Lógica de $set/$push separada =====
+      
+      // Campos para $set
+      const setFields = {
         maintenance_status: maintenance_status,
         maintenance_ticket: maintenance_ticket || '',
         maintenance_reason: maintenance_reason || '',
       };
 
-      // ✅ Adiciona entrada no histórico (se fornecida)
+      // Objeto de operação principal
+      const updateOperation = {
+        $set: setFields,
+      };
+
+      // Adiciona entrada no histórico (se fornecida)
       if (data.maintenance_history_entry) {
         try {
           const historyEntry = JSON.parse(data.maintenance_history_entry);
@@ -470,8 +479,10 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
               'maintenance_history_entry inválido: faltam timestamp ou status'
             );
           }
+          
+          // Adiciona a operação $push ao objeto principal
+          updateOperation.$push = { maintenance_history: historyEntry };
 
-          updateFields.$push = { maintenance_history: historyEntry };
         } catch (err) {
           throw new BadRequestError(
             'Formato inválido para maintenance_history_entry'
@@ -479,14 +490,16 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
         }
       }
 
-      // ✅ Atualiza o dispositivo
+      // Atualiza o dispositivo usando a 'updateOperation'
       const updatedDevice = await Device.findOneAndUpdate(
         { serial_number },
-        { $set: updateFields },
+        updateOperation, // <-- Passa o objeto combinado {$set: ..., $push: ...}
         { new: true }
       );
+      // ===== Fim da Correção 2 =====
 
-      // ✅ Log da operação
+
+      // Log da operação
       logger.logDeviceOperation('maintenance_updated', {
         serial_number,
         device_name: updatedDevice.device_name,
@@ -593,7 +606,7 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
               $sum: { $cond: [{ $eq: ['$status', 'offline'] }, 1, 0] }
             },
 
-            // ✅ CORREÇÃO: Contador "Recolhido pela TI" com validação de null
+            // Contador "Recolhido pela TI" com validação de null
             collected: {
               $sum: {
                 $cond: [{
@@ -622,7 +635,7 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
               }
             },
 
-            // ✅ CORREÇÃO: Contador "Em Manutenção" (normal) com validação de null
+            // Contador "Em Manutenção" (normal) com validação de null
             maintenance: {
               $sum: {
                 $cond: [{
