@@ -1,4 +1,6 @@
 require('dotenv').config();
+const assetCommandRoutes = require('./routes/assetCommandRoutes');
+
 const path = require('path');
 const cron = require('node-cron');
 
@@ -18,9 +20,9 @@ const mongoose = require('mongoose');
 const logger = require('./utils/logger');
 const { requestLogger } = require('./middleware/requestLogger');
 const updateDeviceStatus = require('./scripts/updateDeviceStatus');
-const assetStatusUpdater = require('./scripts/assetStatusUpdater'); // Novo import
+const assetStatusUpdater = require('./scripts/assetStatusUpdater');
 const { getLocalIPAddress } = require('./utils/helpers');
-const cacheService = require('./services/cacheService'); // <-- ADICIONAR ESTA LINHA
+const cacheService = require('./services/cacheService');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -115,7 +117,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// ===== ROTAS =====
+// ===== ROTAS IMPORTS =====
 const auth = require('./middleware/auth');           
 const deviceAuth = require('./middleware/deviceAuth'); 
 const { getApiLimiter, modifyApiLimiter, enrollLimiter } = require('./middleware/rateLimiters');
@@ -124,13 +126,13 @@ const { errorHandler } = require('./middleware/error');
 // Controllers
 const totemController = require('./controllers/totemController');
 
-// Routes
+// Routes Files
 const authRoutes = require('./routes/authRoutes');
 const deviceRoutes = require('./routes/deviceRoutes');
 const bssidRoutes = require('./routes/bssidRoutes');
 const unitRoutes = require('./routes/unitRoutes');
 const moduleRoutes = require('./routes/moduleRoutes');
-// const assetModuleRoutes = require('./routes/assetModuleRoutes'); // Removido
+// assetCommandRoutes já foi importado no topo
 const monitoringRoutes = require('./routes/monitoringRoutes');
 const serverRoutes = require('./routes/serverRoutes');
 const publicRoutes = require('./routes/publicRoutes');
@@ -144,7 +146,6 @@ app.use('/api', publicRoutes(logger, getApiLimiter));
 
 // ===== ROTAS DE DISPOSITIVOS (usam deviceAuth - token simples) =====
 app.post('/api/monitor', modifyApiLimiter, deviceAuth, totemController.handleTotemData);
-// CORREÇÃO: Passar o cacheService (que é o 'cache' esperado pela rota)
 app.use('/api/devices', deviceRoutes(logger, cacheService, getApiLimiter, modifyApiLimiter, deviceAuth, auth));
 
 // ===== ROTAS DO PAINEL WEB E AGENTES (HÍBRIDO) =====
@@ -154,12 +155,13 @@ app.use('/api/config-profiles', configProfileRoutes(logger, modifyApiLimiter, au
 app.use('/api/units', unitRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
 app.use('/api/bssid-mappings', bssidRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
 
-// ⭐ CRÍTICO: (Fix 2, 3) Rota correta para módulos/assets
-app.use('/api/modules', moduleRoutes(logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth));
+// ✅ [CORREÇÃO] ROTA DE COMANDOS
+// A ordem dos parâmetros AGORA corresponde ao assetCommandRoutes.js
+// (logger, modifyApiLimiter, auth, deviceAuth)
+app.use('/api', assetCommandRoutes(logger, modifyApiLimiter, auth, deviceAuth));
 
-// CORREÇÃO (Fix 4): Removidas rotas duplicadas/conflitantes de /api/assets
-// app.use('/api/assets', assetModuleRoutes(logger, getApiLimiter));
-// app.use('/api/assets', assetModuleRoutes(logger, getApiLimiter));
+// Rota para módulos/assets
+app.use('/api/modules', moduleRoutes(logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth));
 
 app.use('/api/monitoring', monitoringRoutes(logger, modifyApiLimiter, auth));
 app.use('/api/server', serverRoutes(logger, getApiLimiter, auth));
@@ -193,13 +195,12 @@ app.use((req, res) => {
 app.use(errorHandler(logger));
 
 // ===== CRON JOB =====
-// ===== TAREFA AGENDADA =====
 cron.schedule('*/5 * * * *', async () => {
   logger.debug('Executando tarefa agendada de verificação de status');
   
   try {
     await updateDeviceStatus(logger);
-    await assetStatusUpdater(logger); // CORREÇÃO (Item 15): assetStatusUpdater agora é só a função
+    await assetStatusUpdater(logger);
   } catch (error) {
     logger.error('Erro na tarefa agendada:', {
       message: error.message,
@@ -254,7 +255,6 @@ const gracefulShutdown = (signal) => {
     }
   });
 
-  // Força o encerramento após 10 segundos
   setTimeout(() => {
     logger.error('Shutdown forçado após timeout');
     console.error('❌ Não foi possível encerrar graciosamente. Forçando...');
@@ -265,32 +265,19 @@ const gracefulShutdown = (signal) => {
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-// ===== TRATAMENTO DE ERROS NÃO CAPTURADOS =====
 process.on('unhandledRejection', (reason, promise) => {
   logger.logCriticalError(new Error('Unhandled Rejection'), {
     reason: reason?.toString(),
     promise: promise?.toString(),
   });
-  
   console.error('\n❌ ERRO CRÍTICO: Unhandled Promise Rejection');
   console.error(reason);
-  
-  // Em produção, encerra o processo
-  if (process.env.NODE_ENV === 'production') {
-    gracefulShutdown('UNHANDLED_REJECTION');
-  }
+  if (process.env.NODE_ENV === 'production') gracefulShutdown('UNHANDLED_REJECTION');
 });
 
 process.on('uncaughtException', (err) => {
-  logger.logCriticalError(err, {
-    context: 'uncaught_exception',
-  });
-  
+  logger.logCriticalError(err, { context: 'uncaught_exception' });
   console.error('\n❌ ERRO CRÍTICO: Uncaught Exception');
   console.error(err);
-  
-  // Em produção, encerra o processo
-  if (process.env.NODE_ENV === 'production') {
-    gracefulShutdown('UNCAUGHT_EXCEPTION');
-  }
+  if (process.env.NODE_ENV === 'production') gracefulShutdown('UNCAUGHT_EXCEPTION');
 });
