@@ -25,18 +25,21 @@ const AssetCommandSchema = new mongoose.Schema({
     type: String,
     required: true,
     enum: [
-      'cmd_custom',           // Comando CMD personalizado
-      'powershell_custom',    // Comando PowerShell personalizado
-      'restart_computer',     // Reiniciar computador
-      'flush_dns',           // Limpar cache DNS
-      'restart_print_spooler', // Reiniciar serviço de impressão
-      'restart_automatos',    // Reiniciar serviços Automatos
-      'restart_ndd',         // Reiniciar NDD Print
-      'install_update',      // Instalar atualizações
-      'clear_temp',          // Limpar arquivos temporários
-      'check_disk',          // Verificar disco
-      'network_reset',       // Resetar configurações de rede
-      'custom_script'        // Script customizado
+      'cmd_custom',           // ✅ OBRIGATÓRIO (Era 'custom' antes e dava erro)
+      'powershell_custom',
+      'map_lpt2',             // ✅ Novo
+      'download_file',        // ✅ Novo
+      'auto_start_app',       // ✅ Novo
+      'restart_computer',
+      'flush_dns',
+      'restart_print_spooler',
+      'restart_automatos',
+      'restart_ndd',
+      'install_update',
+      'clear_temp',
+      'check_disk',
+      'network_reset',
+      'custom_script'
     ]
   },
   command: {
@@ -67,7 +70,7 @@ const AssetCommandSchema = new mongoose.Schema({
     stderr: String,
     exitCode: Number,
     error: String,
-    executionTime: Number // em ms
+    executionTime: Number
   },
   createdBy: {
     type: String,
@@ -88,8 +91,7 @@ const AssetCommandSchema = new mongoose.Schema({
   }
 });
 
-// Índice composto para buscas eficientes
 AssetCommandSchema.index({ serialNumber: 1, status: 1, createdAt: -1 });
-AssetCommandSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL index
+AssetCommandSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model('AssetCommand', AssetCommandSchema);

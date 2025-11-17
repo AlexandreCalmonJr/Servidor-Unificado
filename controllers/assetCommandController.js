@@ -1,23 +1,21 @@
 // controllers/assetCommandController.js
 const mongoose = require('mongoose');
 const AssetCommand = require('../models/AssetCommand');
-// ✅ Importa o Model de Módulo para consultar o tipo pelo ID
 const Module = require('../models/AssetModule'); 
 
 // ===== IMPORTAÇÃO DOS MODELOS DE ATIVOS =====
 let Desktop, Notebook;
 try {
-  // Certifique-se que estes arquivos existem na pasta models
   Desktop = require('../models/Desktop');
   Notebook = require('../models/Notebook');
 } catch (e) {
   console.error('❌ ERRO AO IMPORTAR MODELS DE ATIVOS:', e.message);
 }
 
-// Comandos pré-definidos
+// Comandos pré-definidos (Base)
 const PREDEFINED_COMMANDS = {
   restart_computer: {
-    cmd: 'shutdown /r /t 30 /c "Reiniciando computador (Solicitado pelo Painel de Controle)"',
+    cmd: 'shutdown /r /t 30 /c "Reiniciando computador (Solicitado pelo Painel MDM)"',
     requiresElevation: true,
     timeout: 35000
   },
@@ -62,23 +60,29 @@ exports.createCommand = async (req, res) => {
   
   try {
     const { moduleId, assetId } = req.params;
-    const { commandType, customCommand, parameters, timeout } = req.body;
+    
+    // Desestruturação com 'let' para permitir modificação
+    let { commandType, customCommand, parameters, timeout } = req.body;
 
     // ===== DEBUG =====
-    console.log(`\n🔍 --- DEBUG COMMAND ---`);
-    console.log(`📥 ID Recebido: "${moduleId}"`);
+    console.log(`\n🔍 --- NOVO COMANDO SOLICITADO ---`);
+    console.log(`📥 Módulo ID: "${moduleId}"`);
+    console.log(`📥 Tipo Original: "${commandType}"`);
 
-    if (!commandType) {
-      return res.status(400).json({
-        success: false,
-        message: 'commandType é obrigatório'
-      });
+    // ✅ CORREÇÃO 1: Normaliza 'custom' para 'cmd_custom'
+    if (commandType === 'custom') {
+        commandType = 'cmd_custom';
+        console.log(`🔄 Tipo ajustado para: "cmd_custom"`);
     }
 
-    // 1. Tenta identificar o Model pelo texto (ex: "desktops")
+    if (!commandType) {
+      return res.status(400).json({ success: false, message: 'commandType é obrigatório' });
+    }
+
+    // ✅ CORREÇÃO 2: Identificação Robusta do Modelo (Desktop vs Notebook)
     let AssetModel = getAssetModel(moduleId);
     
-    // 2. Se não achou pelo nome, verifica se é um ID do MongoDB e busca no banco
+    // Se não identificou pelo nome (ex: string 'notebooks'), tenta buscar o ID no banco
     if (!AssetModel) {
       if (mongoose.Types.ObjectId.isValid(moduleId)) {
         try {
@@ -86,7 +90,6 @@ exports.createCommand = async (req, res) => {
           
           if (moduleDoc) {
             console.log(`📦 Módulo encontrado no Banco: ${moduleDoc.name} (Tipo: ${moduleDoc.type})`);
-            // Usa o campo 'type' do módulo (ex: "notebook") para pegar o Model
             AssetModel = getAssetModel(moduleDoc.type);
           } else {
             console.log(`⚠️ ID ${moduleId} válido, mas não encontrado na coleção AssetModule.`);
@@ -94,12 +97,9 @@ exports.createCommand = async (req, res) => {
         } catch (err) {
           logger.warn(`Erro ao buscar módulo por ID: ${err.message}`);
         }
-      } else {
-        console.log(`⚠️ O ID "${moduleId}" não é um ObjectId válido do MongoDB.`);
       }
     }
 
-    // Validação Final do Modelo
     if (!AssetModel) {
       logger.warn(`⚠️ Módulo desconhecido ou não suportado: "${moduleId}"`);
       return res.status(400).json({
@@ -108,47 +108,68 @@ exports.createCommand = async (req, res) => {
       });
     }
 
-    // 3. Buscar informações do ativo usando o Model correto
+    // 3. Buscar o ativo no banco
     const asset = await AssetModel.findById(assetId);
     
     if (!asset) {
-      return res.status(404).json({
-        success: false,
-        message: 'Ativo não encontrado neste módulo'
-      });
+      return res.status(404).json({ success: false, message: 'Ativo não encontrado neste módulo' });
     }
 
-    // Determinar o comando a executar
+    // 4. Determinar o comando a executar e parâmetros
     let commandToExecute;
     let requiresElevation = false;
     let commandTimeout = timeout || 60000;
 
-    if (commandType === 'cmd_custom' || commandType === 'powershell_custom') {
+    // --- LÓGICA PARA COMANDOS ESPECÍFICOS ---
+
+    if (commandType === 'map_lpt2') {
+        const path = parameters?.path;
+        if (!path) return res.status(400).json({ success: false, message: 'Parâmetro "path" é obrigatório para mapear impressora.' });
+        
+        // Remove anterior e adiciona novo persistente
+        commandToExecute = `net use lpt2 /delete /yes & net use lpt2 "${path}" /PERSISTENT:YES`;
+        requiresElevation = true;
+        commandTimeout = 15000;
+    } 
+    else if (commandType === 'download_file') {
+        if (!parameters?.url || !parameters?.destination) {
+            return res.status(400).json({ success: false, message: 'URL e Destination são obrigatórios.' });
+        }
+        // O agente identifica essa string e usa o downloader nativo do Dart
+        commandToExecute = 'INTERNAL_DOWNLOAD'; 
+        requiresElevation = false;
+        commandTimeout = 300000; // 5 minutos
+    } 
+    else if (commandType === 'auto_start_app') {
+        const { name, path } = parameters || {};
+        if (!name || !path) return res.status(400).json({ success: false, message: 'Nome do App e Caminho são obrigatórios.' });
+        
+        // Adiciona ao registro do usuário atual
+        commandToExecute = `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "${name}" /t REG_SZ /d "${path}" /f`;
+        requiresElevation = true;
+    }
+    else if (commandType === 'cmd_custom' || commandType === 'powershell_custom') {
       if (!customCommand) {
-        return res.status(400).json({
-          success: false,
-          message: 'customCommand é obrigatório para comandos customizados'
-        });
+        return res.status(400).json({ success: false, message: 'Comando customizado é obrigatório' });
       }
       commandToExecute = customCommand;
       requiresElevation = parameters?.requiresElevation || false;
-    } else if (PREDEFINED_COMMANDS[commandType]) {
+    } 
+    else if (PREDEFINED_COMMANDS[commandType]) {
       const predefined = PREDEFINED_COMMANDS[commandType];
       commandToExecute = predefined.cmd;
       requiresElevation = predefined.requiresElevation;
       commandTimeout = predefined.timeout;
-    } else {
-      return res.status(400).json({
-        success: false,
-        message: `Tipo de comando inválido: ${commandType}`
-      });
+    } 
+    else {
+      return res.status(400).json({ success: false, message: `Tipo de comando inválido: ${commandType}` });
     }
 
-    // Tenta obter o serial e o nome de forma flexível
+    // Tenta obter dados do ativo de forma segura
     const serial = asset.serialNumber || asset.serial_number || 'UNKNOWN';
     const name = asset.assetName || asset.asset_name || asset.hostname || 'Unknown Asset';
 
-    // Criar o comando
+    // 5. Criar e Salvar o comando
     const command = new AssetCommand({
       moduleId,
       assetId,
@@ -164,7 +185,7 @@ exports.createCommand = async (req, res) => {
 
     await command.save();
 
-    logger.info('✅ Comando criado', {
+    logger.info('✅ Comando criado e enfileirado', {
       commandId: command._id,
       serialNumber: command.serialNumber,
       commandType
