@@ -1,3 +1,4 @@
+// routes/serverRoutes.js - SEM ROTA /public/apks.json
 const express = require('express');
 const os = require('os');
 const multer = require('multer');
@@ -6,7 +7,6 @@ const fs = require('fs').promises;
 const Device = require('../models/Device');
 const Command = require('../models/Command');
 const { getLocalIPAddress } = require('../utils/helpers');
-
 
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
@@ -19,7 +19,6 @@ const storage = multer.diskStorage({
     cb(null, publicDir);
   },
   filename: (req, file, cb) => {
-    // Sanitiza o nome do arquivo
     const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
     cb(null, sanitizedName);
   }
@@ -39,7 +38,7 @@ const upload = multer({
 });
 
 const serverRoutes = (logger, getApiLimiter, auth) => {
-const router = express.Router();
+  const router = express.Router();
 
   // Métricas do servidor
   router.get('/status', auth, getApiLimiter, async (req, res) => {
@@ -70,50 +69,9 @@ const router = express.Router();
     }
   });
 
-  // Listar APKs na pasta public (ajustado para compatibilidade com Flutter)
-  router.get('/public/apks.json', getApiLimiter, async (req, res) => {
-    try {
-      const publicDir = path.join(__dirname, '..', 'public');
-      const files = await fs.readdir(publicDir);
-      const apks = await Promise.all(
-        files
-          .filter(file => file.toLowerCase().endsWith('.apk'))
-          .map(async (file) => {
-            const stats = await fs.stat(path.join(publicDir, file));
-            return {
-              name: file,
-              // Certifique-se que getLocalIPAddress() está funcionando como esperado
-              url: `http://${getLocalIPAddress()}:${process.env.PORT || 3000}/public/${file}`,
-              size: stats.size,
-              lastModified: stats.mtime
-            };
-          })
-      );
-      logger.info(`Listando ${apks.length} APKs disponíveis na pasta public`);
-      res.status(200).json(apks);
-    } catch (err) {
-      logger.error(`Erro ao listar APKs: ${err.message}`);
-      res.status(500).json({ error: 'Erro ao listar APKs', details: err.message });
-    }
-  });
+  // ❌ REMOVIDO: A rota /public/apks.json está agora em publicRoutes.js
 
-  const _renderDashboard = (logger) => async (req, res) => {
-    try {
-      const devices = await Device.find().lean();
-      const publicDir = path.join(__dirname, '..', 'public');
-      const files = await fs.readdir(publicDir);
-      const apks = files.filter(file => file.endsWith('.apk')).map(file => ({
-        name: file,
-        url: `http://${getLocalIPAddress()}:${process.env.PORT || 3000}/public/${file}`
-      }));
-      res.render('dashboard', { devices, apks, serverUrl: `http://${getLocalIPAddress()}:${process.env.PORT || 3000}` });
-    } catch (err) {
-      logger.error(`Erro ao carregar dashboard: ${err.message}`);
-      res.status(500).send('Erro interno do servidor');
-    }
-  };
-  
-  // GET /api/server/apks - Listar APKs
+  // GET /api/server/apks - Listar APKs (para o painel admin)
   router.get('/apks', auth, getApiLimiter, async (req, res) => {
     try {
       const publicDir = path.join(__dirname, '..', 'public');
@@ -150,9 +108,7 @@ const router = express.Router();
   // POST /api/server/upload-apk - Upload de APK (apenas admin)
   router.post('/upload-apk', auth, upload.single('apk'), async (req, res) => {
     try {
-      // Verifica se é admin
       if (req.user.role !== 'admin') {
-        // Remove o arquivo se não for admin
         if (req.file) {
           await fs.unlink(req.file.path);
         }
@@ -194,7 +150,6 @@ const router = express.Router();
   // DELETE /api/server/apks/:filename - Deletar APK (apenas admin)
   router.delete('/apks/:filename', auth, async (req, res) => {
     try {
-      // Verifica se é admin
       if (req.user.role !== 'admin') {
         return res.status(403).json({ 
           success: false,
@@ -204,7 +159,6 @@ const router = express.Router();
 
       const filename = decodeURIComponent(req.params.filename);
       
-      // Validação de segurança: evita path traversal
       if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
         return res.status(400).json({ 
           success: false,
@@ -222,7 +176,6 @@ const router = express.Router();
       const publicDir = path.join(__dirname, '..', 'public');
       const filePath = path.join(publicDir, filename);
 
-      // Verifica se o arquivo existe
       try {
         await fs.access(filePath);
       } catch {
@@ -232,7 +185,6 @@ const router = express.Router();
         });
       }
 
-      // Exclui o arquivo
       await fs.unlink(filePath);
       
       logger.info(`APK excluído por ${req.user.username}: ${filename}`);
@@ -249,28 +201,11 @@ const router = express.Router();
       });
     }
   });
-  
-  // Renomeado para evitar conflito de declaração
-  const __renderDashboard = (logger) => async (req, res) => {
-    try {
-      const devices = await Device.find().lean();
-      const publicDir = path.join(__dirname, '..', 'public');
-      const files = await fs.readdir(publicDir);
-      const apks = files.filter(file => file.endsWith('.apk')).map(file => ({
-        name: file,
-        url: `http://${getLocalIPAddress()}:${process.env.PORT || 3000}/public/${file}`
-      }));
-      res.render('dashboard', { devices, apks, serverUrl: `http://${getLocalIPAddress()}:${process.env.PORT || 3000}` });
-    } catch (err) {
-      logger.error(`Erro ao carregar dashboard: ${err.message}`);
-      res.status(500).send('Erro interno do servidor');
-    }
-  };
 
   return router;
 };
 
-// Exportar também a função de renderização do dashboard para ser usada em express.js
+// Exportar também a função de renderização do dashboard
 module.exports = serverRoutes;
 
 module.exports.renderDashboard = (logger) => async (req, res) => {
@@ -282,7 +217,11 @@ module.exports.renderDashboard = (logger) => async (req, res) => {
       name: file,
       url: `http://${getLocalIPAddress()}:${process.env.PORT || 3000}/public/${file}`
     }));
-    res.render('dashboard', { devices, apks, serverUrl: `http://${getLocalIPAddress()}:${process.env.PORT || 3000}` });
+    res.render('dashboard', { 
+      devices, 
+      apks, 
+      serverUrl: `http://${getLocalIPAddress()}:${process.env.PORT || 3000}` 
+    });
   } catch (err) {
     logger.error(`Erro ao carregar dashboard: ${err.message}`);
     res.status(500).send('Erro interno do servidor');

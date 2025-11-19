@@ -1,8 +1,4 @@
-// ===================================================================
-// File: services/locationService.js - VERSÃO MELHORADA
-// Sistema robusto de mapeamento de localização com logs detalhados
-// ===================================================================
-
+// services/locationService.js - VERSÃO CORRIGIDA COM MAC PARCIAL
 const UnitMapping = require('../models/UnitMapping');
 const BssidMapping = require('../models/BssidMapping');
 const logger = require('../utils/logger');
@@ -12,21 +8,15 @@ class LocationService {
     this.unitsCache = null;
     this.bssidCache = null;
     this.cacheExpiry = null;
-    // CORREÇÃO (Item 17): Aumentar TTL para 10 minutos
     this.CACHE_TTL = 10 * 60 * 1000; // 10 minutos
     this.isRefreshing = false;
     this.refreshPromise = null;
   }
 
   // ===================================================================
-  // NORMALIZAÇÃO DE MAC ADDRESS (CRÍTICO)
+  // NORMALIZAÇÃO DE MAC ADDRESS
   // ===================================================================
   
-  /**
-   * Normaliza MAC address para formato padrão
-   * @param {string} mac - MAC em qualquer formato
-   * @returns {string} MAC normalizado (AA:BB:CC:DD:EE:FF)
-   */
   normalizeMac(mac) {
     if (!mac || typeof mac !== 'string') {
       logger.debug('MAC inválido (null/undefined)', { mac });
@@ -34,18 +24,11 @@ class LocationService {
     }
 
     try {
-      // Remove espaços e converte para maiúsculo
       let normalized = mac.trim().toUpperCase();
-
-      // Remove caracteres inválidos, mantém apenas hex e separadores
       normalized = normalized.replace(/[^0-9A-F:-]/g, '');
-
-      // Substitui separadores para padrão ':'
       normalized = normalized.replace(/[-\.]/g, ':');
 
-      // Valida formato básico (12 dígitos hex + 5 separadores)
       if (!/^([0-9A-F]{2}[:]){5}[0-9A-F]{2}$/.test(normalized)) {
-        // Tenta adicionar ':' se faltar
         if (/^[0-9A-F]{12}$/.test(normalized)) {
           normalized = normalized.match(/.{1,2}/g).join(':');
         } else {
@@ -66,8 +49,26 @@ class LocationService {
   }
 
   /**
-   * Verifica se MAC é genérico (não-confiável)
+   * 🆕 NOVA FUNÇÃO: Extrai o prefixo do MAC (primeiros 14 caracteres)
+   * Exemplo: AA:BB:CC:DD:EE:FF → AA:BB:CC:DD
    */
+  getMacPrefix(mac) {
+    const normalized = this.normalizeMac(mac);
+    if (!normalized) return null;
+    
+    // Pega os primeiros 14 caracteres (AA:BB:CC:DD)
+    // Isso ignora os últimos 5 caracteres (:EE:FF)
+    const prefix = normalized.substring(0, 14);
+    
+    logger.debug('Prefixo MAC extraído', { 
+      original: mac, 
+      normalized, 
+      prefix 
+    });
+    
+    return prefix;
+  }
+
   isGenericMac(mac) {
     const genericMacs = [
       '02:00:00:00:00:00',
@@ -117,11 +118,17 @@ class LocationService {
         BssidMapping.find().lean()
       ]);
 
-      // PRÉ-PROCESSA BSSIDs (normaliza uma vez só)
-      const normalizedBssids = bssids.map(b => ({
-        ...b,
-        mac_normalized: this.normalizeMac(b.mac_address_radio)
-      })).filter(b => b.mac_normalized); // Remove inválidos
+      // 🆕 MODIFICAÇÃO: Pré-processa BSSIDs com prefixo também
+      const normalizedBssids = bssids.map(b => {
+        const mac_normalized = this.normalizeMac(b.mac_address_radio);
+        const mac_prefix = mac_normalized ? mac_normalized.substring(0, 14) : null;
+        
+        return {
+          ...b,
+          mac_normalized,
+          mac_prefix // 🆕 Adiciona o prefixo para busca parcial
+        };
+      }).filter(b => b.mac_normalized && b.mac_prefix); // Remove inválidos
 
       this.unitsCache = units;
       this.bssidCache = normalizedBssids;
@@ -137,12 +144,12 @@ class LocationService {
         expiresIn: `${this.CACHE_TTL / 1000}s`
       });
 
-      // Log de amostra dos BSSIDs (debug)
       if (normalizedBssids.length > 0) {
         const sample = normalizedBssids.slice(0, 3);
         logger.debug('Amostra de BSSIDs no cache:', {
           sample: sample.map(b => ({
-            mac: b.mac_normalized,
+            mac_full: b.mac_normalized,
+            mac_prefix: b.mac_prefix, // 🆕
             sector: b.sector,
             floor: b.floor,
             unit: b.unitName
@@ -177,12 +184,9 @@ class LocationService {
   }
 
   // ===================================================================
-  // MAPEAMENTO DE LOCALIZAÇÃO (MELHORADO)
+  // MAPEAMENTO DE LOCALIZAÇÃO (MODIFICADO)
   // ===================================================================
 
-  /**
-   * Mapeia localização completa de um dispositivo
-   */
   async mapDeviceLocation({ ip_address, mac_address_radio, device_name }) {
     const startTime = Date.now();
     
@@ -196,8 +200,8 @@ class LocationService {
       unit: 'N/A',
       sector: 'Desconhecido',
       floor: 'Desconhecido',
-      source: 'default', // Para debug
-      confidence: 'low'  // low, medium, high
+      source: 'default',
+      confidence: 'low'
     };
 
     try {
@@ -227,19 +231,44 @@ class LocationService {
         logger.debug('IP ausente ou inválido', { device: device_name, ip: ip_address });
       }
 
-      // ETAPA 2: Mapear SETOR/ANDAR pelo BSSID
+      // 🆕 ETAPA 2: Mapear SETOR/ANDAR pelo BSSID (BUSCA PARCIAL)
       if (mac_address_radio && !this.isGenericMac(mac_address_radio)) {
         const normalized = this.normalizeMac(mac_address_radio);
         
         if (normalized) {
-          const bssidInfo = this._findBssidInfo(normalized, bssids);
+          const prefix = normalized.substring(0, 14); // AA:BB:CC:DD
+          
+          // 🆕 TENTA BUSCA EXATA PRIMEIRO
+          let bssidInfo = this._findBssidInfoExact(normalized, bssids);
+          
+          // 🆕 SE NÃO ENCONTRAR, TENTA BUSCA POR PREFIXO
+          if (!bssidInfo) {
+            bssidInfo = this._findBssidInfoByPrefix(prefix, bssids);
+            
+            if (bssidInfo) {
+              logger.info('✅ Localização encontrada por PREFIXO do BSSID', {
+                device: device_name,
+                bssid_full: normalized,
+                bssid_prefix: prefix,
+                matched_full: bssidInfo.mac_normalized,
+                sector: bssidInfo.sector,
+                floor: bssidInfo.floor
+              });
+            }
+          } else {
+            logger.info('✅ Localização encontrada por BSSID EXATO', {
+              device: device_name,
+              bssid: normalized,
+              sector: bssidInfo.sector,
+              floor: bssidInfo.floor
+            });
+          }
           
           if (bssidInfo) {
             result.sector = bssidInfo.sector;
             result.floor = bssidInfo.floor;
             result.confidence = 'high';
             
-            // Se BSSID tem unitName e ainda não temos unit
             if (bssidInfo.unitName && result.unit === 'N/A') {
               result.unit = bssidInfo.unitName;
               result.source = 'bssid_unit';
@@ -248,30 +277,22 @@ class LocationService {
             } else {
               result.source = 'bssid_location';
             }
-
-            logger.info('✅ Localização mapeada por BSSID', {
-              device: device_name,
-              bssid: normalized,
-              sector: result.sector,
-              floor: result.floor,
-              unit: bssidInfo.unitName || 'N/D'
-            });
           } else {
-            logger.warn('⚠️ BSSID não encontrado no banco', {
+            logger.warn('⚠️ BSSID não encontrado (nem exato nem por prefixo)', {
               device: device_name,
-              bssid: normalized,
+              bssid_full: normalized,
+              bssid_prefix: prefix,
               total_bssids: bssids.length,
-              sugestao: 'Cadastre em Admin → Localizações → BSSIDs'
+              sugestao: 'Cadastre o prefixo em Admin → Localizações → BSSIDs'
             });
 
-            // DEBUG: Mostra BSSIDs similares (mesmos primeiros 6 dígitos)
-            const prefix = normalized.substring(0, 8); // Ex: AA:BB:CC
+            // DEBUG: Mostra BSSIDs com mesmo prefixo
             const similar = bssids
-              .filter(b => b.mac_normalized.startsWith(prefix))
+              .filter(b => b.mac_prefix === prefix)
               .slice(0, 3);
             
             if (similar.length > 0) {
-              logger.debug('BSSIDs similares encontrados', {
+              logger.debug('BSSIDs com mesmo prefixo encontrados', {
                 prefix,
                 similar: similar.map(b => b.mac_normalized)
               });
@@ -308,12 +329,12 @@ class LocationService {
         stack: error.stack
       });
 
-      return result; // Retorna valores padrão
+      return result;
     }
   }
 
   // ===================================================================
-  // FUNÇÕES AUXILIARES
+  // FUNÇÕES AUXILIARES (MODIFICADAS)
   // ===================================================================
 
   _findUnitByIp(ip, units) {
@@ -350,11 +371,22 @@ class LocationService {
     }
   }
 
-  _findBssidInfo(normalizedMac, bssids) {
+  /**
+   * 🆕 Busca EXATA por MAC completo (comportamento antigo)
+   */
+  _findBssidInfoExact(normalizedMac, bssids) {
     if (!normalizedMac) return null;
-    
-    // Busca direta (cache já tem MACs normalizados)
     return bssids.find(b => b.mac_normalized === normalizedMac);
+  }
+
+  /**
+   * 🆕 Busca por PREFIXO do MAC (primeiros 14 caracteres)
+   */
+  _findBssidInfoByPrefix(macPrefix, bssids) {
+    if (!macPrefix) return null;
+    
+    // Retorna o primeiro BSSID que tenha o mesmo prefixo
+    return bssids.find(b => b.mac_prefix === macPrefix);
   }
 
   _ipToInt(ip) {
@@ -389,7 +421,7 @@ class LocationService {
   }
 
   // ===================================================================
-  // DIAGNÓSTICO
+  // DIAGNÓSTICO (ATUALIZADO)
   // ===================================================================
 
   getCacheStats() {
@@ -406,11 +438,11 @@ class LocationService {
     };
   }
 
-  /**
-   * Diagnóstico completo de mapeamento
-   */
   async diagnose({ ip_address, mac_address_radio }) {
     const { units, bssids } = await this.getCache();
+    
+    const normalized = this.normalizeMac(mac_address_radio);
+    const prefix = normalized ? normalized.substring(0, 14) : null;
     
     const report = {
       timestamp: new Date().toISOString(),
@@ -418,7 +450,8 @@ class LocationService {
       input: {
         ip: ip_address,
         bssid_original: mac_address_radio,
-        bssid_normalized: this.normalizeMac(mac_address_radio),
+        bssid_normalized: normalized,
+        bssid_prefix: prefix, // 🆕
         bssid_is_generic: this.isGenericMac(mac_address_radio)
       },
       ip_mapping: null,
@@ -445,12 +478,20 @@ class LocationService {
       report.recommendations.push('IP inválido ou ausente');
     }
 
-    // Testa mapeamento de BSSID
-    const normalized = this.normalizeMac(mac_address_radio);
+    // 🆕 Testa mapeamento de BSSID (exato e parcial)
     if (normalized && !this.isGenericMac(mac_address_radio)) {
-      const bssid = this._findBssidInfo(normalized, bssids);
+      let bssid = this._findBssidInfoExact(normalized, bssids);
+      let matchType = 'exact';
+      
+      if (!bssid && prefix) {
+        bssid = this._findBssidInfoByPrefix(prefix, bssids);
+        matchType = 'prefix';
+      }
+      
       report.bssid_mapping = bssid ? {
         found: true,
+        match_type: matchType, // 🆕
+        matched_mac: bssid.mac_normalized,
         sector: bssid.sector,
         floor: bssid.floor,
         unit: bssid.unitName
@@ -460,11 +501,10 @@ class LocationService {
       };
 
       if (!bssid) {
-        report.recommendations.push(`Cadastre o BSSID ${normalized} em Admin → BSSIDs`);
+        report.recommendations.push(`Cadastre o BSSID ${normalized} (ou prefixo ${prefix}) em Admin → BSSIDs`);
         
-        // Busca similares
-        const prefix = normalized.substring(0, 8);
-        const similar = bssids.filter(b => b.mac_normalized.startsWith(prefix));
+        // Busca similares por prefixo
+        const similar = bssids.filter(b => b.mac_prefix === prefix);
         if (similar.length > 0) {
           report.similar_bssids = similar.map(b => b.mac_normalized).slice(0, 5);
           report.recommendations.push(`Existem ${similar.length} BSSIDs com prefixo similar (${prefix})`);
@@ -478,5 +518,4 @@ class LocationService {
   }
 }
 
-// Exporta como singleton
 module.exports = new LocationService();
