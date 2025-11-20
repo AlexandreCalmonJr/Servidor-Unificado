@@ -17,8 +17,13 @@ try {
 // ===== IMPORTS =====
 const express = require('express');
 const mongoose = require('mongoose');
+const helmet = require('helmet');
+const mongoSanitize = require('express-mongo-sanitize');
+const hpp = require('hpp');
+const cors = require('cors');
 const logger = require('./utils/logger');
 const { requestLogger } = require('./middleware/requestLogger');
+const { metricsMiddleware, getMetrics, getPrometheusMetrics } = require('./middleware/metricsMiddleware');
 const updateDeviceStatus = require('./scripts/updateDeviceStatus');
 const assetStatusUpdater = require('./scripts/assetStatusUpdater');
 const { getLocalIPAddress } = require('./utils/helpers');
@@ -39,7 +44,7 @@ logger.logSystemEvent('server_starting', {
 const connectDB = async () => {
   try {
     logger.info('Conectando ao MongoDB...');
-    
+
     await mongoose.connect(process.env.MONGO_URI, {
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
@@ -72,7 +77,7 @@ const connectDB = async () => {
       context: 'mongodb_connection',
       mongoUri: process.env.MONGO_URI.replace(/\/\/.*@/, '//***@'), // Mascara credenciais
     });
-    
+
     console.error('\n❌ Falha ao conectar ao MongoDB');
     console.error('💡 Verifique se o MongoDB está rodando e se o MONGO_URI está correto\n');
     process.exit(1);
@@ -83,43 +88,146 @@ const connectDB = async () => {
 connectDB();
 
 // ===== MIDDLEWARES GLOBAIS =====
-app.use(requestLogger); // Logger de requisições
 
-const cors = require('cors');
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
-  credentials: true,
+// Segurança - Helmet (headers HTTP seguros)
+// Configuração permissiva para evitar bloqueios em desenvolvimento local
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      connectSrc: ["'self'", "http:", "https:", "ws:", "wss:"], // Permite todas as conexões
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https:"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https:"],
+      fontSrc: ["'self'", "data:", "https:"],
+      imgSrc: ["'self'", "data:", "https:", "http:", "blob:"],
+      workerSrc: ["'self'", "blob:"],
+      childSrc: ["'self'", "blob:"],
+      upgradeInsecureRequests: null, // Desabilita upgrade forçado para HTTPS
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" },
 }));
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Sanitização de dados MongoDB (previne NoSQL injection)
+app.use(mongoSanitize());
 
-// Servir arquivos estáticos
-app.use('/public', express.static(path.join(__dirname, 'public')));
+// Proteção contra HTTP Parameter Pollution
+app.use(hpp());
 
-// ===== HEALTH CHECK =====
+// Logger de requisições
+app.use(requestLogger);
+
+// Métricas de performance
+app.use(metricsMiddleware);
+
+// CORS configurado
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Permite requisições sem origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+
+    // Se CORS_ORIGIN estiver definido, usa a lista
+    if (process.env.CORS_ORIGIN && process.env.CORS_ORIGIN !== '*') {
+      const allowedOrigins = process.env.CORS_ORIGIN.split(',').map(o => o.trim());
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    } else {
+      // Permite todas as origens em desenvolvimento
+      callback(null, true);
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'AUTH_TOKEN', 'X-Requested-With', 'Accept'],
+  exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Per-Page'],
+  maxAge: 86400, // 24 horas
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+};
+app.use(cors(corsOptions));
+
+// Body parser com limites apropriados
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Servir arquivos estáticos com cache
+const { staticCacheMiddleware } = require('./middleware/cacheMiddleware');
+app.use('/public', staticCacheMiddleware(86400), express.static(path.join(__dirname, 'public')));
+
+// ===== HEALTH CHECK E MÉTRICAS =====
+
+// Health check básico
 app.get('/health', (req, res) => {
   const uptime = process.uptime();
   const memoryUsage = process.memoryUsage();
-  
-  res.json({
+
+  const health = {
     status: 'OK',
     timestamp: new Date().toISOString(),
     uptime: Math.floor(uptime),
     uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`,
-    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    services: {
+      mongodb: {
+        status: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+        readyState: mongoose.connection.readyState,
+      },
+      redis: {
+        status: cacheService.isReady() ? 'connected' : 'disconnected',
+        enabled: process.env.REDIS_ENABLED === 'true',
+      },
+    },
     memory: {
       heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`,
       heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`,
+      rss: `${Math.round(memoryUsage.rss / 1024 / 1024)}MB`,
+      external: `${Math.round(memoryUsage.external / 1024 / 1024)}MB`,
     },
-    version: process.env.npm_package_version || '1.0.0',
+    version: process.env.npm_package_version || '2.0.0',
     environment: process.env.NODE_ENV || 'development',
-  });
+  };
+
+  // Se algum serviço crítico estiver down, retorna 503
+  if (mongoose.connection.readyState !== 1) {
+    health.status = 'DEGRADED';
+    return res.status(503).json(health);
+  }
+
+  res.json(health);
+});
+
+// Readiness probe (para Kubernetes)
+app.get('/ready', (req, res) => {
+  if (mongoose.connection.readyState === 1) {
+    res.status(200).json({ ready: true });
+  } else {
+    res.status(503).json({ ready: false, reason: 'MongoDB not connected' });
+  }
+});
+
+// Liveness probe (para Kubernetes)
+app.get('/live', (req, res) => {
+  res.status(200).json({ alive: true });
+});
+
+// Métricas de performance
+app.get('/metrics', (req, res) => {
+  res.json(getMetrics());
+});
+
+// Métricas no formato Prometheus
+app.get('/metrics/prometheus', (req, res) => {
+  res.set('Content-Type', 'text/plain');
+  res.send(getPrometheusMetrics());
 });
 
 // ===== ROTAS IMPORTS =====
-const auth = require('./middleware/auth');           
-const deviceAuth = require('./middleware/deviceAuth'); 
+const auth = require('./middleware/auth');
+const deviceAuth = require('./middleware/deviceAuth');
 const { getApiLimiter, modifyApiLimiter, enrollLimiter } = require('./middleware/rateLimiters');
 const { errorHandler } = require('./middleware/error');
 
@@ -182,7 +290,7 @@ app.use((req, res) => {
     path: req.path,
     ip: req.ip,
   });
-  
+
   res.status(404).json({
     success: false,
     message: 'Rota não encontrada',
@@ -197,7 +305,7 @@ app.use(errorHandler(logger));
 // ===== CRON JOB =====
 cron.schedule('*/5 * * * *', async () => {
   logger.debug('Executando tarefa agendada de verificação de status');
-  
+
   try {
     await updateDeviceStatus(logger);
     await assetStatusUpdater(logger);
@@ -212,7 +320,7 @@ cron.schedule('*/5 * * * *', async () => {
 // ===== INICIALIZAÇÃO DO SERVIDOR =====
 const server = app.listen(port, ip, () => {
   const localIp = getLocalIPAddress();
-  
+
   logger.logSystemEvent('server_started', {
     port,
     ip,
@@ -227,6 +335,7 @@ const server = app.listen(port, ip, () => {
   console.log(`🌐 Acesso local: http://localhost:${port}`);
   console.log(`🌐 Acesso rede: http://${localIp}:${port}`);
   console.log(`📊 Health check: http://${localIp}:${port}/health`);
+  console.log(`📈 Métricas: http://${localIp}:${port}/metrics`);
   console.log(`📱 Dashboard: http://${localIp}:${port}/dashboard`);
   console.log('='.repeat(60) + '\n');
 });
@@ -234,7 +343,7 @@ const server = app.listen(port, ip, () => {
 // ===== TRATAMENTO DE SINAIS =====
 const gracefulShutdown = (signal) => {
   logger.logSystemEvent('shutdown_initiated', { signal });
-  
+
   console.log(`\n\n⚠️  ${signal} recebido. Encerrando servidor graciosamente...`);
 
   server.close(async () => {
@@ -245,7 +354,7 @@ const gracefulShutdown = (signal) => {
       await mongoose.connection.close();
       logger.logSystemEvent('mongodb_disconnected');
       console.log('✅ MongoDB desconectado');
-      
+
       process.exit(0);
     } catch (err) {
       logger.error('Erro ao desconectar MongoDB:', {
