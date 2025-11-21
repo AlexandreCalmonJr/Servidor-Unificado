@@ -2,60 +2,125 @@
 version: "3.8"
 
 services:
-  # 1. O seu servidor MDM (Node.js)
+  # Servidor MDM (Node.js)
   mdm-server:
-    build: . # Assume que você tem um Dockerfile na raiz
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
     container_name: mdm-server
     restart: unless-stopped
     ports:
-      - "${PORT:-3000}:${PORT:-3000}"
+      - "${PORT:-3000}:3000"
     env_file:
       - .env
+    environment:
+      - NODE_ENV=production
+      - MONGO_URI=mongodb://mongodb:27017/mdm
+      - REDIS_URL=redis://redis:6379
+      - REDIS_ENABLED=true
     volumes:
       - ./logs:/usr/src/app/logs
       - ./public:/usr/src/app/public
-      - backups-data:/backups # Volume compartilhado para backups
+      - backups-data:/backups
     depends_on:
-      - mongodb
-      - redis
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - mdm-network
+    healthcheck:
+      test: [ "CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
 
-  # 2. O banco de dados MongoDB
+  # MongoDB
   mongodb:
-    image: mongo:5.0 # Use uma versão específica, ex: 5.0 ou 6.0
+    image: mongo:6.0
     container_name: mongodb
     restart: unless-stopped
     ports:
-      - "27017:27017" # Mapeia para o host (opcional, bom para debug)
+      - "27017:27017"
+    environment:
+      # Para produção, descomente e configure:
+      # MONGO_INITDB_ROOT_USERNAME: admin
+      # MONGO_INITDB_ROOT_PASSWORD: senha_forte_aqui
+      MONGO_INITDB_DATABASE: mdm
     volumes:
       - mongo-data:/data/db
-      - backups-data:/backups # Volume compartilhado para backups
+      - mongo-config:/data/configdb
+      - backups-data:/backups
     networks:
       - mdm-network
-    # NOTA: Para produção, adicione as variáveis MONGO_INITDB_ROOT_USERNAME/PASSWORD
-    # e atualize sua MONGO_URI no .env
+    healthcheck:
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
 
-  # 3. O servidor Redis (o que você pediu)
+  # Redis
   redis:
-    image: redis:7-alpine # Imagem leve
+    image: redis:7-alpine
     container_name: redis
     restart: unless-stopped
     ports:
-      - "6379:6379" # Mapeia para o host (opcional, bom para debug)
-    command: redis-server --save 60 1 --loglevel warning # Config de persistência
+      - "6379:6379"
+    command: >
+      redis-server --save 60 1 --loglevel warning --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis-data:/data
     networks:
       - mdm-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
 
-# Redes
+# Redes isoladas
 networks:
   mdm-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 
-# Volumes para persistir os dados
+# Volumes para persistência
 volumes:
   mongo-data:
+    driver: local
+  mongo-config:
+    driver: local
   redis-data:
+    driver: local
   backups-data:
+    driver: local
