@@ -10032,3 +10032,41 @@
 {"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2025-11-17T18:20:00.185Z","version":"1.0.0"}
 {"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2025-11-17T18:20:00.188Z","version":"1.0.0"}
 {"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2025-11-17T18:20:00.188Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️ Redis desabilitado - usando cache em memória","service":"mdm-server","timestamp":"2025-11-19T14:16:47.026Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"System: server_starting","nodeVersion":"v24.11.1","port":"3000","service":"mdm-server","timestamp":"2025-11-19T14:16:47.029Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Conectando ao MongoDB...","service":"mdm-server","timestamp":"2025-11-19T14:16:47.029Z","version":"1.0.0"}
+{"environment":"development","ip":"0.0.0.0","level":"info","localIp":"10.71.3.103","message":"System: server_started","port":"3000","service":"mdm-server","timestamp":"2025-11-19T14:16:47.280Z","version":"1.0.0"}
+{"database":"mdm","environment":"development","host":"localhost","level":"info","message":"System: mongodb_connected","service":"mdm-server","timestamp":"2025-11-19T14:16:47.293Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2025-11-19T14:20:00.445Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"✅ 4 dispositivos foram marcados como 'Sem Monitorar'.","service":"mdm-server","timestamp":"2025-11-19T14:20:00.465Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2025-11-19T14:20:00.466Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Atualização de status: 1 assets atualizados para offline em Desktop","service":"mdm-server","timestamp":"2025-11-19T14:20:00.471Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2025-11-19T14:25:00.196Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2025-11-19T14:25:00.200Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2025-11-19T14:25:00.200Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2025-11-19T14:30:00.153Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2025-11-19T14:30:00.156Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2025-11-19T14:30:00.157Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2025-11-19T14:35:00.108Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2025-11-19T14:35:00.111Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2025-11-19T14:35:00.111Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2025-11-19T14:40:00.370Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2025-11-19T14:40:00.373Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2025-11-19T14:40:00.373Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2025-11-19T14:45:00.114Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2025-11-19T14:45:00.116Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2025-11-19T14:45:00.117Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2025-11-19T14:50:00.973Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2025-11-19T14:50:00.976Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2025-11-19T14:50:00.977Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2025-11-19T14:55:00.736Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2025-11-19T14:55:00.738Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2025-11-19T14:55:00.739Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2025-11-19T15:00:00.364Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2025-11-19T15:00:00.366Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2025-11-19T15:00:00.367Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2025-11-19T15:05:00.083Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2025-11-19T15:05:00.085Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2025-11-19T15:05:00.085Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"System: shutdown_initiated","service":"mdm-server","signal":"SIGINT","timestamp":"2025-11-19T15:07:39.914Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"System: server_closed","service":"mdm-server","timestamp":"2025-11-19T15:07:39.916Z","version":"1.0.0"}

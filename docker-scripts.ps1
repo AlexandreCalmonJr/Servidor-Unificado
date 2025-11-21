@@ -258,10 +258,10 @@ function Rebuild-Services {
 # STATS - Estatísticas
 # ===================================================================
 function Get-Stats {
-    Write-ColorOutput "📊 Estatísticas de Recursos`n" "Blue"
+    Write-ColorOutput " Estatísticas de Recursos`n" "Blue"
     docker stats --no-stream
     
-    Write-ColorOutput "`n💾 Uso de Disco`n" "Blue"
+    Write-ColorOutput " Uso de Disco`n" "Blue"
     docker system df
 }
 
@@ -270,9 +270,9 @@ function Get-Stats {
 # ===================================================================
 function Show-Help {
     Write-Host @"
-╔═══════════════════════════════════════════════════════════════╗
-║           🐳 SCRIPTS DOCKER - SERVIDOR MDM                    ║
-╚═══════════════════════════════════════════════════════════════╝
+===============================================================
+           DOCKER SCRIPTS - SERVIDOR MDM
+===============================================================
 
 Uso: .\docker-scripts.ps1 [comando] [argumentos]
 
@@ -289,7 +289,7 @@ Comandos Disponíveis:
   create-admin    Criar usuário administrador
   backup          Fazer backup do MongoDB
   restore <dir>   Restaurar backup
-  clean           Limpar tudo (⚠️ APAGA DADOS)
+  clean           Limpar tudo (ATENCAO: APAGA DADOS)
   update          Atualizar e reiniciar
   stats           Ver estatísticas
   help            Mostrar esta ajuda
@@ -302,7 +302,7 @@ Exemplos:
   .\docker-scripts.ps1 rebuild
   .\docker-scripts.ps1 backup
 
-═══════════════════════════════════════════════════════════════
+===============================================================
 "@ -ForegroundColor Cyan
 }
 
