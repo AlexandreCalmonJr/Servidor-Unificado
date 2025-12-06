@@ -14893,3 +14893,9 @@
 {"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2025-11-20T02:11:28.132Z","version":"1.0.0"}
 {"environment":"development","level":"info","message":"Ativos listados: 6/6 do módulo Desktop","service":"mdm-server","timestamp":"2025-11-20T02:11:28.142Z","version":"1.0.0"}
 {"duration":"17ms","environment":"development","ip":"192.168.0.143","level":"http","message":"HTTP Request","method":"GET","path":"/6913f5b8b54de85c8343154b/assets","role":"admin","service":"mdm-server","statusCode":304,"timestamp":"2025-11-20T02:11:28.144Z","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36","userId":"6913d141f0e90985135d8dfa","username":"admin","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️ Redis desabilitado - usando cache em memória","service":"mdm-server","timestamp":"2025-12-06T18:25:17.038Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"System: server_starting","nodeVersion":"v24.11.1","port":"3000","service":"mdm-server","timestamp":"2025-12-06T18:25:17.048Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Conectando ao MongoDB...","service":"mdm-server","timestamp":"2025-12-06T18:25:17.049Z","version":"1.0.0"}
+{"environment":"development","ip":"0.0.0.0","level":"info","localIp":"10.71.1.22","message":"System: server_started","port":"3000","service":"mdm-server","timestamp":"2025-12-06T18:25:17.228Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"🔌 WebSocket Server initialized","service":"mdm-server","timestamp":"2025-12-06T18:25:17.230Z","version":"1.0.0"}
+{"database":"mdm","environment":"development","host":"localhost","level":"info","message":"System: mongodb_connected","service":"mdm-server","timestamp":"2025-12-06T18:25:17.244Z","version":"1.0.0"}

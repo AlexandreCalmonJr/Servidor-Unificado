@@ -10206,3 +10206,9 @@
 {"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-20T02:11:28.127Z","version":"1.0.0"}
 {"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2025-11-20T02:11:28.132Z","version":"1.0.0"}
 {"environment":"development","level":"info","message":"Ativos listados: 6/6 do módulo Desktop","service":"mdm-server","timestamp":"2025-11-20T02:11:28.142Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️ Redis desabilitado - usando cache em memória","service":"mdm-server","timestamp":"2025-12-06T18:25:17.038Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"System: server_starting","nodeVersion":"v24.11.1","port":"3000","service":"mdm-server","timestamp":"2025-12-06T18:25:17.048Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Conectando ao MongoDB...","service":"mdm-server","timestamp":"2025-12-06T18:25:17.049Z","version":"1.0.0"}
+{"environment":"development","ip":"0.0.0.0","level":"info","localIp":"10.71.1.22","message":"System: server_started","port":"3000","service":"mdm-server","timestamp":"2025-12-06T18:25:17.228Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"🔌 WebSocket Server initialized","service":"mdm-server","timestamp":"2025-12-06T18:25:17.230Z","version":"1.0.0"}
+{"database":"mdm","environment":"development","host":"localhost","level":"info","message":"System: mongodb_connected","service":"mdm-server","timestamp":"2025-12-06T18:25:17.244Z","version":"1.0.0"}
