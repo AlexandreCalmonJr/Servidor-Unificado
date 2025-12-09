@@ -103,15 +103,35 @@ class WebSocketServer {
 
     async updateDeviceStatus(deviceId, status) {
         try {
-            await Device.findByIdAndUpdate(deviceId, {
+            const updatedDevice = await Device.findByIdAndUpdate(deviceId, {
                 status: status,
                 is_online: status === 'online',
                 last_seen: new Date()
-            });
+            }, { new: true }); // Retorna o documento atualizado
+
+            if (updatedDevice) {
+                // Notifica todos os clientes conectados (Painel)
+                this.broadcast({
+                    type: status === 'online' ? 'device_online' : 'device_offline',
+                    deviceId: updatedDevice._id,
+                    hostname: updatedDevice.hostname,
+                    status: status,
+                    timestamp: new Date()
+                });
+            }
+
             // logger.debug(`Device ${deviceId} status updated to ${status}`);
         } catch (error) {
             logger.error(`Error updating device ${deviceId} status:`, error);
         }
+    }
+
+    broadcast(data) {
+        this.wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify(data));
+            }
+        });
     }
 }
 

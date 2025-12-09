@@ -239,11 +239,11 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
             details: specificError.details
           });
         }
-        
-        res.status(500).json({ 
-          success: false, 
-          message: 'Erro ao processar ativo', 
-          error: error.message 
+
+        res.status(500).json({
+          success: false,
+          message: 'Erro ao processar ativo',
+          error: error.message
         });
       }
     }
@@ -265,7 +265,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
         // CORREÇÃO (Item 8): Tratamento de erro Mongoose
         logger.error(`Erro ao atualizar ativo: ${error.message}`);
         const specificError = handleMongooseError(error); // Tenta tratar erro do Mongoose
-        
+
         if (specificError.isOperational) {
           // É um erro tratado (400, 404, 409, 422)
           return res.status(specificError.statusCode).json({
@@ -274,7 +274,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
             details: specificError.details
           });
         }
-        
+
         // Trata o "não encontrado" que vem do assetFactory
         if (error.message.includes('não encontrado')) {
           return res.status(404).json({
@@ -283,7 +283,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
             error: error.message,
           });
         }
-        
+
         // Fallback para 500
         res.status(500).json({
           success: false,
@@ -316,62 +316,127 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   // ===================================================================
 
   router.patch('/:moduleId/assets/:assetId', auth, modifyApiLimiter, async (req, res) => {
-      try {
-        const { moduleId, assetId } = req.params;
-        
-        const module = await AssetModuleConfig.findById(moduleId);
-        if (!module) {
-          return res.status(404).json({ 
-            success: false, 
-            message: 'Módulo não encontrado' 
-          });
-        }
-  
-        const Model = getModelByType(module.type);
-        const asset = await Model.findById(assetId);
-        
-        if (!asset) {
-          return res.status(404).json({ 
-            success: false, 
-            message: 'Ativo não encontrado' 
-          });
-        }
-  
-        // Campos que podem ser atualizados via PATCH
-        const allowedFields = [
-          'location', 'assigned_to', 'status', 'notes',
-          'maintenance_status', 'maintenance_ticket', 'maintenance_reason'
-        ];
-  
-        // Atualiza apenas campos permitidos
-        Object.keys(req.body).forEach(key => {
-          if (allowedFields.includes(key)) {
-            asset[key] = req.body[key];
-          }
-        });
-  
-        asset.updated_at = new Date();
-        await asset.save();
-  
-        logger.info(`Ativo atualizado (PATCH): ${asset.asset_name} por ${req.user.username}`);
-        
-        res.json({
-          success: true,
-          message: 'Ativo atualizado',
-          asset: transformAssetForOutput(asset),
-        });
-      } catch (error) {
-        logger.error(`Erro no PATCH: ${error.message}`);
-        res.status(500).json({ 
-          success: false, 
-          message: 'Erro na atualização', 
-          error: error.message 
+    try {
+      const { moduleId, assetId } = req.params;
+
+      const module = await AssetModuleConfig.findById(moduleId);
+      if (!module) {
+        return res.status(404).json({
+          success: false,
+          message: 'Módulo não encontrado'
         });
       }
+
+      const Model = getModelByType(module.type);
+      const asset = await Model.findById(assetId);
+
+      if (!asset) {
+        return res.status(404).json({
+          success: false,
+          message: 'Ativo não encontrado'
+        });
+      }
+
+      // Campos que podem ser atualizados via PATCH
+      const allowedFields = [
+        'location', 'assigned_to', 'status', 'notes',
+        'maintenance_status', 'maintenance_ticket', 'maintenance_reason'
+      ];
+
+      // Atualiza apenas campos permitidos
+      Object.keys(req.body).forEach(key => {
+        if (allowedFields.includes(key)) {
+          asset[key] = req.body[key];
+        }
+      });
+
+      asset.updated_at = new Date();
+      await asset.save();
+
+      logger.info(`Ativo atualizado (PATCH): ${asset.asset_name} por ${req.user.username}`);
+
+      res.json({
+        success: true,
+        message: 'Ativo atualizado',
+        asset: transformAssetForOutput(asset),
+      });
+    } catch (error) {
+      logger.error(`Erro no PATCH: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        message: 'Erro na atualização',
+        error: error.message
+      });
     }
+  }
   );
 
-  
+  // Endpoint específico para manutenção
+  router.put('/:moduleId/assets/:assetId/maintenance', auth, modifyApiLimiter, async (req, res) => {
+    try {
+      const { moduleId, assetId } = req.params;
+      const { maintenance_status, maintenance_ticket, maintenance_reason, maintenance_history_entry } = req.body;
+
+      const module = await AssetModuleConfig.findById(moduleId);
+      if (!module) {
+        return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
+      }
+
+      const Model = getModelByType(module.type);
+      const asset = await Model.findById(assetId);
+
+      if (!asset) {
+        return res.status(404).json({ success: false, message: 'Ativo não encontrado' });
+      }
+
+      // Atualiza campos de manutenção
+      if (typeof maintenance_status === 'boolean') {
+        asset.maintenance_status = maintenance_status;
+      }
+      if (maintenance_ticket !== undefined) {
+        asset.maintenance_ticket = maintenance_ticket;
+      }
+      if (maintenance_reason !== undefined) {
+        asset.maintenance_reason = maintenance_reason;
+      }
+
+      // Adiciona entrada no histórico se fornecida
+      if (maintenance_history_entry) {
+        try {
+          const historyEntry = typeof maintenance_history_entry === 'string'
+            ? JSON.parse(maintenance_history_entry)
+            : maintenance_history_entry;
+
+          if (!asset.maintenance_history) {
+            asset.maintenance_history = [];
+          }
+          asset.maintenance_history.push(historyEntry);
+        } catch (e) {
+          logger.warn(`Erro ao parsear maintenance_history_entry: ${e.message}`);
+        }
+      }
+
+      asset.updated_at = new Date();
+      await asset.save();
+
+      logger.info(`Manutenção atualizada: ${asset.asset_name} por ${req.user.username}`);
+
+      res.json({
+        success: true,
+        message: 'Status de manutenção atualizado',
+        asset: transformAssetForOutput(asset),
+      });
+    } catch (error) {
+      logger.error(`Erro ao atualizar manutenção: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        message: 'Erro ao atualizar manutenção',
+        error: error.message
+      });
+    }
+  });
+
+
   // ===================================================================
   // PERMISSÕES
   // ===================================================================
@@ -415,83 +480,83 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   });
 
   router.put('/:moduleId/assets/:assetId', auth, modifyApiLimiter, validateByModuleId, async (req, res) => {
-      try {
-        const moduleType = req.moduleType;
-        const asset = await updateAsset(moduleType, req.params.assetId, req.body);
-        
-        logger.info(`Ativo editado via painel: ${asset.asset_name} por ${req.user.username}`);
-        
-        res.json({ 
-          success: true, 
-          message: 'Ativo atualizado com sucesso', 
-          asset: transformAssetForOutput(asset) 
-        });
-      } catch (error) {
-        logger.error(`Erro ao editar ativo: ${error.message}`);
-        
-        const statusCode = error.message.includes('não encontrado') ? 404 : 500;
-        res.status(statusCode).json({
-          success: false,
-          message: error.message.includes('não encontrado') 
-            ? 'Ativo não encontrado' 
-            : 'Erro ao atualizar ativo',
-          error: error.message,
-        });
-      }
+    try {
+      const moduleType = req.moduleType;
+      const asset = await updateAsset(moduleType, req.params.assetId, req.body);
+
+      logger.info(`Ativo editado via painel: ${asset.asset_name} por ${req.user.username}`);
+
+      res.json({
+        success: true,
+        message: 'Ativo atualizado com sucesso',
+        asset: transformAssetForOutput(asset)
+      });
+    } catch (error) {
+      logger.error(`Erro ao editar ativo: ${error.message}`);
+
+      const statusCode = error.message.includes('não encontrado') ? 404 : 500;
+      res.status(statusCode).json({
+        success: false,
+        message: error.message.includes('não encontrado')
+          ? 'Ativo não encontrado'
+          : 'Erro ao atualizar ativo',
+        error: error.message,
+      });
     }
+  }
   );
-  
+
   router.get('/:moduleId/assets/:assetId/history', auth, getApiLimiter, async (req, res) => {
-      try {
-        const { moduleId, assetId } = req.params;
-        
-        const module = await AssetModuleConfig.findById(moduleId);
-        if (!module) {
-          return res.status(404).json({ 
-            success: false, 
-            message: 'Módulo não encontrado' 
-          });
-        }
-  
-        const Model = getModelByType(module.type);
-        const asset = await Model.findById(assetId).lean();
-        
-        if (!asset) {
-          return res.status(404).json({ 
-            success: false, 
-            message: 'Ativo não encontrado' 
-          });
-        }
-  
-        // Retorna histórico de manutenção
-        const history = asset.maintenance_history || [];
-        
-        logger.info(`Histórico solicitado: ${asset.asset_name} por ${req.user.username}`);
-        
-        res.json({
-          success: true,
-          history: history.sort((a, b) => 
-            new Date(b.timestamp) - new Date(a.timestamp)
-          ),
-          asset: {
-            id: asset._id,
-            name: asset.asset_name,
-            serial: asset.serial_number,
-            status: asset.status,
-          }
-        });
-      } catch (error) {
-        logger.error(`Erro ao buscar histórico: ${error.message}`);
-        res.status(500).json({ 
-          success: false, 
-          message: 'Erro ao buscar histórico', 
-          error: error.message 
+    try {
+      const { moduleId, assetId } = req.params;
+
+      const module = await AssetModuleConfig.findById(moduleId);
+      if (!module) {
+        return res.status(404).json({
+          success: false,
+          message: 'Módulo não encontrado'
         });
       }
+
+      const Model = getModelByType(module.type);
+      const asset = await Model.findById(assetId).lean();
+
+      if (!asset) {
+        return res.status(404).json({
+          success: false,
+          message: 'Ativo não encontrado'
+        });
+      }
+
+      // Retorna histórico de manutenção
+      const history = asset.maintenance_history || [];
+
+      logger.info(`Histórico solicitado: ${asset.asset_name} por ${req.user.username}`);
+
+      res.json({
+        success: true,
+        history: history.sort((a, b) =>
+          new Date(b.timestamp) - new Date(a.timestamp)
+        ),
+        asset: {
+          id: asset._id,
+          name: asset.asset_name,
+          serial: asset.serial_number,
+          status: asset.status,
+        }
+      });
+    } catch (error) {
+      logger.error(`Erro ao buscar histórico: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        message: 'Erro ao buscar histórico',
+        error: error.message
+      });
     }
+  }
   );
-  
-  
+
+
 
 
   return router;
