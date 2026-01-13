@@ -10206,6 +10206,7 @@
 {"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2025-11-20T02:11:28.127Z","version":"1.0.0"}
 {"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2025-11-20T02:11:28.132Z","version":"1.0.0"}
 {"environment":"development","level":"info","message":"Ativos listados: 6/6 do módulo Desktop","service":"mdm-server","timestamp":"2025-11-20T02:11:28.142Z","version":"1.0.0"}
+<<<<<<< HEAD
 {"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2025-11-20T02:15:00.874Z","version":"1.0.0"}
 {"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2025-11-20T02:15:00.878Z","version":"1.0.0"}
 {"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2025-11-20T02:15:00.879Z","version":"1.0.0"}
@@ -10857,3 +10858,18 @@
 {"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2026-01-13T06:05:00.542Z","version":"1.0.0"}
 {"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2026-01-13T06:05:00.545Z","version":"1.0.0"}
 {"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2026-01-13T06:05:00.545Z","version":"1.0.0"}
+=======
+{"environment":"development","level":"info","message":"ℹ️ Redis desabilitado - usando cache em memória","service":"mdm-server","timestamp":"2025-12-06T18:25:17.038Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"System: server_starting","nodeVersion":"v24.11.1","port":"3000","service":"mdm-server","timestamp":"2025-12-06T18:25:17.048Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Conectando ao MongoDB...","service":"mdm-server","timestamp":"2025-12-06T18:25:17.049Z","version":"1.0.0"}
+{"environment":"development","ip":"0.0.0.0","level":"info","localIp":"10.71.1.22","message":"System: server_started","port":"3000","service":"mdm-server","timestamp":"2025-12-06T18:25:17.228Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"🔌 WebSocket Server initialized","service":"mdm-server","timestamp":"2025-12-06T18:25:17.230Z","version":"1.0.0"}
+{"database":"mdm","environment":"development","host":"localhost","level":"info","message":"System: mongodb_connected","service":"mdm-server","timestamp":"2025-12-06T18:25:17.244Z","version":"1.0.0"}
+>>>>>>> 6b970d834c5290c48831ed21a7428694c7572f50
+{"environment":"development","level":"info","message":"ℹ️ Redis desabilitado - usando cache em memória","service":"mdm-server","timestamp":"2026-01-13T21:47:21.271Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"System: server_starting","nodeVersion":"v24.11.0","port":"3000","service":"mdm-server","timestamp":"2026-01-13T21:47:21.316Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Conectando ao MongoDB...","service":"mdm-server","timestamp":"2026-01-13T21:47:21.316Z","version":"1.0.0"}
+{"environment":"development","ip":"0.0.0.0","level":"info","localIp":"192.168.0.143","message":"System: server_started","port":"3000","service":"mdm-server","timestamp":"2026-01-13T21:47:22.064Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"🔌 WebSocket Server initialized","service":"mdm-server","timestamp":"2026-01-13T21:47:22.068Z","version":"1.0.0"}
+{"database":"mdm","environment":"development","host":"localhost","level":"info","message":"System: mongodb_connected","service":"mdm-server","timestamp":"2026-01-13T21:47:22.157Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"System: shutdown_initiated","service":"mdm-server","signal":"SIGINT","timestamp":"2026-01-13T21:47:44.031Z","version":"1.0.0"}
