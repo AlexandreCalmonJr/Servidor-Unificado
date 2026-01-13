@@ -116,6 +116,10 @@ app.use(mongoSanitize());
 // Proteção contra HTTP Parameter Pollution
 app.use(hpp());
 
+// Compressão GZIP
+const compression = require('compression');
+app.use(compression());
+
 // Logger de requisições
 app.use(requestLogger);
 
@@ -390,3 +394,7 @@ process.on('uncaughtException', (err) => {
   console.error(err);
   if (process.env.NODE_ENV === 'production') gracefulShutdown('UNCAUGHT_EXCEPTION');
 });
+
+// Inicializa WebSocket
+const { initializeWebSocket } = require('./websocket');
+initializeWebSocket(server);
