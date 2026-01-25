@@ -10873,3 +10873,156 @@
 {"environment":"development","level":"info","message":"🔌 WebSocket Server initialized","service":"mdm-server","timestamp":"2026-01-13T21:47:22.068Z","version":"1.0.0"}
 {"database":"mdm","environment":"development","host":"localhost","level":"info","message":"System: mongodb_connected","service":"mdm-server","timestamp":"2026-01-13T21:47:22.157Z","version":"1.0.0"}
 {"environment":"development","level":"info","message":"System: shutdown_initiated","service":"mdm-server","signal":"SIGINT","timestamp":"2026-01-13T21:47:44.031Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️ Redis desabilitado - usando cache em memória","service":"mdm-server","timestamp":"2026-01-13T21:48:10.343Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"System: server_starting","nodeVersion":"v24.11.0","port":"3000","service":"mdm-server","timestamp":"2026-01-13T21:48:10.360Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Conectando ao MongoDB...","service":"mdm-server","timestamp":"2026-01-13T21:48:10.360Z","version":"1.0.0"}
+{"environment":"development","ip":"0.0.0.0","level":"info","localIp":"192.168.0.143","message":"System: server_started","port":"3000","service":"mdm-server","timestamp":"2026-01-13T21:48:10.630Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"🔌 WebSocket Server initialized","service":"mdm-server","timestamp":"2026-01-13T21:48:10.635Z","version":"1.0.0"}
+{"database":"mdm","environment":"development","host":"localhost","level":"info","message":"System: mongodb_connected","service":"mdm-server","timestamp":"2026-01-13T21:48:10.654Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2026-01-13T21:50:00.827Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2026-01-13T21:50:01.411Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2026-01-13T21:50:01.412Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","service":"mdm-server","timestamp":"2026-01-13T21:50:47.470Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","service":"mdm-server","timestamp":"2026-01-13T21:50:47.692Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-13T21:50:48.711Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-13T21:50:48.727Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Módulos listados: 2 por admin","service":"mdm-server","timestamp":"2026-01-13T21:50:48.843Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-13T21:51:28.120Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-13T21:51:28.126Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","service":"mdm-server","timestamp":"2026-01-13T21:51:28.132Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-13T21:51:30.660Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-13T21:51:30.667Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Módulos listados: 2 por admin","service":"mdm-server","timestamp":"2026-01-13T21:51:30.673Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-13T21:51:37.702Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-13T21:51:37.709Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","service":"mdm-server","timestamp":"2026-01-13T21:51:37.717Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-13T21:51:41.577Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-13T21:51:41.582Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","service":"mdm-server","timestamp":"2026-01-13T21:51:41.586Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️ Redis desabilitado - usando cache em memória","service":"mdm-server","timestamp":"2026-01-13T22:56:07.976Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"System: server_starting","nodeVersion":"v24.11.0","port":"3000","service":"mdm-server","timestamp":"2026-01-13T22:56:08.050Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Conectando ao MongoDB...","service":"mdm-server","timestamp":"2026-01-13T22:56:08.051Z","version":"1.0.0"}
+{"environment":"development","ip":"0.0.0.0","level":"info","localIp":"192.168.0.143","message":"System: server_started","port":"3000","service":"mdm-server","timestamp":"2026-01-13T22:56:08.852Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"🔌 WebSocket Server initialized","service":"mdm-server","timestamp":"2026-01-13T22:56:08.862Z","version":"1.0.0"}
+{"database":"mdm","environment":"development","host":"localhost","level":"info","message":"System: mongodb_connected","service":"mdm-server","timestamp":"2026-01-13T22:56:08.905Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2026-01-13T23:00:00.123Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2026-01-13T23:00:00.239Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2026-01-13T23:00:00.239Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2026-01-13T23:05:00.217Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2026-01-13T23:05:00.222Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2026-01-13T23:05:00.223Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","service":"mdm-server","timestamp":"2026-01-13T23:08:23.760Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","service":"mdm-server","timestamp":"2026-01-13T23:08:23.767Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","service":"mdm-server","timestamp":"2026-01-13T23:08:30.335Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","service":"mdm-server","timestamp":"2026-01-13T23:08:30.649Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-13T23:08:31.535Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-13T23:08:31.549Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Módulos listados: 2 por admin","service":"mdm-server","timestamp":"2026-01-13T23:08:31.657Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2026-01-13T23:10:00.651Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2026-01-13T23:10:00.659Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2026-01-13T23:10:00.660Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-13T23:10:27.221Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-13T23:10:27.226Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","service":"mdm-server","timestamp":"2026-01-13T23:10:27.242Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-13T23:10:31.104Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-13T23:10:31.108Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Módulos listados: 2 por admin","service":"mdm-server","timestamp":"2026-01-13T23:10:31.116Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-13T23:10:46.569Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-13T23:10:46.597Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Módulos listados: 2 por admin","service":"mdm-server","timestamp":"2026-01-13T23:10:46.674Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-13T23:10:48.818Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-13T23:10:48.823Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Módulos listados: 2 por admin","service":"mdm-server","timestamp":"2026-01-13T23:10:48.848Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-13T23:10:50.914Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-13T23:10:50.919Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Módulos listados: 2 por admin","service":"mdm-server","timestamp":"2026-01-13T23:10:50.925Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-13T23:11:42.287Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-13T23:11:42.311Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Módulos listados: 2 por admin","service":"mdm-server","timestamp":"2026-01-13T23:11:42.393Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-13T23:12:10.074Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-13T23:12:10.079Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Módulos listados: 2 por admin","service":"mdm-server","timestamp":"2026-01-13T23:12:10.085Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2026-01-13T23:15:00.826Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2026-01-13T23:15:00.832Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2026-01-13T23:15:00.833Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-13T23:17:07.034Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-13T23:17:07.049Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","service":"mdm-server","timestamp":"2026-01-13T23:17:07.053Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-13T23:17:10.694Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-13T23:17:10.705Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Módulos listados: 2 por admin","service":"mdm-server","timestamp":"2026-01-13T23:17:10.715Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2026-01-13T23:20:00.924Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2026-01-13T23:20:00.928Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2026-01-13T23:20:00.928Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-13T23:21:41.528Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-13T23:21:41.531Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Módulos listados: 2 por admin","service":"mdm-server","timestamp":"2026-01-13T23:21:41.538Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-13T23:24:19.586Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-13T23:24:19.591Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Módulos listados: 2 por admin","service":"mdm-server","timestamp":"2026-01-13T23:24:19.598Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2026-01-13T23:25:13.828Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2026-01-13T23:25:13.911Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2026-01-13T23:25:13.912Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-13T23:25:32.977Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-13T23:27:47.008Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-13T23:27:47.010Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-13T23:27:47.019Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Módulos listados: 2 por admin","service":"mdm-server","timestamp":"2026-01-13T23:27:47.021Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Módulos listados: 2 por admin","service":"mdm-server","timestamp":"2026-01-13T23:27:47.026Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️ Redis desabilitado - usando cache em memória","service":"mdm-server","timestamp":"2026-01-14T12:40:15.732Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"System: server_starting","nodeVersion":"v24.11.0","port":"3000","service":"mdm-server","timestamp":"2026-01-14T12:40:15.790Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Conectando ao MongoDB...","service":"mdm-server","timestamp":"2026-01-14T12:40:15.790Z","version":"1.0.0"}
+{"environment":"development","ip":"0.0.0.0","level":"info","localIp":"192.168.0.143","message":"System: server_started","port":"3000","service":"mdm-server","timestamp":"2026-01-14T12:40:16.810Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"🔌 WebSocket Server initialized","service":"mdm-server","timestamp":"2026-01-14T12:40:16.816Z","version":"1.0.0"}
+{"database":"mdm","environment":"development","host":"localhost","level":"info","message":"System: mongodb_connected","service":"mdm-server","timestamp":"2026-01-14T12:40:16.855Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","service":"mdm-server","timestamp":"2026-01-14T12:40:28.856Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","service":"mdm-server","timestamp":"2026-01-14T12:40:29.109Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-14T12:40:32.714Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-14T12:40:32.740Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Módulos listados: 2 por admin","service":"mdm-server","timestamp":"2026-01-14T12:40:32.934Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-14T12:43:23.768Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-14T12:43:23.776Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Módulos listados: 2 por admin","service":"mdm-server","timestamp":"2026-01-14T12:43:23.787Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2026-01-14T12:45:25.881Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2026-01-14T12:45:26.223Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2026-01-14T12:45:26.242Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","service":"mdm-server","timestamp":"2026-01-14T12:45:26.272Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","service":"mdm-server","timestamp":"2026-01-14T12:45:26.388Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-14T12:45:27.693Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-14T12:45:27.700Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Módulos listados: 2 por admin","service":"mdm-server","timestamp":"2026-01-14T12:45:27.708Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"🔌 New WebSocket connection from 192.168.0.143","service":"mdm-server","timestamp":"2026-01-14T12:48:54.072Z","version":"1.0.0"}
+{"environment":"development","level":"warn","message":"Tentativa de login falha: admin - IP: 192.168.0.143","service":"mdm-server","timestamp":"2026-01-14T12:48:58.813Z","version":"1.0.0"}
+{"duration":"101ms","environment":"development","ip":"192.168.0.143","level":"warn","message":"HTTP Request","method":"POST","path":"/login","service":"mdm-server","statusCode":401,"timestamp":"2026-01-14T12:48:58.815Z","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36","version":"1.0.0"}
+{"environment":"development","level":"warn","message":"Tentativa de login falha: admin - IP: 127.0.0.1","service":"mdm-server","timestamp":"2026-01-14T12:48:59.126Z","version":"1.0.0"}
+{"duration":"107ms","environment":"development","ip":"127.0.0.1","level":"warn","message":"HTTP Request","method":"POST","path":"/login","service":"mdm-server","statusCode":401,"timestamp":"2026-01-14T12:48:59.127Z","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","service":"mdm-server","timestamp":"2026-01-14T12:49:02.479Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida (JWT) para usuário: admin, Setor: Global","service":"mdm-server","timestamp":"2026-01-14T12:49:02.782Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-14T12:49:03.711Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-14T12:49:03.717Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Módulos listados: 2 por admin","service":"mdm-server","timestamp":"2026-01-14T12:49:03.724Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-14T12:49:50.082Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-14T12:49:50.088Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","service":"mdm-server","timestamp":"2026-01-14T12:49:50.097Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-14T12:49:52.449Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-14T12:49:52.456Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Módulos listados: 2 por admin","service":"mdm-server","timestamp":"2026-01-14T12:49:52.464Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-14T12:49:54.160Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-14T12:49:54.167Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","service":"mdm-server","timestamp":"2026-01-14T12:49:54.172Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2026-01-14T12:50:00.730Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2026-01-14T12:50:00.735Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2026-01-14T12:50:00.736Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-14T12:50:06.061Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-14T12:50:06.226Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","service":"mdm-server","timestamp":"2026-01-14T12:50:06.284Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"🔌 WebSocket connection closed from 192.168.0.143","service":"mdm-server","timestamp":"2026-01-14T12:51:04.926Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-14T12:51:20.839Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-14T12:51:20.845Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Módulos listados: 2 por admin","service":"mdm-server","timestamp":"2026-01-14T12:51:20.853Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Token recebido via Authorization Bearer","service":"mdm-server","timestamp":"2026-01-14T12:51:30.174Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Autenticação bem-sucedida - User: admin (admin)","service":"mdm-server","timestamp":"2026-01-14T12:51:30.178Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Lista de utilizadores solicitada por admin: 1 utilizadores","service":"mdm-server","timestamp":"2026-01-14T12:51:30.183Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2026-01-14T12:55:00.882Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2026-01-14T12:55:00.887Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2026-01-14T12:55:00.887Z","version":"1.0.0"}
