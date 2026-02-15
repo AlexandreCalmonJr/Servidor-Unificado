@@ -4,6 +4,8 @@ const Panel = require('../models/Panel');
 const Desktop = require('../models/Desktop');
 const Notebook = require('../models/Notebook');
 const Printer = require('../models/Printer');
+const Device = require('../models/Device'); // Mobile
+const Totem = require('../models/Totem');   // Totem
 const User = require('../models/User'); // Para permissões
 
 // Mapeia o 'moduleId' (identificador) para o Modelo Mongoose
@@ -12,7 +14,10 @@ const assetModels = {
   desktop: Desktop,
   notebook: Notebook,
   printer: Printer,
-  // Adicione outros modelos aqui (totem, scanner, etc.)
+  mobile: Device,
+  totem: Totem,
+  scanner: Device,
+  custom: Device,
 };
 
 /**
@@ -137,13 +142,13 @@ exports.getModulePermissions = async (req, res) => {
     const { moduleId } = req.params;
     // A permissão será armazenada como 'module:[moduleId]', ex: 'module:panel'
     const permissionKey = `module:${moduleId}`;
-    
+
     // Encontra todos os usuários que possuem essa permissão
     //
     const users = await User.find({ permissions: permissionKey }).select('_id');
-    
+
     const userIds = users.map(u => u._id.toString());
-    
+
     res.json({ success: true, users: userIds });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

@@ -26,9 +26,11 @@
 
     function loadCommands() {
         loadModulesForSelect();
-        setupCommandModal();
-        setupEventListeners();
     }
+
+    // Initialize once
+    setupCommandModal();
+    setupEventListeners();
 
     // ===== STEP 1: SELECT MODULE =====
     async function loadModulesForSelect() {

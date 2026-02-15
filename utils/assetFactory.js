@@ -6,6 +6,8 @@ const Desktop = require('../models/Desktop');
 const Notebook = require('../models/Notebook');
 const Panel = require('../models/Panel');
 const Printer = require('../models/Printer');
+const Device = require('../models/Device'); // Mobile
+const Totem = require('../models/Totem');   // Totem
 const { body, validationResult } = require('express-validator');
 const locationService = require('../services/locationService'); // Importa o serviço de localização
 
@@ -38,6 +40,30 @@ const MODEL_REGISTRY = {
     icon: 'print',
     description: 'Impressoras e multifuncionais',
   },
+  mobile: {
+    model: Device,
+    displayName: 'Dispositivo Móvel',
+    icon: 'smartphone',
+    description: 'Smartphones e tablets',
+  },
+  totem: {
+    model: Totem,
+    displayName: 'Totem',
+    icon: 'touch_app',
+    description: 'Totems de autoatendimento',
+  },
+  scanner: {
+    model: Device,
+    displayName: 'Coletor',
+    icon: 'qr_code_scanner',
+    description: 'Coletores de dados',
+  },
+  custom: {
+    model: Device,
+    displayName: 'Outros',
+    icon: 'devices_other',
+    description: 'Outros dispositivos',
+  },
 };
 
 // ===================================================================
@@ -53,7 +79,7 @@ const MODEL_REGISTRY = {
 function getModelByType(moduleType) {
   const normalizedType = moduleType.toLowerCase().trim();
   const entry = MODEL_REGISTRY[normalizedType];
-  
+
   if (!entry) {
     const available = Object.keys(MODEL_REGISTRY).join(', ');
     throw new Error(
@@ -61,7 +87,7 @@ function getModelByType(moduleType) {
       `Tipos disponíveis: ${available}`
     );
   }
-  
+
   return entry.model;
 }
 
@@ -102,17 +128,17 @@ const baseValidation = [
     .trim()
     .notEmpty().withMessage('Nome do ativo é obrigatório')
     .isLength({ max: 100 }).withMessage('Nome muito longo (max 100 caracteres)'),
-  
+
   body('serial_number')
     .trim()
     .notEmpty().withMessage('Serial é obrigatório')
     .isLength({ max: 100 }).withMessage('Serial muito longo'),
-  
+
   body('status')
     .optional()
     .isIn(['online', 'offline', 'maintenance', 'Sem Monitorar'])
     .withMessage('Status inválido'),
-  
+
   body('ip_address')
     .optional()
     .custom((value) => {
@@ -124,7 +150,7 @@ const baseValidation = [
       }
       return true;
     }),
-  
+
   body('mac_address')
     .optional()
     .custom((value) => {
@@ -149,7 +175,7 @@ const TYPE_SPECIFIC_VALIDATIONS = {
     body('biometric_reader').optional().trim(),
     body('connected_printer').optional().trim(),
   ],
-  
+
   notebook: [
     body('hostname').trim().notEmpty().withMessage('Hostname é obrigatório'),
     body('battery_level')
@@ -159,7 +185,7 @@ const TYPE_SPECIFIC_VALIDATIONS = {
     body('battery_health').optional().trim(),
     body('is_encrypted').optional().isBoolean(),
   ],
-  
+
   panel: [
     body('hostname').trim().notEmpty().withMessage('Hostname é obrigatório'),
     body('screen_size').optional().trim(),
@@ -174,7 +200,7 @@ const TYPE_SPECIFIC_VALIDATIONS = {
       .withMessage('Volume deve estar entre 0 e 100'),
     body('hdmi_input').optional().trim(),
   ],
-  
+
   printer: [
     body('hostname').trim().notEmpty().withMessage('Hostname é obrigatório'),
     body('connection_type')
@@ -195,7 +221,7 @@ const TYPE_SPECIFIC_VALIDATIONS = {
 function getValidationsByType(moduleType) {
   const normalizedType = moduleType.toLowerCase().trim();
   const typeValidations = TYPE_SPECIFIC_VALIDATIONS[normalizedType] || [];
-  
+
   return [
     ...baseValidation,
     ...typeValidations,
@@ -210,22 +236,22 @@ const validateByModuleId = async (req, res, next) => {
   try {
     const AssetModuleConfig = require('../models/AssetModuleConfig');
     const module = await AssetModuleConfig.findById(req.params.moduleId);
-    
+
     if (!module) {
       return res.status(404).json({
         success: false,
         message: 'Módulo não encontrado',
       });
     }
-    
+
     // Obtém validações específicas
     const validations = getValidationsByType(module.type);
-    
+
     // Executa validações
     await Promise.all(
       validations.map(validation => validation.run(req))
     );
-    
+
     // Verifica erros
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -239,11 +265,11 @@ const validateByModuleId = async (req, res, next) => {
         })),
       });
     }
-    
+
     // Adiciona tipo ao request para uso posterior
     req.moduleType = module.type;
     req.module = module;
-    
+
     next();
   } catch (error) {
     res.status(500).json({
@@ -266,7 +292,7 @@ const validateByModuleId = async (req, res, next) => {
  */
 async function sanitizeAssetData(data, moduleType) {
   const sanitized = { ...data };
-  
+
   // Remove campos vazios ou "N/A" desnecessários
   Object.keys(sanitized).forEach(key => {
     if (sanitized[key] === 'N/A' || sanitized[key] === '') {
@@ -275,7 +301,7 @@ async function sanitizeAssetData(data, moduleType) {
       }
     }
   });
-  
+
   // Normaliza MAC Address
   if (sanitized.mac_address && sanitized.mac_address !== 'N/A') {
     sanitized.mac_address = sanitized.mac_address
@@ -283,15 +309,15 @@ async function sanitizeAssetData(data, moduleType) {
       .replace(/-/g, ':')
       .replace(/\./g, ':');
   }
-  
+
   // Define tipo do ativo
   sanitized.asset_type = moduleType;
-  
+
   // Garante campos base
   if (!sanitized.status) {
     sanitized.status = 'online';
   }
-  
+
   if (!sanitized.last_seen) {
     sanitized.last_seen = new Date();
   }
@@ -312,7 +338,7 @@ async function sanitizeAssetData(data, moduleType) {
   // 2. Integração com locationService:
   //    Tenta mapear APENAS se os campos AINDA estiverem como "Desconhecido" ou "N/A"
   // =================================================================
-  
+
   let locationMapped = false;
   const unitUnknown = (!sanitized.unit || sanitized.unit === 'N/A' || sanitized.unit === 'Desconhecido');
   const sectorUnknown = (!sanitized.sector || sanitized.sector === 'Desconhecido');
@@ -324,10 +350,10 @@ async function sanitizeAssetData(data, moduleType) {
       mac_address_radio: sanitized.mac_address || sanitized.macAddress || 'N/A',
       device_name: sanitized.asset_name || sanitized.hostname || 'N/A',
     };
-    
+
     // O locationService (mappings.js) será chamado
     const location = await locationService.mapDeviceLocation(deviceData);
-    
+
     // Aplica apenas campos que AINDA estão ausentes
     if (unitUnknown) {
       sanitized.unit = location.unit;
@@ -338,10 +364,10 @@ async function sanitizeAssetData(data, moduleType) {
     if (floorUnknown) {
       sanitized.floor = location.floor;
     }
-    
+
     locationMapped = true;
   }
-  
+
   return sanitized;
 }
 
@@ -352,11 +378,11 @@ async function sanitizeAssetData(data, moduleType) {
  */
 function transformAssetForOutput(asset) {
   const plain = asset.toObject ? asset.toObject() : asset;
-  
+
   return {
     ...plain,
     // Garante que sector_floor está disponível
-    sector_floor: (plain.sector || plain.floor) 
+    sector_floor: (plain.sector || plain.floor)
       ? `${plain.sector || 'N/D'} / ${plain.floor || 'N/D'}`
       : (plain.location || 'N/D'),
   };
@@ -375,10 +401,10 @@ function transformAssetForOutput(asset) {
 async function createAsset(moduleType, data) {
   const Model = getModelByType(moduleType);
   const sanitized = await sanitizeAssetData(data, moduleType); // Agora async por causa do locationService
-  
+
   const asset = new Model(sanitized);
   await asset.save();
-  
+
   return transformAssetForOutput(asset);
 }
 
@@ -392,17 +418,17 @@ async function createAsset(moduleType, data) {
 async function updateAsset(moduleType, assetId, data) {
   const Model = getModelByType(moduleType);
   const sanitized = await sanitizeAssetData(data, moduleType); // Agora async
-  
+
   const asset = await Model.findByIdAndUpdate(
     assetId,
     { $set: sanitized },
     { new: true, runValidators: true }
   );
-  
+
   if (!asset) {
     throw new Error('Ativo não encontrado');
   }
-  
+
   return transformAssetForOutput(asset);
 }
 
@@ -416,20 +442,20 @@ module.exports = {
   getModuleInfo,
   isSupported,
   getSupportedTypes,
-  
+
   // Validações
   getValidationsByType,
   validateByModuleId,
   baseValidation,
-  
+
   // Transformações
   sanitizeAssetData,
   transformAssetForOutput,
-  
+
   // Utilitários de alto nível
   createAsset,
   updateAsset,
-  
+
   // Registry (para testes/debug)
   MODEL_REGISTRY,
 };

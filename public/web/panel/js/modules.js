@@ -16,9 +16,11 @@
 
     function loadModules() {
         fetchModules();
-        setupModuleModal();
-        setupAssetModal();
     }
+
+    // Initialize modals once
+    setupModuleModal();
+    setupAssetModal();
 
     async function fetchModules() {
         const container = document.getElementById('modules-cards');
