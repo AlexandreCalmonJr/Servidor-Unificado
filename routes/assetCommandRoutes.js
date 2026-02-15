@@ -1,12 +1,12 @@
 // routes/assetCommandRoutes.js
 const express = require('express');
-const router = express.Router();
 const assetCommandController = require('../controllers/assetCommandController');
 
 module.exports = (logger, modifyApiLimiter, auth, deviceAuth) => {
-  
+  const router = express.Router();
+
   // ===== ROTAS DO PAINEL (Protegidas com JWT) =====
-  
+
   // Criar comando para um ativo
   router.post(
     '/modules/:moduleId/assets/:assetId/commands',
@@ -23,7 +23,7 @@ module.exports = (logger, modifyApiLimiter, auth, deviceAuth) => {
   );
 
   // ===== ROTAS DO CLIENTE (Protegidas com deviceAuth) =====
-  
+
   // Cliente busca comandos pendentes
   router.get(
     '/modules/:moduleId/assets/commands/pending',

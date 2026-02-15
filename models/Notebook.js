@@ -86,24 +86,7 @@ const NotebookSchema = new Schema({
   collection: 'desktops'
 });
 
-// --- Índices (definidos UMA ÚNICA VEZ) ---
-NotebookSchema.index({ serial_number: 1, asset_type: 1 }, {
-  unique: true,
-  sparse: true,
-  custom_data: { type: Map, of: mongoose.Schema.Types.Mixed, default: {} },
-
-  // ===== HARDWARE INFO (Opcional) =====
-  hardware_info: {
-    type: Map,
-    of: mongoose.Schema.Types.Mixed,
-    default: {}
-  }
-}, {
-  timestamps: true, // Adiciona createdAt e updatedAt automaticamente
-  collection: 'desktops'
-});
-
-// --- Índices (definidos UMA ÚNICA VEZ) ---
+// --- Índices ---
 NotebookSchema.index({ serial_number: 1, asset_type: 1 }, {
   unique: true,
   sparse: true,

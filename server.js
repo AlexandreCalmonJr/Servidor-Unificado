@@ -251,6 +251,8 @@ const serverRoutes = require('./routes/serverRoutes');
 const publicRoutes = require('./routes/publicRoutes');
 const provisioningRoutes = require('./routes/provisioningRoutes');
 const configProfileRoutes = require('./routes/configProfileRoutes');
+const diagnosticRoutes = require('./routes/diagnosticRoutes');
+const totemRoutes = require('./routes/totemRoutes');
 
 
 // ===== ROTAS PÚBLICAS (sem autenticação) =====
@@ -278,6 +280,8 @@ app.use('/api/modules', moduleRoutes(logger, getApiLimiter, modifyApiLimiter, au
 
 app.use('/api/monitoring', monitoringRoutes(logger, modifyApiLimiter, auth));
 app.use('/api/server', serverRoutes(logger, getApiLimiter, auth));
+app.use('/api/diagnostics', diagnosticRoutes(logger, getApiLimiter, auth));
+app.use('/api/totems', totemRoutes(logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth));
 
 // ===== DASHBOARD (OPCIONAL) =====
 app.set('view engine', 'ejs');

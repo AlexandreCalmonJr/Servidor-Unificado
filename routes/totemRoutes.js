@@ -42,20 +42,20 @@ const totemRoutes = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) 
       const data = req.body;
       const rawIp = req.ip || req.connection.remoteAddress;
       data.ip = cleanIpAddress(rawIp);
-      
+
       const device = await totemService.createOrUpdate(data);
 
       logger.logDeviceOperation('totem_data_received', {
         serialNumber: device.serialNumber,
       }, {
         ip: device.ip,
-        location: device.unitRoutes,
+        location: device.unit,
       });
 
       res.status(200).json({
         message: 'Dados de monitoramento recebidos!',
         deviceId: device._id,
-        location: device.unitRoutes
+        location: device.unit
       });
     })
   );
@@ -63,19 +63,19 @@ const totemRoutes = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) 
   // ----------------------------------------------
   // ROTAS DO PAINEL WEB (READ / UPDATE / DELETE)
   // ----------------------------------------------
-  
+
   // [R] READ (All): Listar todos os totens
   router.get('/totems',
-    auth, 
+    auth,
     getApiLimiter,
     asyncHandler(async (req, res) => {
       const devices = await totemService.getAll();
-      
+
       logger.info('Lista de totens retornada', {
         username: req.user.username,
         count: devices.length,
       });
-      
+
       res.status(200).json(devices);
     })
   );
@@ -92,10 +92,10 @@ const totemRoutes = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) 
       if (!errors.isEmpty()) {
         throw validationErrorHandler(errors);
       }
-      
+
       const { serialNumber } = req.params;
       const totem = await totemService.getBySerialNumber(serialNumber);
-      
+
       if (!totem) {
         throw new NotFoundError(`Totem não encontrado: ${serialNumber}`);
       }
@@ -104,7 +104,7 @@ const totemRoutes = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) 
         username: req.user.username,
         serialNumber,
       });
-      
+
       res.status(200).json(totem);
     })
   );
@@ -132,7 +132,7 @@ const totemRoutes = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) 
       if (!updatedTotem) {
         throw new NotFoundError(`Totem não encontrado: ${serialNumber}`);
       }
-      
+
       logger.logDeviceOperation('totem_updated', {
         serialNumber,
       }, {

@@ -6,7 +6,7 @@ const { getLocationFromIp } = require('./ipMappingService');
 const _calculateStatus = (device) => {
   const now = new Date();
   // Threshold de 2 minutos para offline
-  const isOffline = (now - new Date(device.lastSeen)) > (2 * 60 * 1000); 
+  const isOffline = (now - new Date(device.lastSeen)) > (2 * 60 * 1000);
 
   let status = isOffline ? 'Offline' : 'Online';
 
@@ -17,21 +17,21 @@ const _calculateStatus = (device) => {
   // ===== INÍCIO DA CORREÇÃO =====
 
   // 1. Renomeia 'unitRoutes' para 'location' para compatibilidade com o frontend
-  const { unitRoutes, ...rest } = device;
-  const location = unitRoutes || 'Desconhecida'; // Garante que não seja nulo
+  const { unit, ...rest } = device;
+  const location = unit || 'Desconhecida'; // Garante que não seja nulo
 
   // 2. Adiciona valores padrão para campos que o frontend espera, mas o modelo não tem
   const mozillaVersion = device.mozillaVersion || 'N/A';
   const javaVersion = device.javaVersion || 'N/A';
 
-  return { 
-    ...rest, 
-    status, 
+  return {
+    ...rest,
+    status,
     location,         // Campo renomeado
     mozillaVersion, // Campo com valor padrão
     javaVersion       // Campo com valor padrão
   };
-  
+
   // ===== FIM DA CORREÇÃO =====
 };
 
@@ -40,13 +40,13 @@ const _calculateStatus = (device) => {
 
 exports.createOrUpdate = async (data) => {
   const { serialNumber, ip } = data;
-  
-  // Determinar a localização com base no IP
-  const unitRoutes = await getLocationFromIp(ip);
 
-  const deviceData = { 
-    ...data, 
-    unitRoutes, // Adiciona a localização
+  // Determinar a localização com base no IP
+  const unit = await getLocationFromIp(ip);
+
+  const deviceData = {
+    ...data,
+    unit, // Adiciona a localização
     lastSeen: new Date() // Garante que 'lastSeen' seja atualizado
   };
 
@@ -63,7 +63,7 @@ exports.createOrUpdate = async (data) => {
 exports.getAll = async () => {
   const devices = await Totem.find({}).sort({ lastSeen: -1 }).lean();
   // Usa o helper para calcular status
-  const devicesWithStatus = devices.map(_calculateStatus); 
+  const devicesWithStatus = devices.map(_calculateStatus);
   return devicesWithStatus;
 };
 
@@ -94,11 +94,11 @@ exports.updateBySerialNumber = async (serialNumber, updateData) => {
     { $set: updateData },
     { new: true } // Retorna o documento modificado
   ).lean();
-  
+
   if (!updatedDevice) {
     return null;
   }
-  
+
   return _calculateStatus(updatedDevice);
 };
 

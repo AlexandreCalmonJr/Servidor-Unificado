@@ -479,32 +479,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
     }
   });
 
-  router.put('/:moduleId/assets/:assetId', auth, modifyApiLimiter, validateByModuleId, async (req, res) => {
-    try {
-      const moduleType = req.moduleType;
-      const asset = await updateAsset(moduleType, req.params.assetId, req.body);
-
-      logger.info(`Ativo editado via painel: ${asset.asset_name} por ${req.user.username}`);
-
-      res.json({
-        success: true,
-        message: 'Ativo atualizado com sucesso',
-        asset: transformAssetForOutput(asset)
-      });
-    } catch (error) {
-      logger.error(`Erro ao editar ativo: ${error.message}`);
-
-      const statusCode = error.message.includes('não encontrado') ? 404 : 500;
-      res.status(statusCode).json({
-        success: false,
-        message: error.message.includes('não encontrado')
-          ? 'Ativo não encontrado'
-          : 'Erro ao atualizar ativo',
-        error: error.message,
-      });
-    }
-  }
-  );
 
   router.get('/:moduleId/assets/:assetId/history', auth, getApiLimiter, async (req, res) => {
     try {

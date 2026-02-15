@@ -3,7 +3,6 @@
 // Antigo Device.js do servidor de monitoramento.
 
 const mongoose = require('mongoose');
-const unitRoutes = require('../routes/unitRoutes');
 
 const totemSchema = new mongoose.Schema({
   hostname: { type: String, required: true },
@@ -11,10 +10,9 @@ const totemSchema = new mongoose.Schema({
   model: { type: String, default: 'N/A' },
   serviceTag: { type: String, default: 'N/A' },
   ip: { type: String, default: 'N/A' },
-  ip: { type: String, default: 'N/A' },
   mac_address: { type: String, default: 'N/A' },
   mac_address_radio: { type: String, default: 'N/A' },
-  unitRoutes: { type: String, default: 'Desconhecida' },
+  unit: { type: String, default: 'Desconhecida' },
   installedPrograms: { type: [String], default: [] },
   printerStatus: { type: String, default: 'N/A' },
   lastSeen: { type: Date, default: Date.now },
