@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unified Agent</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <div class="window-frame">
+        <div class="title-bar">
+            <div class="app-icon"><i class="fa-brands fa-windows"></i></div>
+            <div class="window-title">Unified Agent</div>
+            <div class="window-controls">
+                <button id="min-btn"><i class="fa-solid fa-minus"></i></button>
+                <button id="max-btn"><i class="fa-regular fa-square"></i></button>
+                <button id="close-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+        </div>
+
+        <div class="app-content">
+            <nav class="sidebar">
+                <div class="nav-item active" data-view="dashboard">
+                    <i class="fa-solid fa-table-columns"></i>
+                    <span>Dashboard</span>
+                </div>
+                <div class="nav-item" data-view="commands">
+                    <i class="fa-solid fa-terminal"></i>
+                    <span>Comandos</span>
+                </div>
+                <div class="nav-item" data-view="settings">
+                    <i class="fa-solid fa-gear"></i>
+                    <span>Config</span>
+                </div>
+
+                <div class="nav-footer">
+                    <div class="agent-version">v1.2.0</div>
+                </div>
+            </nav>
+
+            <main class="main-view">
+                <!-- DASHBOARD VIEW -->
+                <div id="view-dashboard" class="view-section active">
+                    <header class="section-header">
+                        <h1>Visão Geral</h1>
+                        <div class="status-pill online" id="connection-status">
+                            <span class="dot"></span> Online
+                        </div>
+                    </header>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon purple"><i class="fa-solid fa-heart-pulse"></i></div>
+                            <div class="stat-info">
+                                <span class="label">Saúde</span>
+                                <span class="value" id="health-val">98%</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon cyan"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                            <div class="stat-info">
+                                <span class="label">Último Sync</span>
+                                <span class="value" id="last-sync">Agora</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon orange"><i class="fa-solid fa-microchip"></i></div>
+                            <div class="stat-info">
+                                <span class="label">CPU</span>
+                                <span class="value" id="cpu-val">12%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="content-block">
+                        <h3>Comandos Recentes</h3>
+                        <div class="command-list" id="recent-commands">
+                            <!-- Items inserted via JS -->
+                            <div class="command-item">
+                                <div class="cmd-icon"><i class="fa-solid fa-download"></i></div>
+                                <div class="cmd-details">
+                                    <div class="cmd-name">Atualização de Software</div>
+                                    <div class="cmd-time">Há 5 min</div>
+                                </div>
+                                <div class="cmd-status success">Concluído</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SETTINGS VIEW -->
+                <div id="view-settings" class="view-section" style="display: none;">
+                    <header class="section-header">
+                        <h1>Configurações</h1>
+                    </header>
+                    <div class="form-container">
+                        <div class="form-group">
+                            <label>Server URL</label>
+                            <input type="text" id="setting-url" placeholder="http://server-address:3000">
+                        </div>
+                        <div class="form-group">
+                            <label>Auth Token</label>
+                            <input type="password" id="setting-token">
+                        </div>
+                        <button class="btn-primary" id="save-settings">Salvar</button>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+
+</html>

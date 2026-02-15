@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "b4c528d2-cc8a-4811-b7fa-1ff7e2219ac8"
+      }
+    },
+    "android": {
+      "package": "com.alexandrejrk.unifiedmobileagent"
+    }
+  }
+}
