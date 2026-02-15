@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Animated, Easing, SafeAreaView, StatusBar, Dimensions, BackHandler, Alert, ToastAndroid } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
