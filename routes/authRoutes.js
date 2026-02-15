@@ -3,11 +3,9 @@
 const express = require('express');
 const { body } = require('express-validator');
 const { registerUser, loginUser, listUsers, updateUser, deleteUser, verifyToken, changePassword } = require('../controllers/authController');
-const { modifyApiLimiter, getApiLimiter } = require('../middleware/rateLimiters');
-const auth = require('../middleware/auth');
 const authorize = require('../middleware/role');
 
-const authRoutes = () => {
+const authRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
     const router = express.Router();
 
     // Rota pública para login
@@ -52,7 +50,7 @@ const authRoutes = () => {
     ], registerUser);
 
     router.get('/users', auth, authorize('admin'), getApiLimiter, listUsers);
-    
+
     router.put('/users/:id', auth, authorize('admin'), modifyApiLimiter, [
         body('username').optional().notEmpty().withMessage('Username não pode ser vazio'),
         body('email').optional().isEmail().withMessage('Email inválido'),
@@ -76,7 +74,7 @@ const authRoutes = () => {
             return true;
         })
     ], updateUser);
-    
+
     router.delete('/users/:id', auth, authorize('admin'), modifyApiLimiter, deleteUser);
 
     return router;

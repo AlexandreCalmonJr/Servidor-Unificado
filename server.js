@@ -256,7 +256,7 @@ const totemRoutes = require('./routes/totemRoutes');
 
 
 // ===== ROTAS PÚBLICAS (sem autenticação) =====
-app.use('/api/auth', authRoutes(logger, getApiLimiter, modifyApiLimiter));
+app.use('/api/auth', authRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
 app.use('/api', publicRoutes(logger, getApiLimiter));
 
 // ===== ROTAS DE DISPOSITIVOS (usam deviceAuth - token simples) =====

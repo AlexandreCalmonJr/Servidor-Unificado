@@ -59,4 +59,4 @@ const assetModuleSchema = new mongoose.Schema({
 assetModuleSchema.index({ type: 1, is_active: 1 });
 assetModuleSchema.index({ name: 1 });
 
-module.exports = mongoose.model('AssetModule', assetModuleSchema, 'assetmoduleconfigs');
+module.exports = mongoose.model('AssetModule', assetModuleSchema, 'assetmodules');
