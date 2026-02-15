@@ -4,7 +4,11 @@ const logger = require('../utils/logger');
 
 class WebSocketServer {
     constructor(server) {
+        if (WebSocketServer.instance) {
+            return WebSocketServer.instance;
+        }
         this.wss = new WebSocket.Server({ server, path: '/ws' });
+        WebSocketServer.instance = this;
         this.init();
     }
 
@@ -133,6 +137,18 @@ class WebSocketServer {
             }
         });
     }
+
+    static getInstance() {
+        return WebSocketServer.instance;
+    }
+
+    static broadcastToAll(data) {
+        if (WebSocketServer.instance) {
+            WebSocketServer.instance.broadcast(data);
+        }
+    }
 }
+
+WebSocketServer.instance = null;
 
 module.exports = WebSocketServer;

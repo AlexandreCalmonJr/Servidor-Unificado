@@ -22,7 +22,14 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0f172a"
       },
-      "package": "com.alexandrejrk.unifiedmobileagent"
+      "package": "com.alexandrejrk.unifiedmobileagent",
+      "permissions": [
+        "REQUEST_INSTALL_PACKAGES",
+        "REBOOT",
+        "RECEIVE_BOOT_COMPLETED",
+        "FOREGROUND_SERVICE",
+        "WAKE_LOCK"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

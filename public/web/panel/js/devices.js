@@ -45,17 +45,19 @@
         }
 
         tbody.innerHTML = devices.map(d => `
-      <tr>
+      <tr data-device-id="${d._id || d.id}">
         <td>${esc(d.device_name || d.name || 'N/A')}</td>
         <td class="mono">${esc(d.serial_number || d.serialNumber || 'N/A')}</td>
         <td>${esc(d.model || d.device_model || 'N/A')}</td>
         <td>${d.battery_level != null ? d.battery_level + '%' : (d.battery != null ? d.battery + '%' : 'N/A')}</td>
         <td class="mono">${esc(d.ip_address || d.ip || 'N/A')}</td>
         <td>${esc(d.sector || d.location || 'N/A')}</td>
-        <td>${statusBadge(d.provisioning_status || d.status)}</td>
+        <td><span class="status-badge ${d.provisioning_status || d.status}">${statusBadgeLabel(d.provisioning_status || d.status)}</span></td>
         <td>
           <button class="btn btn-ghost btn-sm" data-action="view" data-id="${esc(d._id || d.id || d.serial_number)}" title="Detalhes">👁</button>
           <button class="btn btn-ghost btn-sm" data-action="edit" data-serial="${esc(d.serial_number || d.serialNumber)}" title="Editar">✏️</button>
+          <button class="btn btn-ghost btn-sm" data-action="install_apk" data-serial="${esc(d.serial_number || d.serialNumber)}" title="Instalar APK">📥</button>
+          <button class="btn btn-ghost btn-sm" data-action="restart" data-serial="${esc(d.serial_number || d.serialNumber)}" title="Reiniciar App">🔄</button>
           <button class="btn btn-danger btn-sm" data-action="delete" data-serial="${esc(d.serial_number || d.serialNumber)}" title="Excluir">🗑</button>
         </td>
       </tr>
@@ -105,7 +107,39 @@
             if (action === 'view') DeviceDetail.show(btn.dataset.id);
             else if (action === 'edit') openDeviceEditModal(btn.dataset.serial);
             else if (action === 'delete') removeDevice(btn.dataset.serial);
+            else if (action === 'install_apk') promptInstallApk(btn.dataset.serial);
+            else if (action === 'restart') confirmRestart(btn.dataset.serial);
         });
+    }
+
+    async function promptInstallApk(serial) {
+        const url = prompt(`Digite a URL do APK para instalar em ${serial}:`);
+        if (!url) return;
+
+        try {
+            await API.post('/devices/executeCommand', {
+                serial_number: serial,
+                command: 'install_apk',
+                apkUrl: url
+            });
+            showToast('Comando de instalação enviado!', 'success');
+        } catch (e) {
+            showToast(`Erro ao enviar comando: ${e.message}`, 'error');
+        }
+    }
+
+    async function confirmRestart(serial) {
+        if (!confirm(`Deseja reiniciar o aplicativo no dispositivo ${serial}?`)) return;
+
+        try {
+            await API.post('/devices/executeCommand', {
+                serial_number: serial,
+                command: 'restart_app'
+            });
+            showToast('Comando de reinício enviado!', 'success');
+        } catch (e) {
+            showToast(`Erro ao enviar comando: ${e.message}`, 'error');
+        }
     }
 
     // ===== EDIT MODAL =====

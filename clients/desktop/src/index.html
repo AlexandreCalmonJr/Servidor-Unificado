@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 
 <head>
     <meta charset="UTF-8">
@@ -8,9 +8,107 @@
     <link rel="stylesheet" href="styles.css">
     <!-- FontAwesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Overlay Styles Inline for Simplicity */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            z-index: 9999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .overlay-card {
+            background: rgba(30, 41, 59, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 20px;
+            width: 400px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .overlay h2 {
+            margin-bottom: 20px;
+            color: #fff;
+        }
+
+        .overlay p {
+            color: #94a3b8;
+            margin-bottom: 30px;
+        }
+
+        .overlay input,
+        .overlay select {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border-radius: 8px;
+        }
+
+        .overlay button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #06b6d4, #3b82f6);
+            border: none;
+            color: white;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .overlay button.secondary {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            margin-top: 10px;
+        }
+    </style>
 </head>
 
 <body>
+    <!-- SETUP OVERLAY -->
+    <div id="setup-overlay" class="overlay">
+        <div class="overlay-card">
+            <i class="fa-solid fa-rocket" style="font-size: 40px; color: #06b6d4; margin-bottom: 20px;"></i>
+            <h2>Configuração Inicial</h2>
+            <p>Bem-vindo ao Unified Agent. Configure o servidor e o módulo para iniciar.</p>
+
+            <input type="text" id="setup-url" placeholder="URL do Servidor ex: http://192.168.1.10:3000"
+                value="http://localhost:3000">
+            <select id="setup-module">
+                <option value="">Carregando módulos...</option>
+            </select>
+
+            <button id="setup-save-btn">Salvar e Iniciar</button>
+        </div>
+    </div>
+
+    <!-- ADMIN LOCK OVERLAY -->
+    <div id="admin-overlay" class="overlay">
+        <div class="overlay-card">
+            <i class="fa-solid fa-lock" style="font-size: 40px; color: #ef4444; margin-bottom: 20px;"></i>
+            <h2>Acesso Restrito</h2>
+            <p>Digite a senha de administrador para acessar as configurações.</p>
+
+            <input type="password" id="admin-password" placeholder="Senha de Admin">
+            <p id="admin-info" style="color: #ef4444; margin: 0; height: 20px; font-size: 12px;"></p>
+
+            <button id="admin-login-btn">Entrar</button>
+            <button id="admin-cancel-btn" class="secondary">Cancelar</button>
+        </div>
+    </div>
+
     <div class="window-frame">
         <div class="title-bar">
             <div class="app-icon"><i class="fa-brands fa-windows"></i></div>
@@ -26,7 +124,7 @@
             <nav class="sidebar">
                 <div class="nav-item active" data-view="dashboard">
                     <i class="fa-solid fa-table-columns"></i>
-                    <span>Dashboard</span>
+                    <span>Painel</span>
                 </div>
                 <div class="nav-item" data-view="commands">
                     <i class="fa-solid fa-terminal"></i>
@@ -43,52 +141,29 @@
             </nav>
 
             <main class="main-view">
-                <!-- DASHBOARD VIEW -->
-                <div id="view-dashboard" class="view-section active">
+                <!-- COMMANDS VIEW (HISTORY ONLY) -->
+                <div id="view-commands" class="view-section" style="display: none;">
                     <header class="section-header">
-                        <h1>Visão Geral</h1>
-                        <div class="status-pill online" id="connection-status">
-                            <span class="dot"></span> Online
-                        </div>
+                        <h1>Histórico de Comandos</h1>
                     </header>
 
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-icon purple"><i class="fa-solid fa-heart-pulse"></i></div>
-                            <div class="stat-info">
-                                <span class="label">Saúde</span>
-                                <span class="value" id="health-val">98%</span>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon cyan"><i class="fa-solid fa-clock-rotate-left"></i></div>
-                            <div class="stat-info">
-                                <span class="label">Último Sync</span>
-                                <span class="value" id="last-sync">Agora</span>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon orange"><i class="fa-solid fa-microchip"></i></div>
-                            <div class="stat-info">
-                                <span class="label">CPU</span>
-                                <span class="value" id="cpu-val">12%</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="content-block">
-                        <h3>Comandos Recentes</h3>
-                        <div class="command-list" id="recent-commands">
-                            <!-- Items inserted via JS -->
-                            <div class="command-item">
-                                <div class="cmd-icon"><i class="fa-solid fa-download"></i></div>
-                                <div class="cmd-details">
-                                    <div class="cmd-name">Atualização de Software</div>
-                                    <div class="cmd-time">Há 5 min</div>
-                                </div>
-                                <div class="cmd-status success">Concluído</div>
-                            </div>
-                        </div>
+                    <div class="glass-panel">
+                        <table class="device-table">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Comando</th>
+                                    <th>Status</th>
+                                    <th>Detalhes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="command-history-body">
+                                <tr>
+                                    <td colspan="4" style="text-align:center; padding: 20px;">Nenhum comando recente.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
@@ -99,14 +174,20 @@
                     </header>
                     <div class="form-container">
                         <div class="form-group">
-                            <label>Server URL</label>
+                            <label>URL do Servidor</label>
                             <input type="text" id="setting-url" placeholder="http://server-address:3000">
                         </div>
                         <div class="form-group">
-                            <label>Auth Token</label>
+                            <label>Módulo</label>
+                            <select id="setting-module">
+                                <!-- Populated by JS -->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Token de Autenticação (Opcional)</label>
                             <input type="password" id="setting-token">
                         </div>
-                        <button class="btn-primary" id="save-settings">Salvar</button>
+                        <button class="btn-primary" id="save-settings">Salvar Alterações</button>
                     </div>
                 </div>
             </main>

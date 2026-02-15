@@ -159,12 +159,12 @@
             }
 
             tbody.innerHTML = recent.map(d => `
-        <tr>
+        <tr data-device-id="${d._id || d.id}">
           <td>${esc(d.device_name || d.name || 'N/A')}</td>
           <td class="mono">${esc(d.serial_number || d.serialNumber || 'N/A')}</td>
           <td>${formatDate(d.last_seen || d.lastSeen || d.updatedAt)}</td>
           <td>${esc(d.sector || d.location || 'N/A')}</td>
-          <td>${statusBadge(d.provisioning_status || d.status)}</td>
+          <td><span class="status-badge ${d.provisioning_status || d.status}">${d.provisioning_status || d.status}</span></td>
         </tr>
       `).join('');
         } catch (err) {
@@ -183,6 +183,13 @@
             showToast('Métricas atualizadas', 'success', 2000);
         });
     }
+
+    // Expose for WebSocket
+    window.DashboardRefresh = () => {
+        loadMetrics();
+        loadRecentDevices();
+        loadDeviceStatusChart();
+    };
 
     App.onPageLoad('dashboard', loadDashboard);
 })();

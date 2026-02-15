@@ -1,5 +1,5 @@
 // Variável para armazenar o status de filtro atual
-let currentDeviceStatusFilter = 'all'; 
+let currentDeviceStatusFilter = 'all';
 
 // Elementos do DOM relevantes para dispositivos
 const deviceStatusFilterSelect = document.getElementById('device-status-filter');
@@ -19,7 +19,7 @@ if (deviceStatusFilterSelect) {
 async function loadDevicesTable() {
     try {
         const allDevices = await request('/devices');
-        
+
         let filteredDevices = allDevices;
 
         // Aplica o filtro de status
@@ -34,7 +34,7 @@ async function loadDevicesTable() {
                 filteredDevices = allDevices.filter(device => device.maintenance_status === true);
             } else {
                 // Filtra por status de provisionamento para os outros casos
-                filteredDevices = allDevices.filter(device => 
+                filteredDevices = allDevices.filter(device =>
                     device.provisioning_status === currentDeviceStatusFilter
                 );
             }
@@ -60,6 +60,8 @@ function renderFullDevicesTable(devices) {
         return;
     }
 
+    // ... (Existing code) ...
+
     devices.forEach(device => {
         const row = document.createElement('tr');
         row.innerHTML = `
@@ -70,75 +72,90 @@ function renderFullDevicesTable(devices) {
             <td>${device.ip_address || 'N/A'}</td>
             <td>${device.sector || 'Desconhecido'}</td>
             <td>${device.provisioning_status || 'N/A'}</td>
-            <td>${device.maintenance_status ? 'Em Manutenção' : 'Normal'}</td>
+            <td>${device.maintenance_status ? '<span class="status-warning">Manutenção</span>' : '<span class="status-success">Normal</span>'}</td>
             <td>
-                <button class="action-btn reboot-device" data-serial="${device.serial_number}">Reboot</button>
-                <button class="action-btn set-maintenance-on" data-serial="${device.serial_number}" ${device.maintenance_status ? 'style="display:none;"' : ''}>Manutenção ON</button>
-                <button class="action-btn set-maintenance-off" data-serial="${device.serial_number}" ${!device.maintenance_status ? 'style="display:none;"' : ''}>Manutenção OFF</button>
-                <button class="action-btn view-device" data-serial="${device.serial_number}">Ver</button>
+                <div class="action-buttons">
+                    <button class="action-btn reboot-device" data-serial="${device.serial_number}" title="Reiniciar App">
+                        <i class="fas fa-power-off"></i>
+                    </button>
+                    <button class="action-btn install-apk" data-serial="${device.serial_number}" title="Instalar APK">
+                        <i class="fas fa-download"></i>
+                    </button>
+                    <button class="action-btn view-device" data-serial="${device.serial_number}" title="Ver Detalhes">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                     ${device.maintenance_status
+                ? `<button class="action-btn set-maintenance-off" data-serial="${device.serial_number}" title="Sair de Manutenção"><i class="fas fa-wrench"></i> OFF</button>`
+                : `<button class="action-btn set-maintenance-on" data-serial="${device.serial_number}" title="Entrar em Manutenção"><i class="fas fa-wrench"></i> ON</button>`
+            }
+                </div>
             </td>
         `;
         tableBody.appendChild(row);
     });
 
-    // Adiciona event listeners aos botões de ação na tabela de dispositivos
+    // Event Listeners for Actions
+
+    // REBOOT
     document.querySelectorAll('.reboot-device').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const serial = e.target.getAttribute('data-serial');
-            if (confirm(`Tem certeza que deseja reiniciar o dispositivo ${serial}?`)) {
-                sendDeviceCommand(serial, 'reboot');
+        btn.addEventListener('click', async (e) => {
+            const serial = e.currentTarget.getAttribute('data-serial'); // Use currentTarget for button with icon
+            if (confirm(`Reiniciar o aplicativo no dispositivo ${serial}?`)) {
+                await sendDeviceCommand(serial, 'restart_app'); // command_type 'restart_app' matched in mobile
             }
         });
     });
 
+    // INSTALL APK
+    document.querySelectorAll('.install-apk').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const serial = e.currentTarget.getAttribute('data-serial');
+            const url = prompt('Digite a URL do APK para instalação:');
+            if (url) {
+                if (confirm(`Instalar APK em ${serial}?\nURL: ${url}`)) {
+                    await sendDeviceCommand(serial, 'install_apk', { apkUrl: url });
+                }
+            }
+        });
+    });
+
+    // MAINTENANCE ON
     document.querySelectorAll('.set-maintenance-on').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const serial = e.target.getAttribute('data-serial');
-            const ticket = prompt('Digite o número do ticket de manutenção (opcional):');
-            if (confirm(`Definir ${serial} como "Em Manutenção"?`)) {
-                sendDeviceCommand(serial, 'set_maintenance', { maintenance_status: true, maintenance_ticket: ticket, maintenance_history_entry: JSON.stringify({ timestamp: new Date(), status: 'on', ticket: ticket || '' }) });
-            }
+        btn.addEventListener('click', async (e) => {
+            const serial = e.currentTarget.getAttribute('data-serial');
+            const ticket = prompt('Número do ticket (opcional):');
+            const reason = prompt('Motivo (opcional):');
+
+            await sendDeviceCommand(serial, 'set_maintenance', {
+                maintenance_status: true,
+                maintenance_ticket: ticket,
+                maintenance_reason: reason,
+                maintenance_history_entry: JSON.stringify({ timestamp: new Date(), status: 'on', ticket: ticket || '', reason: reason || '' })
+            });
         });
     });
 
+    // MAINTENANCE OFF
     document.querySelectorAll('.set-maintenance-off').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const serial = e.target.getAttribute('data-serial');
-            const ticket = prompt('Digite o número do ticket para finalizar a manutenção (opcional):');
-            if (confirm(`Definir ${serial} como "Normal" (sair de Manutenção)?`)) {
-                sendDeviceCommand(serial, 'set_maintenance', { maintenance_status: false, maintenance_ticket: '', maintenance_history_entry: JSON.stringify({ timestamp: new Date(), status: 'off', ticket: ticket || '' }) });
-            }
+        btn.addEventListener('click', async (e) => {
+            const serial = e.currentTarget.getAttribute('data-serial');
+
+            await sendDeviceCommand(serial, 'set_maintenance', {
+                maintenance_status: false,
+                maintenance_ticket: '',
+                maintenance_reason: '',
+                maintenance_history_entry: JSON.stringify({ timestamp: new Date(), status: 'off' })
+            });
         });
     });
 
+    // VIEW DETAILS
     document.querySelectorAll('.view-device').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            const serial = e.target.getAttribute('data-serial');
-            // Futuramente, gerar um link único para visualização ou modal de detalhes
-            alert(`Funcionalidade "Ver Dispositivo" para ${serial} será implementada aqui. Isso poderá gerar um link exclusivo.`);
+            const serial = e.currentTarget.getAttribute('data-serial');
+            alert('Detalhes do dispositivo: ' + serial);
         });
     });
-}
-
-/**
- * Envia um comando específico para um dispositivo.
- * @param {string} serial_number - O número de série do dispositivo alvo.
- * @param {string} command - O comando a ser enviado (ex: 'reboot', 'install_app', 'set_maintenance').
- * @param {object} [parameters={}] - Parâmetros adicionais para o comando.
- */
-async function sendDeviceCommand(serial_number, command, parameters = {}) {
-    try {
-        await request('/devices/executeCommand', 'POST', {
-            serial_number,
-            command,
-            ...parameters // Inclui parâmetros específicos do comando
-        });
-        alert(`Comando '${command}' enviado para o dispositivo ${serial_number} com sucesso!`);
-        loadDevicesTable(); // Recarrega a tabela após o comando
-    } catch (error) {
-        console.error(`Erro ao enviar comando '${command}' para ${serial_number}:`, error);
-        alert(`Erro ao enviar comando: ${error.message}`);
-    }
 }
 
 /**

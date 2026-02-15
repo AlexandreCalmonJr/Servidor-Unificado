@@ -12,34 +12,44 @@ const publicRoutes = (logger, getApiLimiter) => {
    * Rota pública para listar APKs disponíveis
    * Usada pelo aplicativo Android
    */
+
+  // Endpoint de Status Público (para teste de conexão)
+  router.get('/status', (req, res) => {
+    res.json({
+      success: true,
+      message: 'Unified Server Online',
+      version: process.env.npm_package_version || '1.0.0'
+    });
+  });
+
   router.get('/public/apks.json', getApiLimiter, async (req, res) => {
     try {
       const publicDir = path.join(__dirname, '..', 'public');
-      
-      logger.debug('Listando APKs na pasta public', { 
+
+      logger.debug('Listando APKs na pasta public', {
         path: publicDir,
         userAgent: req.get('User-Agent')
       });
-      
+
       // Verifica se a pasta existe
       try {
         await fs.access(publicDir);
       } catch (error) {
-        logger.error('Pasta public não encontrada', { 
-          path: publicDir, 
-          error: error.message 
+        logger.error('Pasta public não encontrada', {
+          path: publicDir,
+          error: error.message
         });
-        return res.status(500).json({ 
+        return res.status(500).json({
           error: 'Pasta public não encontrada',
-          path: publicDir 
+          path: publicDir
         });
       }
 
       // Lista arquivos na pasta
       const files = await fs.readdir(publicDir);
-      
+
       // Filtra apenas arquivos .apk
-      const apkFiles = files.filter(file => 
+      const apkFiles = files.filter(file =>
         file.toLowerCase().endsWith('.apk')
       );
 
@@ -53,9 +63,9 @@ const publicRoutes = (logger, getApiLimiter) => {
         apkFiles.map(async (file) => {
           const filePath = path.join(publicDir, file);
           const stats = await fs.stat(filePath);
-          
+
           const serverUrl = `http://${getLocalIPAddress()}:${process.env.PORT || 3000}`;
-          
+
           return {
             name: file,
             url: `${serverUrl}/public/${file}`,
@@ -67,19 +77,19 @@ const publicRoutes = (logger, getApiLimiter) => {
       );
 
       logger.info(`Retornando ${apks.length} APKs para ${req.ip}`);
-      
+
       res.status(200).json(apks);
 
     } catch (err) {
-      logger.error('Erro ao listar APKs', { 
+      logger.error('Erro ao listar APKs', {
         error: err.message,
         stack: err.stack,
         ip: req.ip
       });
-      
-      res.status(500).json({ 
-        error: 'Erro ao listar APKs', 
-        details: err.message 
+
+      res.status(500).json({
+        error: 'Erro ao listar APKs',
+        details: err.message
       });
     }
   });
