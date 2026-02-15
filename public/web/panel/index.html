@@ -31,7 +31,7 @@
                 </button>
                 <button class="nav-item" data-page="devices">
                     <span class="nav-icon">📱</span>
-                    <span class="nav-label">Dispositivos</span>
+                    <span class="nav-label">Dispositivos Móveis</span>
                 </button>
                 <button class="nav-item" data-page="totems">
                     <span class="nav-icon">🖥️</span>
@@ -239,12 +239,12 @@
                 <!-- ===== DEVICES ===== -->
                 <div class="page-section" id="page-devices">
                     <div class="section-header">
-                        <h2>Dispositivos</h2>
+                        <h2>Dispositivos Móveis</h2>
                     </div>
 
                     <div class="table-container">
                         <div class="table-header">
-                            <h3>Lista de Dispositivos</h3>
+                            <h3>Lista de Dispositivos Móveis</h3>
                             <div class="table-actions">
                                 <input type="text" class="search-input" id="device-search"
                                     placeholder="Buscar dispositivo...">
@@ -763,7 +763,8 @@
                     <div class="section-header">
                         <h2 id="dynamic-module-title">Módulo</h2>
                         <div style="display: flex; gap: 8px;">
-                            <input type="text" class="search-input" id="dynamic-search" placeholder="🔍 Buscar ativo...">
+                            <input type="text" class="search-input" id="dynamic-search"
+                                placeholder="🔍 Buscar ativo...">
                             <button class="btn btn-primary" id="dynamic-add-btn">+ Novo Ativo</button>
                         </div>
                     </div>
@@ -1254,6 +1255,19 @@
                     <label for="form-cmd-command">Comando</label>
                     <input type="text" id="form-cmd-command" placeholder="Ex: ipconfig /flushdns"
                         style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border-color);border-radius:var(--radius-md);color:var(--text-primary);font-family:var(--font-mono);font-size:0.85rem;">
+                </div>
+                <!-- Mobile specific params -->
+                <div id="cmd-mobile-group" style="display:none;">
+                    <div class="form-group">
+                        <label for="form-cmd-package">Nome do Pacote (Package Name)</label>
+                        <input type="text" id="form-cmd-package" placeholder="Ex: com.android.chrome"
+                            style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border-color);border-radius:var(--radius-md);color:var(--text-primary);font-family:var(--font-mono);font-size:0.85rem;">
+                    </div>
+                    <div class="form-group">
+                        <label for="form-cmd-apk-url">URL do APK (Opcional)</label>
+                        <input type="text" id="form-cmd-apk-url" placeholder="https://..."
+                            style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border-color);border-radius:var(--radius-md);color:var(--text-primary);font-family:var(--font-mono);font-size:0.85rem;">
+                    </div>
                 </div>
                 <div style="display:flex;gap:16px;align-items:center;">
                     <div class="form-group" style="flex:1;">

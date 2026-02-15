@@ -98,6 +98,7 @@ app.use(helmet({
             defaultSrc: ["'self'"],
             connectSrc: ["'self'", "http:", "https:", "ws:", "wss:"], // Permite todas as conexões
             scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https:"],
+            scriptSrcAttr: ["'unsafe-inline'"], // Fix for inline event handlers
             styleSrc: ["'self'", "'unsafe-inline'", "https:"],
             fontSrc: ["'self'", "data:", "https:"],
             imgSrc: ["'self'", "data:", "https:", "http:", "blob:"],
@@ -276,7 +277,11 @@ app.use('/api/bssid-mappings', bssidRoutes(logger, getApiLimiter, modifyApiLimit
 app.use('/api', assetCommandRoutes(logger, modifyApiLimiter, auth, deviceAuth));
 
 // Rota para módulos/assets
+// Rota para módulos/assets
 app.use('/api/modules', moduleRoutes(logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth));
+
+// Rota de Diagnóstico
+app.use('/api/diagnostic', diagnosticRoutes(logger, getApiLimiter, auth));
 
 app.use('/api/monitoring', monitoringRoutes(logger, modifyApiLimiter, auth));
 app.use('/api/server', serverRoutes(logger, getApiLimiter, auth));

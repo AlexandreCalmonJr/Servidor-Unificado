@@ -604,14 +604,25 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
     });
   }));
 
-  // [R] READ (Single): Obter um dispositivo específico
-  router.get('/:serial_number', flexibleAuth, getApiLimiter, asyncHandler(async (req, res) => {
-    const { serial_number } = req.params;
-    const device = await Device.findOne({ serial_number }).lean();
-    if (!device) {
-      throw new NotFoundError(`Dispositivo não encontrado: ${serial_number}`);
+  // [R] READ (Single): Obter um dispositivo específico (aceita _id OU serial_number)
+  router.get('/:identifier', flexibleAuth, getApiLimiter, asyncHandler(async (req, res) => {
+    const { identifier } = req.params;
+    let device;
+
+    // Tenta buscar por _id se parecer um ObjectId válido (24 hex chars)
+    if (/^[0-9a-fA-F]{24}$/.test(identifier)) {
+      device = await Device.findById(identifier).lean();
     }
-    res.status(200).json(device);
+
+    // Se não encontrou por _id, tenta por serial_number
+    if (!device) {
+      device = await Device.findOne({ serial_number: identifier }).lean();
+    }
+
+    if (!device) {
+      throw new NotFoundError(`Dispositivo não encontrado: ${identifier}`);
+    }
+    res.status(200).json({ success: true, device });
   }));
 
   // Histórico de localização

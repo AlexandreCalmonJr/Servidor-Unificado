@@ -4,11 +4,12 @@
     let allDevices = [];
 
     function loadDevices() {
-        fetchDevices();
+        setupDeviceEditModal();
+        setupDeviceDetailModal();
         setupSearch();
         setupFilter();
-        setupDeviceEditModal();
-        setupDeviceDetailModal(); // Wire up the Detail modal buttons
+        setupActionDelegation();
+        fetchDevices();
     }
 
     async function fetchDevices() {
@@ -39,7 +40,7 @@
         }
 
         if (devices.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><div class="empty-icon">📱</div><p>Nenhum dispositivo encontrado.</p></td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><div class="empty-icon">📱</div><p>Nenhum dispositivo móvel encontrado.</p></td></tr>';
             return;
         }
 
@@ -53,9 +54,9 @@
         <td>${esc(d.sector || d.location || 'N/A')}</td>
         <td>${statusBadge(d.provisioning_status || d.status)}</td>
         <td>
-          <button class="btn btn-ghost btn-sm" onclick="DeviceDetail.show('${esc(d._id || d.id || d.serial_number)}')" title="Detalhes">👁</button>
-          <button class="btn btn-ghost btn-sm" onclick="DeviceManager.edit('${esc(d.serial_number || d.serialNumber)}')" title="Editar">✏️</button>
-          <button class="btn btn-danger btn-sm" onclick="DeviceManager.remove('${esc(d.serial_number || d.serialNumber)}')" title="Excluir">🗑</button>
+          <button class="btn btn-ghost btn-sm" data-action="view" data-id="${esc(d._id || d.id || d.serial_number)}" title="Detalhes">👁</button>
+          <button class="btn btn-ghost btn-sm" data-action="edit" data-serial="${esc(d.serial_number || d.serialNumber)}" title="Editar">✏️</button>
+          <button class="btn btn-danger btn-sm" data-action="delete" data-serial="${esc(d.serial_number || d.serialNumber)}" title="Excluir">🗑</button>
         </td>
       </tr>
     `).join('');
@@ -92,6 +93,21 @@
         renderDevices(filtered);
     }
 
+    // ===== ACTION DELEGATION (CSP-safe) =====
+    function setupActionDelegation() {
+        const tbody = document.getElementById('devices-table-body');
+        if (!tbody || tbody.dataset.delegated) return;
+        tbody.dataset.delegated = 'true';
+        tbody.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            const action = btn.dataset.action;
+            if (action === 'view') DeviceDetail.show(btn.dataset.id);
+            else if (action === 'edit') openDeviceEditModal(btn.dataset.serial);
+            else if (action === 'delete') removeDevice(btn.dataset.serial);
+        });
+    }
+
     // ===== EDIT MODAL =====
     function setupDeviceEditModal() {
         const modal = document.getElementById('device-edit-modal');
@@ -110,13 +126,20 @@
         const modal = document.getElementById('device-modal');
         if (!modal) return;
 
+        // Close buttons (x and Fechar)
+        const closeBtn = document.getElementById('device-modal-close');
+        const closeBtnFooter = document.getElementById('device-modal-close-btn');
+        [closeBtn, closeBtnFooter].forEach(b => {
+            if (b) b.addEventListener('click', () => modal.classList.remove('active'));
+        });
+
+        // Close on overlay click
+        modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
+
         // The "Edit" button inside the Detail modal
         const editBtn = document.getElementById('device-modal-edit-btn');
         if (editBtn) {
             editBtn.addEventListener('click', () => {
-                // Determine current serial from the detail view or store it somewhere
-                // For now, let's rely on the global variable or attribute if possible.
-                // Better approach: DeviceDetail.currentSerial
                 if (DeviceDetail.currentSerial) {
                     modal.classList.remove('active');
                     openDeviceEditModal(DeviceDetail.currentSerial);
@@ -192,7 +215,7 @@
     }
 
     async function removeDevice(serial) {
-        if (!await confirmAction(`Tem certeza que deseja remover o dispositivo ${serial}?`, { danger: true, okText: 'Remover' })) return;
+        if (!await confirmAction(`Tem certeza que deseja remover o dispositivo móvel ${serial}?`, { danger: true, okText: 'Remover' })) return;
         try {
             await API.delete(`/devices/${serial}`);
             showToast('Dispositivo removido com sucesso', 'success');
@@ -242,7 +265,7 @@ const DeviceDetail = (() => {
                 // Render Details
                 const d = deviceData.device || deviceData;
                 const title = document.getElementById('device-modal-title');
-                if (title) title.textContent = d.device_name || d.name || 'Dispositivo';
+                if (title) title.textContent = d.device_name || d.name || 'Dispositivo Móvel';
                 currentSerial = d.serial_number || d.serialNumber;
                 grid.innerHTML = buildDetailGrid(d);
 

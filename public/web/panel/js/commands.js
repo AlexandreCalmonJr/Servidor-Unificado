@@ -22,6 +22,12 @@
         { value: 'check_disk', label: 'Check Disk', icon: '💾', desc: 'Verificar disco' },
         { value: 'network_reset', label: 'Reset Rede', icon: '📡', desc: 'Resetar configuração de rede' },
         { value: 'custom_script', label: 'Script Customizado', icon: '📝', desc: 'Script personalizado' },
+        // Mobile / Totem Commands
+        { value: 'reboot_device', label: 'Reiniciar (Mobile)', icon: '📱', desc: 'Reiniciar dispositivo Android' },
+        { value: 'install_apk', label: 'Instalar APK', icon: '📥', desc: 'Instalar aplicativo via URL' },
+        { value: 'lock_device', label: 'Bloquear Tela', icon: '🔒', desc: 'Bloquear dispositivo remotamente' },
+        { value: 'send_message', label: 'Enviar Mensagem', icon: '💬', desc: 'Enviar notificação push' },
+        { value: 'wipe_data', label: 'Wipe (Reset)', icon: '⚠️', desc: 'Apagar todos os dados' },
     ];
 
     function loadCommands() {
@@ -177,14 +183,26 @@
             });
         }
 
-        // Show/hide custom command field
+        // Show/hide fields based on command type
         if (typeSelect) {
             typeSelect.addEventListener('change', (e) => {
+                const val = e.target.value;
                 const customGroup = document.getElementById('cmd-custom-group');
-                const isCustom = ['cmd_custom', 'powershell_custom', 'custom_script'].includes(e.target.value);
-                if (customGroup) customGroup.style.display = isCustom ? 'block' : 'none';
+                const mobileGroup = document.getElementById('cmd-mobile-group');
 
-                // Auto-fill command for predefined types
+                // Logic for Custom Command Group (Command text / Message)
+                const isCustom = ['cmd_custom', 'powershell_custom', 'custom_script', 'send_message'].includes(val);
+                if (customGroup) {
+                    customGroup.style.display = isCustom ? 'block' : 'none';
+                    const label = customGroup.querySelector('label');
+                    if (label) label.textContent = val === 'send_message' ? 'Mensagem' : 'Comando';
+                }
+
+                // Logic for Mobile Params Group (Package, APK URL)
+                const isMobileParams = ['install_apk'].includes(val);
+                if (mobileGroup) mobileGroup.style.display = isMobileParams ? 'block' : 'none';
+
+                // Auto-fill command for predefined types (Desktop)
                 const cmdInput = document.getElementById('form-cmd-command');
                 if (!isCustom && cmdInput) {
                     const presets = {
@@ -197,7 +215,11 @@
                         'restart_automatos': 'taskkill /f /im automatos.exe && start automatos.exe',
                         'restart_ndd': 'taskkill /f /im ndd.exe && start ndd.exe',
                     };
-                    cmdInput.value = presets[e.target.value] || e.target.value;
+                    cmdInput.value = presets[val] || '';
+                } else if (isCustom && cmdInput) {
+                    // Clear if switching to custom/message
+                    if (val === 'send_message') cmdInput.placeholder = 'Digite a mensagem para o usuário...';
+                    else cmdInput.placeholder = 'Ex: ipconfig /flushdns';
                 }
             });
         }
@@ -220,12 +242,24 @@
         const requiresElevation = document.getElementById('form-cmd-elevation')?.checked || false;
         const timeout = parseInt(document.getElementById('form-cmd-timeout')?.value) || 60000;
 
+        const packageName = document.getElementById('form-cmd-package')?.value.trim();
+        const apkUrl = document.getElementById('form-cmd-apk-url')?.value.trim();
+
         if (!commandType) {
             showToast('Selecione o tipo de comando.', 'warning');
             return;
         }
-        if (!command) {
-            showToast('O comando não pode estar vazio.', 'warning');
+
+        // Validation for complex commands
+        if (commandType === 'install_apk' && !packageName && !apkUrl) {
+            showToast('Para instalar APK, informe URL ou Nome do Pacote.', 'warning');
+            return;
+        }
+
+        // Command text validation (only if visible/required)
+        const isCustom = ['cmd_custom', 'powershell_custom', 'custom_script', 'send_message'].includes(commandType);
+        if (isCustom && !command) {
+            showToast('O campo de comando/mensagem não pode estar vazio.', 'warning');
             return;
         }
 
@@ -234,6 +268,8 @@
             command,
             requiresElevation,
             timeout,
+            packageName,
+            apkUrl
         };
 
         try {
