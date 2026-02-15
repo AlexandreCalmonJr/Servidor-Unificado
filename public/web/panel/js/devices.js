@@ -1,7 +1,5 @@
 // MDM Dashboard — Devices Page
 
-// MDM Dashboard — Devices Page
-
 (() => {
     let allDevices = [];
 
@@ -194,7 +192,7 @@
     }
 
     async function removeDevice(serial) {
-        if (!confirm(`Tem certeza que deseja remover o dispositivo ${serial}?`)) return;
+        if (!await confirmAction(`Tem certeza que deseja remover o dispositivo ${serial}?`, { danger: true, okText: 'Remover' })) return;
         try {
             await API.delete(`/devices/${serial}`);
             showToast('Dispositivo removido com sucesso', 'success');

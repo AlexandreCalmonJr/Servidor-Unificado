@@ -326,7 +326,7 @@
         },
 
         removeUnit: async (name) => {
-            if (!confirm(`Excluir a unidade "${name}"?`)) return;
+            if (!await confirmAction(`Excluir a unidade "${name}"?`, { danger: true, okText: 'Excluir' })) return;
             try {
                 await API.delete(`/units/${encodeURIComponent(name)}`);
                 showToast(`Unidade "${name}" excluída.`, 'success');
@@ -337,7 +337,7 @@
         },
 
         removeBssid: async (mac) => {
-            if (!confirm(`Excluir BSSID "${mac}"?`)) return;
+            if (!await confirmAction(`Excluir BSSID "${mac}"?`, { danger: true, okText: 'Excluir' })) return;
             try {
                 await API.delete(`/bssid-mappings/${encodeURIComponent(mac)}`);
                 showToast('BSSID excluído.', 'success');
@@ -348,7 +348,7 @@
         },
 
         removeIp: async (id) => {
-            if (!confirm('Excluir este mapeamento de IP?')) return;
+            if (!await confirmAction('Excluir este mapeamento de IP?', { danger: true, okText: 'Excluir' })) return;
             try {
                 await API.delete(`/monitoring/ip-mappings/${id}`);
                 showToast('Mapeamento excluído.', 'success');

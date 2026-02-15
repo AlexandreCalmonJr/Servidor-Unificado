@@ -1,0 +1,540 @@
+<!-- ===== DYNAMIC ASSET MODAL ===== -->
+<div class="modal-overlay" id="dynamic-asset-modal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3 id="dynamic-asset-modal-title">Novo Ativo</h3>
+            <button class="modal-close" id="dynamic-asset-modal-close">×</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="dynamic-asset-id">
+            <div class="form-group">
+                <label for="dynamic-asset-name">Nome do Ativo</label>
+                <input type="text" id="dynamic-asset-name" required placeholder="ex: Desktop-RH-01">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="dynamic-asset-identifier">Serial / Identificador</label>
+                    <input type="text" id="dynamic-asset-identifier" placeholder="SN12345">
+                </div>
+                <div class="form-group">
+                    <label for="dynamic-asset-ip">Endereço IP</label>
+                    <input type="text" id="dynamic-asset-ip" placeholder="10.0.0.50">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="dynamic-asset-location">Localização</label>
+                    <input type="text" id="dynamic-asset-location" placeholder="Sala 301">
+                </div>
+                <div class="form-group">
+                    <label for="dynamic-asset-status">Status</label>
+                    <select id="dynamic-asset-status">
+                        <option value="active">Ativo</option>
+                        <option value="inactive">Inativo</option>
+                        <option value="maintenance">Manutenção</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="dynamic-asset-notes">Observações</label>
+                <textarea id="dynamic-asset-notes" rows="3" placeholder="Informações adicionais..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="dynamic-asset-modal-cancel">Cancelar</button>
+            <button class="btn btn-primary" id="dynamic-asset-modal-save">💾 Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== USER MODAL ===== -->
+<div class="modal-overlay" id="user-modal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3 id="user-modal-title">Novo Usuário</h3>
+            <button class="modal-close" id="user-modal-close">×</button>
+        </div>
+        <div class="modal-body">
+            <form id="user-form">
+                <input type="hidden" id="edit-user-id">
+                <div class="form-group">
+                    <label for="form-username">Usuário</label>
+                    <input type="text" id="form-username" required placeholder="ex: joao.silva">
+                </div>
+                <div class="form-group">
+                    <label for="form-email">Email</label>
+                    <input type="email" id="form-email" required placeholder="joao@empresa.com">
+                </div>
+                <div class="form-group">
+                    <label for="form-password">Senha</label>
+                    <input type="password" id="form-password" placeholder="Mínimo 6 caracteres">
+                </div>
+                <div class="form-group">
+                    <label for="form-role">Permissão</label>
+                    <select id="form-role" required>
+                        <option value="user">Usuário</option>
+                        <option value="admin">Administrador</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="form-sector">Setor</label>
+                    <input type="text" id="form-sector" placeholder="Ex: Engenharia, Produção">
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="user-modal-cancel">Cancelar</button>
+            <button class="btn btn-primary" id="user-modal-save">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== DEVICE DETAIL MODAL ===== -->
+<div class="modal-overlay" id="device-modal">
+    <div class="modal-box" style="max-width: 640px;">
+        <div class="modal-header">
+            <h3 id="device-modal-title">Detalhes do Dispositivo</h3>
+            <button class="modal-close" id="device-modal-close">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="detail-grid" id="device-detail-grid">
+                <!-- Filled by JS -->
+            </div>
+
+            <div class="history-section"
+                style="margin-top: 24px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                <h4 style="margin-bottom: 12px; font-size: 0.95rem; color: var(--text-primary);">Histórico de
+                    Localização</h4>
+                <div class="table-container" style="max-height: 200px; overflow-y: auto;">
+                    <table class="data-table" style="font-size: 0.85rem;">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>BSSID</th>
+                                <th>Setor</th>
+                                <th>Andar</th>
+                            </tr>
+                        </thead>
+                        <tbody id="device-history-body">
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">Carregando...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="device-modal-close-btn">Fechar</button>
+            <button class="btn btn-primary" id="device-modal-edit-btn">Editar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== DEVICE EDIT MODAL ===== -->
+<div class="modal-overlay" id="device-edit-modal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3>Editar Dispositivo</h3>
+            <button class="modal-close" id="device-edit-modal-close">×</button>
+        </div>
+        <div class="modal-body">
+            <form id="device-edit-form">
+                <input type="hidden" id="edit-device-serial">
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Nome</label>
+                        <input type="text" id="form-device-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Serial</label>
+                        <input type="text" id="form-device-serial" readonly
+                            style="background:var(--bg-secondary);cursor:not-allowed;">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Unidade</label>
+                    <input type="text" id="form-device-unit">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Setor</label>
+                        <input type="text" id="form-device-sector">
+                    </div>
+                    <div class="form-group">
+                        <label>Andar</label>
+                        <input type="text" id="form-device-floor">
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="device-edit-modal-cancel">Cancelar</button>
+            <button class="btn btn-primary" id="device-edit-modal-save">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODULE MODAL ===== -->
+<div class="modal-overlay" id="module-modal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3 id="module-modal-title">Novo Módulo</h3>
+            <button class="modal-close" id="module-modal-close">×</button>
+        </div>
+        <div class="modal-body">
+            <form id="module-form">
+                <input type="hidden" id="edit-module-id">
+                <div class="form-group">
+                    <label for="form-module-name">Nome do Módulo</label>
+                    <input type="text" id="form-module-name" required placeholder="Ex: Notebooks TI">
+                </div>
+                <div class="form-group">
+                    <label for="form-module-type">Tipo</label>
+                    <select id="form-module-type" required>
+                        <option value="" disabled selected>Selecione o tipo...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="form-module-desc">Descrição</label>
+                    <textarea id="form-module-desc" rows="3" placeholder="Descrição opcional..."></textarea>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="module-modal-cancel">Cancelar</button>
+            <button class="btn btn-primary" id="module-modal-save">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== TOTEM MODAL ===== -->
+<div class="modal-overlay" id="totem-modal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3 id="totem-modal-title">Editar Totem</h3>
+            <button class="modal-close" id="totem-modal-close">×</button>
+        </div>
+        <div class="modal-body">
+            <form id="totem-form">
+                <input type="hidden" id="edit-totem-serial">
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Hostname</label>
+                        <input type="text" id="form-totem-hostname" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Serial</label>
+                        <input type="text" id="form-totem-serial" readonly
+                            style="background:var(--bg-secondary);cursor:not-allowed;">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>IP</label>
+                    <input type="text" id="form-totem-ip" readonly
+                        style="background:var(--bg-secondary);cursor:not-allowed;">
+                </div>
+
+                <div class="form-group">
+                    <label>Notas / Observações</label>
+                    <textarea id="form-totem-notes" rows="3" placeholder="Anotações administrativas..."></textarea>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="totem-modal-cancel">Cancelar</button>
+            <button class="btn btn-primary" id="totem-modal-save">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== UNIT MODAL ===== -->
+<div class="modal-overlay" id="unit-modal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3 id="unit-modal-title">Nova Unidade</h3>
+            <button class="modal-close" id="unit-modal-close">×</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="edit-unit-name">
+            <div class="form-group">
+                <label for="form-unit-name">Nome da Unidade</label>
+                <input type="text" id="form-unit-name" required placeholder="Ex: Filial São Paulo">
+            </div>
+            <div class="form-group">
+                <label>Faixas de IP</label>
+                <div id="ip-ranges-container">
+                    <div class="ip-range-row">
+                        <input type="text" class="range-start" placeholder="IP Inicial (ex: 192.168.1.1)">
+                        <span style="color: var(--text-muted);">—</span>
+                        <input type="text" class="range-end" placeholder="IP Final (ex: 192.168.1.254)">
+                    </div>
+                </div>
+                <button type="button" class="btn btn-ghost btn-sm" id="add-ip-range-btn" style="margin-top: 8px;">+
+                    Adicionar Faixa</button>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="unit-modal-cancel">Cancelar</button>
+            <button class="btn btn-primary" id="unit-modal-save">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== BSSID MODAL ===== -->
+<div class="modal-overlay" id="bssid-modal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3>Novo Mapeamento BSSID</h3>
+            <button class="modal-close" id="bssid-modal-close">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label for="form-bssid-mac">MAC Address</label>
+                <input type="text" id="form-bssid-mac" required placeholder="AA:BB:CC:DD:EE:FF">
+            </div>
+            <div class="form-group">
+                <label for="form-bssid-sector">Setor</label>
+                <input type="text" id="form-bssid-sector" required placeholder="Ex: Recepção">
+            </div>
+            <div class="form-group">
+                <label for="form-bssid-floor">Andar</label>
+                <input type="text" id="form-bssid-floor" required placeholder="Ex: 2º Andar">
+            </div>
+            <div class="form-group">
+                <label for="form-bssid-unit">Unidade (opcional)</label>
+                <select id="form-bssid-unit">
+                    <option value="">Sem unidade</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="bssid-modal-cancel">Cancelar</button>
+            <button class="btn btn-primary" id="bssid-modal-save">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== IP MODAL ===== -->
+<div class="modal-overlay" id="ip-modal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3>Novo Mapeamento IP</h3>
+            <button class="modal-close" id="ip-modal-close">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label for="form-ip-location">Localização</label>
+                <input type="text" id="form-ip-location" required placeholder="Ex: Prédio A">
+            </div>
+            <div class="form-group">
+                <label for="form-ip-start">IP Inicial</label>
+                <input type="text" id="form-ip-start" required placeholder="10.0.0.1">
+            </div>
+            <div class="form-group">
+                <label for="form-ip-end">IP Final</label>
+                <input type="text" id="form-ip-end" required placeholder="10.0.0.254">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="ip-modal-cancel">Cancelar</button>
+            <button class="btn btn-primary" id="ip-modal-save">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== PROVISION MODAL ===== -->
+<div class="modal-overlay" id="provision-modal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3>Gerar Token de Provisionamento</h3>
+            <button class="modal-close" id="provision-modal-close">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label for="form-provision-org">Organização</label>
+                <input type="text" id="form-provision-org" required placeholder="Ex: Empresa ABC">
+            </div>
+            <div class="form-group">
+                <label for="form-provision-profile">Perfil de Configuração</label>
+                <select id="form-provision-profile" required class="filter-select" style="width: 100%;">
+                    <option value="" disabled selected>Selecione um perfil...</option>
+                </select>
+            </div>
+            <div style="display:flex;gap:16px;">
+                <div class="form-group" style="flex:1;">
+                    <label for="form-provision-uses">Usos Máximos</label>
+                    <input type="number" id="form-provision-uses" value="1" min="1" max="100">
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label for="form-provision-hours">Expiração (horas)</label>
+                    <input type="number" id="form-provision-hours" value="24" min="1" max="720">
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="provision-modal-cancel">Cancelar</button>
+            <button class="btn btn-primary" id="provision-modal-save">🔑 Gerar Token</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== PROFILE MODAL ===== -->
+<div class="modal-overlay" id="profile-modal">
+    <div class="modal-box" style="max-width: 600px;">
+        <div class="modal-header">
+            <h3 id="profile-modal-title">Novo Perfil</h3>
+            <button class="modal-close" id="profile-modal-close">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label for="form-profile-name">Nome do Perfil</label>
+                <input type="text" id="form-profile-name" required placeholder="Ex: Quiosque Padrão">
+            </div>
+            <div class="form-group">
+                <label for="form-profile-desc">Descrição</label>
+                <input type="text" id="form-profile-desc" placeholder="Descrição opcional">
+            </div>
+            <div style="margin-bottom:16px;">
+                <label style="font-weight:600;margin-bottom:8px;display:block;">Restrições</label>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox"
+                            id="form-profile-camera"> Desativar Câmera</label>
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox"
+                            id="form-profile-bluetooth"> Desativar Bluetooth</label>
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox"
+                            id="form-profile-usb"> Desativar USB</label>
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox"
+                            id="form-profile-dev" checked> Desativar Dev Options</label>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="form-profile-wifi">WiFi Configs</label>
+                <textarea id="form-profile-wifi" rows="3" placeholder="SSID|senha|WPA2 (um por linha)"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="form-profile-whitelist">App Whitelist</label>
+                <textarea id="form-profile-whitelist" rows="2" placeholder="com.app.name (um por linha)"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="form-profile-blacklist">App Blacklist</label>
+                <textarea id="form-profile-blacklist" rows="2" placeholder="com.app.name (um por linha)"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="profile-modal-cancel">Cancelar</button>
+            <button class="btn btn-primary" id="profile-modal-save">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== COMMAND MODAL ===== -->
+<div class="modal-overlay" id="command-modal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3>Enviar Comando</h3>
+            <button class="modal-close" id="command-modal-close">×</button>
+        </div>
+        <div class="modal-body">
+            <div style="padding: 8px 0 16px; color: var(--text-muted); font-size: 0.85rem;">
+                Alvo: <strong id="cmd-target-label" style="color: var(--accent);">--</strong>
+            </div>
+            <div class="form-group">
+                <label for="form-cmd-type">Tipo de Comando</label>
+                <select id="form-cmd-type" required class="filter-select" style="width: 100%;">
+                    <option value="" disabled selected>Selecione...</option>
+                </select>
+            </div>
+            <div class="form-group" id="cmd-custom-group">
+                <label for="form-cmd-command">Comando</label>
+                <input type="text" id="form-cmd-command" placeholder="Ex: ipconfig /flushdns"
+                    style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border-color);border-radius:var(--radius-md);color:var(--text-primary);font-family:var(--font-mono);font-size:0.85rem;">
+            </div>
+            <div style="display:flex;gap:16px;align-items:center;">
+                <div class="form-group" style="flex:1;">
+                    <label for="form-cmd-timeout">Timeout (ms)</label>
+                    <input type="number" id="form-cmd-timeout" value="60000" min="5000" max="300000"
+                        style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border-color);border-radius:var(--radius-md);color:var(--text-primary);font-family:var(--font-mono);font-size:0.85rem;">
+                </div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:20px;">
+                        <input type="checkbox" id="form-cmd-elevation">
+                        <span>Elevação (Admin)</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="command-modal-cancel">Cancelar</button>
+            <button class="btn btn-primary" id="command-modal-save">⚡ Enviar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== RESULT MODAL ===== -->
+<div class="modal-overlay" id="result-modal">
+    <div class="modal-box" style="max-width: 700px;">
+        <div class="modal-header">
+            <h3>Resultado do Comando</h3>
+            <button class="modal-close" id="result-modal-close">×</button>
+        </div>
+        <div class="modal-body" id="result-content">
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="result-modal-close-btn">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== CHANGE PASSWORD MODAL ===== -->
+<div class="modal-overlay" id="password-modal">
+    <div class="modal-box" style="max-width: 420px;">
+        <div class="modal-header">
+            <h3>🔒 Alterar Senha</h3>
+            <button class="modal-close" id="password-modal-close">×</button>
+        </div>
+        <div class="modal-body">
+            <form id="password-form">
+                <div class="form-group">
+                    <label for="form-current-password">Senha Atual</label>
+                    <input type="password" id="form-current-password" required placeholder="Sua senha atual">
+                </div>
+                <div class="form-group">
+                    <label for="form-new-password">Nova Senha</label>
+                    <input type="password" id="form-new-password" required placeholder="Mínimo 6 caracteres"
+                        minlength="6">
+                </div>
+                <div class="form-group">
+                    <label for="form-confirm-password">Confirmar Nova Senha</label>
+                    <input type="password" id="form-confirm-password" required placeholder="Repita a nova senha">
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="password-modal-cancel">Cancelar</button>
+            <button class="btn btn-primary" id="password-modal-save">🔑 Alterar Senha</button>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Action Modal -->
+<div class="modal" id="confirm-modal">
+    <div class="modal-content" style="max-width:420px;">
+        <div class="modal-header">
+            <h2>⚠️ Confirmação</h2>
+            <button class="modal-close" id="confirm-modal-close">&times;</button>
+        </div>
+        <div class="modal-body" style="padding:20px;">
+            <p id="confirm-modal-message" style="font-size:14px;line-height:1.6;color:var(--text-secondary);"></p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="confirm-modal-cancel">Cancelar</button>
+            <button class="btn btn-danger" id="confirm-modal-ok">Confirmar</button>
+        </div>
+    </div>
+</div>

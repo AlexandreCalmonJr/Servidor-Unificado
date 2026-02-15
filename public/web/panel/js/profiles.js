@@ -163,7 +163,7 @@
     }
 
     async function remove(id) {
-        if (!confirm('Remover este perfil?')) return;
+        if (!await confirmAction('Remover este perfil?', { danger: true, okText: 'Remover' })) return;
         try {
             await API.delete(`/config-profiles/${id}`);
             showToast('Perfil removido.', 'success');

@@ -1,0 +1,35 @@
+<!-- ===== DYNAMIC MODULE PAGE ===== -->
+<div class="page-section" id="page-dynamic-module">
+    <div class="section-header">
+        <h2 id="dynamic-module-title">Módulo</h2>
+        <div style="display: flex; gap: 8px;">
+            <input type="text" class="search-input" id="dynamic-search" placeholder="🔍 Buscar ativo...">
+            <button class="btn btn-primary" id="dynamic-add-btn">+ Novo Ativo</button>
+        </div>
+    </div>
+    <div class="table-container">
+        <div style="overflow-x: auto;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Serial/ID</th>
+                        <th>IP</th>
+                        <th>Localização</th>
+                        <th>Status</th>
+                        <th>Última Conexão</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="dynamic-table-body">
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <div class="empty-icon">📦</div>
+                            <p>Selecione um módulo na barra lateral.</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

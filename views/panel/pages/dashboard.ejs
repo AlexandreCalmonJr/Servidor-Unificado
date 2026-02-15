@@ -1,0 +1,117 @@
+<!-- ===== DASHBOARD ===== -->
+<div class="page-section active" id="page-dashboard">
+    <div class="section-header">
+        <h2>Visão Geral</h2>
+        <button class="btn btn-ghost btn-sm" id="refresh-metrics-btn">↻ Atualizar</button>
+    </div>
+
+    <div class="metrics-grid stagger-enter" id="metrics-grid">
+        <div class="metric-card orange">
+            <div class="metric-header">
+                <span class="metric-label">Dispositivos</span>
+                <span class="metric-icon">📱</span>
+            </div>
+            <div class="metric-value" id="m-devices">
+                <div class="skeleton skeleton-value"></div>
+            </div>
+            <div class="metric-sub" id="m-devices-sub">carregando...</div>
+        </div>
+        <div class="metric-card green">
+            <div class="metric-header">
+                <span class="metric-label">Provisionados</span>
+                <span class="metric-icon">✓</span>
+            </div>
+            <div class="metric-value" id="m-provisioned">
+                <div class="skeleton skeleton-value"></div>
+            </div>
+            <div class="metric-sub" id="m-provisioned-sub">carregando...</div>
+        </div>
+        <div class="metric-card yellow">
+            <div class="metric-header">
+                <span class="metric-label">Comandos Pendentes</span>
+                <span class="metric-icon">⏳</span>
+            </div>
+            <div class="metric-value" id="m-commands">
+                <div class="skeleton skeleton-value"></div>
+            </div>
+            <div class="metric-sub">na fila</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-header">
+                <span class="metric-label">CPU</span>
+                <span class="metric-icon">⚡</span>
+            </div>
+            <div class="metric-value" id="m-cpu">
+                <div class="skeleton skeleton-value"></div>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="m-cpu-bar" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-header">
+                <span class="metric-label">Memória</span>
+                <span class="metric-icon">🧠</span>
+            </div>
+            <div class="metric-value" id="m-memory">
+                <div class="skeleton skeleton-value"></div>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="m-memory-bar" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+        <div class="metric-card blue">
+            <div class="metric-header">
+                <span class="metric-label">Uptime</span>
+                <span class="metric-icon">⏱</span>
+            </div>
+            <div class="metric-value" id="m-uptime">
+                <div class="skeleton skeleton-value"></div>
+            </div>
+            <div class="metric-sub" id="m-uptime-sub">servidor</div>
+        </div>
+    </div>
+
+    <!-- Recent Devices Table -->
+    <div class="table-container">
+        <div class="table-header">
+            <h3>Dispositivos Recentes</h3>
+        </div>
+        <div style="overflow-x: auto;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Serial</th>
+                        <th>Última Conexão</th>
+                        <th>Setor</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="recent-devices-body">
+                    <tr>
+                        <td colspan="5" class="empty-state">
+                            <p>Carregando...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- CHARTS ROW -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+        <div class="table-container" style="padding:20px;">
+            <h3 style="margin-bottom:12px;">Distribuição de Status</h3>
+            <div style="position:relative;height:240px;"><canvas id="chart-status"></canvas></div>
+        </div>
+        <div class="table-container" style="padding:20px;">
+            <h3 style="margin-bottom:12px;">Recursos do Servidor</h3>
+            <div style="position:relative;height:240px;"><canvas id="chart-resources"></canvas></div>
+        </div>
+    </div>
+</div>

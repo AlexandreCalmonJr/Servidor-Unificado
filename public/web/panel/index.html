@@ -75,6 +75,8 @@
                     <span class="nav-icon">📋</span>
                     <span class="nav-label">Relatórios</span>
                 </button>
+                <div class="nav-section-label">Módulos</div>
+                <div id="sidebar-dynamic-modules"></div>
             </nav>
 
             <div class="sidebar-footer">
@@ -756,6 +758,91 @@
                     </div>
                 </div>
 
+                <!-- ===== DYNAMIC MODULE PAGE ===== -->
+                <div class="page-section" id="page-dynamic-module">
+                    <div class="section-header">
+                        <h2 id="dynamic-module-title">Módulo</h2>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" class="search-input" id="dynamic-search" placeholder="🔍 Buscar ativo...">
+                            <button class="btn btn-primary" id="dynamic-add-btn">+ Novo Ativo</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <div style="overflow-x: auto;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>Serial/ID</th>
+                                        <th>IP</th>
+                                        <th>Localização</th>
+                                        <th>Status</th>
+                                        <th>Última Conexão</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dynamic-table-body">
+                                    <tr>
+                                        <td colspan="7" class="empty-state">
+                                            <div class="empty-icon">📦</div>
+                                            <p>Selecione um módulo na barra lateral.</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== DYNAMIC ASSET MODAL ===== -->
+    <div class="modal-overlay" id="dynamic-asset-modal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3 id="dynamic-asset-modal-title">Novo Ativo</h3>
+                <button class="modal-close" id="dynamic-asset-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="dynamic-asset-id">
+                <div class="form-group">
+                    <label for="dynamic-asset-name">Nome do Ativo</label>
+                    <input type="text" id="dynamic-asset-name" required placeholder="ex: Desktop-RH-01">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="dynamic-asset-identifier">Serial / Identificador</label>
+                        <input type="text" id="dynamic-asset-identifier" placeholder="SN12345">
+                    </div>
+                    <div class="form-group">
+                        <label for="dynamic-asset-ip">Endereço IP</label>
+                        <input type="text" id="dynamic-asset-ip" placeholder="10.0.0.50">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="dynamic-asset-location">Localização</label>
+                        <input type="text" id="dynamic-asset-location" placeholder="Sala 301">
+                    </div>
+                    <div class="form-group">
+                        <label for="dynamic-asset-status">Status</label>
+                        <select id="dynamic-asset-status">
+                            <option value="active">Ativo</option>
+                            <option value="inactive">Inativo</option>
+                            <option value="maintenance">Manutenção</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="dynamic-asset-notes">Observações</label>
+                    <textarea id="dynamic-asset-notes" rows="3" placeholder="Informações adicionais..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="dynamic-asset-modal-cancel">Cancelar</button>
+                <button class="btn btn-primary" id="dynamic-asset-modal-save">💾 Salvar</button>
             </div>
         </div>
     </div>
@@ -1222,6 +1309,7 @@
     <script src="js/users.js"></script>
     <script src="js/server.js"></script>
     <script src="js/reports.js"></script>
+    <script src="js/dynamic-assets.js"></script>
 </body>
 
 </html>

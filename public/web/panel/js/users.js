@@ -164,7 +164,7 @@
             if (user) openModal(user);
         },
         remove: async (id, username) => {
-            if (!confirm(`Tem certeza que deseja excluir o usuário "${username}"?`)) return;
+            if (!await confirmAction(`Tem certeza que deseja excluir o usuário "${username}"?`, { danger: true, okText: 'Excluir' })) return;
             try {
                 await API.delete(`/auth/users/${id}`);
                 showToast(`Usuário "${username}" excluído.`, 'success');

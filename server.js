@@ -283,15 +283,21 @@ app.use('/api/server', serverRoutes(logger, getApiLimiter, auth));
 app.use('/api/diagnostics', diagnosticRoutes(logger, getApiLimiter, auth));
 app.use('/api/totems', totemRoutes(logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth));
 
-// ===== PAINEL ADMIN (NOVO) =====
+// ===== EJS ENGINE =====
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
+// ===== PAINEL ADMIN (EJS) =====
+// EJS route ANTES do static para ter prioridade sobre o index.html estático
+app.get('/panel/index.html', (req, res) => {
+    res.render('panel/index');
+});
 app.use('/panel', express.static(path.join(__dirname, 'public', 'web', 'panel')));
 app.get('/panel', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'web', 'panel', 'login.html'));
 });
 
 // ===== DASHBOARD (OPCIONAL) =====
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
 app.get('/dashboard', auth, serverRoutes.renderDashboard(logger));
 app.use(express.static(path.join(__dirname, 'public', 'web')));
 app.get('/', (req, res) => {

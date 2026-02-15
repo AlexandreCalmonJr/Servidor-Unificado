@@ -1,7 +1,5 @@
 // MDM Dashboard — Modules Page
 
-// MDM Dashboard — Modules Page
-
 (() => {
     let allModules = [];
 
@@ -146,6 +144,7 @@
             }
             document.getElementById('module-modal').classList.remove('active');
             fetchModules();
+            if (window.DynamicAssetManager) DynamicAssetManager.refreshSidebar();
         } catch (err) {
             showToast(`Erro: ${err.message}`, 'error');
         }
@@ -374,11 +373,12 @@
             if (mod) openModuleModal(mod);
         },
         remove: async (id, name) => {
-            if (!confirm(`Excluir o módulo "${name}"? Ele não pode ter ativos.`)) return;
+            if (!await confirmAction(`Excluir o módulo "${name}"? Ele não pode ter ativos.`, { danger: true, okText: 'Excluir' })) return;
             try {
                 await API.delete(`/modules/${id}`);
                 showToast(`Módulo "${name}" excluído.`, 'success');
                 fetchModules();
+                if (window.DynamicAssetManager) DynamicAssetManager.refreshSidebar();
             } catch (err) {
                 showToast(`Erro: ${err.message}`, 'error');
             }
@@ -399,7 +399,7 @@
             }
         },
         removeAsset: async (moduleId, assetId, assetName) => {
-            if (!confirm(`Excluir o ativo "${assetName}"?`)) return;
+            if (!await confirmAction(`Excluir o ativo "${assetName}"?`, { danger: true, okText: 'Excluir' })) return;
             try {
                 await API.delete(`/modules/${moduleId}/assets/${assetId}`);
                 showToast(`Ativo excluído.`, 'success');

@@ -15994,3 +15994,9 @@
 {"environment":"development","level":"info","message":"Iniciando verificação de status dos dispositivos...","service":"mdm-server","timestamp":"2026-01-14T12:55:00.882Z","version":"1.0.0"}
 {"environment":"development","level":"info","message":"ℹ️  Nenhum dispositivo precisou de atualização de status nesta execução.","service":"mdm-server","timestamp":"2026-01-14T12:55:00.887Z","version":"1.0.0"}
 {"environment":"development","level":"info","message":"Verificação de status concluída.","service":"mdm-server","timestamp":"2026-01-14T12:55:00.887Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"ℹ️ Redis desabilitado - usando cache em memória","service":"mdm-server","timestamp":"2026-02-15T09:40:22.356Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"System: server_starting","nodeVersion":"v24.12.0","port":"3000","service":"mdm-server","timestamp":"2026-02-15T09:40:22.376Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"Conectando ao MongoDB...","service":"mdm-server","timestamp":"2026-02-15T09:40:22.377Z","version":"1.0.0"}
+{"environment":"development","ip":"0.0.0.0","level":"info","localIp":"192.168.0.5","message":"System: server_started","port":"3000","service":"mdm-server","timestamp":"2026-02-15T09:40:22.678Z","version":"1.0.0"}
+{"environment":"development","level":"info","message":"🔌 WebSocket Server initialized","service":"mdm-server","timestamp":"2026-02-15T09:40:22.684Z","version":"1.0.0"}
+{"database":"mdm","environment":"development","host":"localhost","level":"info","message":"System: mongodb_connected","service":"mdm-server","timestamp":"2026-02-15T09:40:22.700Z","version":"1.0.0"}

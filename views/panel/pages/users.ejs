@@ -1,0 +1,36 @@
+<!-- ===== USERS ===== -->
+<div class="page-section" id="page-users">
+    <div class="section-header">
+        <h2>Usuários</h2>
+        <button class="btn btn-primary" id="add-user-btn">+ Novo Usuário</button>
+    </div>
+
+    <div class="table-container">
+        <div class="table-header">
+            <h3>Lista de Usuários</h3>
+            <div class="table-actions">
+                <input type="text" class="search-input" id="user-search" placeholder="Buscar usuário...">
+            </div>
+        </div>
+        <div style="overflow-x: auto;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Usuário</th>
+                        <th>Email</th>
+                        <th>Permissão</th>
+                        <th>Setor</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="users-table-body">
+                    <tr>
+                        <td colspan="5" class="empty-state">
+                            <p>Carregando...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

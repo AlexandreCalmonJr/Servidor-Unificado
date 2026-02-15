@@ -133,7 +133,7 @@
     }
 
     async function deleteToken(id) {
-        if (!confirm('Desativar este token?')) return;
+        if (!await confirmAction('Desativar este token?', { danger: true, okText: 'Desativar' })) return;
         try {
             await API.delete(`/provisioning/tokens/${id}`);
             showToast('Token removido.', 'success');

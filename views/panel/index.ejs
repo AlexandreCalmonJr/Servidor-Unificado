@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <%- include('partials/head') %>
+</head>
+
+<body>
+    <div class="app-layout">
+        <!-- Mobile overlay -->
+        <div class="mobile-overlay" id="mobile-overlay"></div>
+
+        <%- include('partials/sidebar') %>
+
+            <!-- ===== MAIN ===== -->
+            <div class="main-content">
+                <%- include('partials/topbar') %>
+
+                    <!-- Content Area -->
+                    <div class="content-area">
+                        <%- include('pages/dashboard') %>
+                            <%- include('pages/devices') %>
+                                <%- include('pages/totems') %>
+                                    <%- include('pages/users') %>
+                                        <%- include('pages/server') %>
+                                            <%- include('pages/modules') %>
+                                                <%- include('pages/mappings') %>
+                                                    <%- include('pages/reports') %>
+                                                        <%- include('pages/commands') %>
+                                                            <%- include('pages/provisioning') %>
+                                                                <%- include('pages/profiles') %>
+                                                                    <%- include('pages/diagnostics') %>
+                                                                        <%- include('pages/dynamic-module') %>
+                    </div>
+            </div>
+    </div>
+
+    <%- include('partials/modals') %>
+
+        <!-- Toast container -->
+        <div class="toast-container" id="toast-container"></div>
+
+        <%- include('partials/scripts') %>
+</body>
+
+</html>

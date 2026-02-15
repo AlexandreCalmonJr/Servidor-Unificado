@@ -28,6 +28,7 @@ const App = (() => {
         setupSidebar();
         setupMobile();
         setupLogout();
+        setupChangePassword();
         loadUserInfo();
 
         // Trigger initial page load
@@ -163,6 +164,64 @@ const App = (() => {
         }
     }
 
+    function setupChangePassword() {
+        const btn = document.getElementById('change-password-btn');
+        const modal = document.getElementById('password-modal');
+        const closeBtn = document.getElementById('password-modal-close');
+        const cancelBtn = document.getElementById('password-modal-cancel');
+        const saveBtn = document.getElementById('password-modal-save');
+        const form = document.getElementById('password-form');
+
+        if (btn && modal) {
+            btn.addEventListener('click', () => {
+                if (form) form.reset();
+                modal.classList.add('active');
+            });
+        }
+
+        [closeBtn, cancelBtn].forEach(b => {
+            if (b) b.addEventListener('click', () => modal.classList.remove('active'));
+        });
+
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal.classList.remove('active');
+            });
+        }
+
+        if (saveBtn) {
+            saveBtn.addEventListener('click', async () => {
+                const currentPassword = document.getElementById('form-current-password').value;
+                const newPassword = document.getElementById('form-new-password').value;
+                const confirmPassword = document.getElementById('form-confirm-password').value;
+
+                if (!currentPassword || !newPassword || !confirmPassword) {
+                    showToast('Preencha todos os campos.', 'warning');
+                    return;
+                }
+
+                if (newPassword.length < 6) {
+                    showToast('A nova senha deve ter no mínimo 6 caracteres.', 'warning');
+                    return;
+                }
+
+                if (newPassword !== confirmPassword) {
+                    showToast('As senhas não coincidem.', 'warning');
+                    return;
+                }
+
+                try {
+                    await API.post('/auth/change-password', { currentPassword, newPassword });
+                    showToast('Senha alterada com sucesso!', 'success');
+                    modal.classList.remove('active');
+                    if (form) form.reset();
+                } catch (err) {
+                    showToast(err.message || 'Erro ao alterar senha.', 'error');
+                }
+            });
+        }
+    }
+
     // Register page loader
     function onPageLoad(page, callback) {
         pageLoaders[page] = callback;
@@ -227,6 +286,43 @@ function getBarColor(value) {
     if (value >= 90) return 'red';
     if (value >= 70) return 'yellow';
     return 'green';
+}
+
+// Utility: XSS-safe text escaping
+function esc(str) {
+    if (str === null || str === undefined) return '';
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+}
+
+// Utility: status badge HTML
+function statusBadge(status) {
+    if (!status) return '<span class="status-badge pending">N/A</span>';
+    const map = {
+        active: 'online', online: 'online', completed: 'online',
+        offline: 'offline', inactive: 'offline', failed: 'offline',
+        pending: 'pending', provisioning: 'pending',
+        maintenance: 'maintenance', warning: 'warning',
+        expired: 'offline', used: 'pending',
+    };
+    const cls = map[status.toLowerCase()] || 'pending';
+    return `<span class="status-badge ${cls}">${esc(status)}</span>`;
+}
+
+// Utility: set element text by ID
+function setText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+}
+
+// Utility: set progress bar width + color by ID
+function setBar(id, value) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.style.width = `${Math.min(value, 100)}%`;
+        el.className = `progress-bar-fill ${getBarColor(value)}`;
+    }
 }
 
 // ===== GLOBAL SEARCH =====
@@ -318,6 +414,121 @@ function getBarColor(value) {
         results.style.display = 'block';
     }
 })();
+
+// ===== PAGINATION UTILITY =====
+function Paginator(items, opts = {}) {
+    const perPage = opts.perPage || 15;
+    let currentPage = 1;
+    const totalPages = () => Math.max(1, Math.ceil(items.length / perPage));
+
+    return {
+        getPage() {
+            const start = (currentPage - 1) * perPage;
+            return items.slice(start, start + perPage);
+        },
+        currentPage() { return currentPage; },
+        totalPages,
+        setPage(p) { currentPage = Math.max(1, Math.min(p, totalPages())); },
+        renderControls(containerId) {
+            const el = document.getElementById(containerId);
+            if (!el) return;
+            const tp = totalPages();
+            if (tp <= 1) { el.innerHTML = ''; return; }
+
+            let html = '<div class="pagination">';
+            html += `<button class="btn btn-ghost btn-sm" data-page="${currentPage - 1}" ${currentPage === 1 ? 'disabled' : ''}>‹</button>`;
+
+            const range = [];
+            for (let i = 1; i <= tp; i++) {
+                if (i === 1 || i === tp || (i >= currentPage - 1 && i <= currentPage + 1)) {
+                    range.push(i);
+                } else if (range[range.length - 1] !== '...') {
+                    range.push('...');
+                }
+            }
+
+            range.forEach(p => {
+                if (p === '...') {
+                    html += '<span class="pagination-ellipsis">…</span>';
+                } else {
+                    html += `<button class="btn btn-sm ${p === currentPage ? 'btn-primary' : 'btn-ghost'}" data-page="${p}">${p}</button>`;
+                }
+            });
+
+            html += `<button class="btn btn-ghost btn-sm" data-page="${currentPage + 1}" ${currentPage === tp ? 'disabled' : ''}>›</button>`;
+            html += `<span class="pagination-info">${items.length} itens</span>`;
+            html += '</div>';
+            el.innerHTML = html;
+
+            el.querySelectorAll('[data-page]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const p = parseInt(btn.dataset.page);
+                    if (!isNaN(p)) {
+                        this.setPage(p);
+                        if (opts.onPageChange) opts.onPageChange(this.getPage(), this);
+                    }
+                });
+            });
+        },
+    };
+}
+
+// ===== SKELETON LOADER =====
+function skeleton(rows = 5, cols = 4) {
+    let html = '';
+    for (let r = 0; r < rows; r++) {
+        html += '<tr class="skeleton-row">';
+        for (let c = 0; c < cols; c++) {
+            const w = 50 + Math.random() * 40;
+            html += `<td><div class="skeleton-line" style="width:${w}%"></div></td>`;
+        }
+        html += '</tr>';
+    }
+    return html;
+}
+
+// ===== CUSTOM CONFIRM MODAL =====
+function confirmAction(message, opts = {}) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('confirm-modal');
+        const msgEl = document.getElementById('confirm-modal-message');
+        const btnOk = document.getElementById('confirm-modal-ok');
+        const btnCancel = document.getElementById('confirm-modal-cancel');
+        const closeBtn = document.getElementById('confirm-modal-close');
+
+        if (!modal || !msgEl) {
+            resolve(confirm(message));
+            return;
+        }
+
+        msgEl.textContent = message;
+
+        if (btnOk) {
+            btnOk.textContent = opts.okText || 'Confirmar';
+            btnOk.className = `btn ${opts.danger ? 'btn-danger' : 'btn-primary'}`;
+        }
+
+        modal.classList.add('active');
+
+        function cleanup(result) {
+            modal.classList.remove('active');
+            btnOk?.removeEventListener('click', onOk);
+            btnCancel?.removeEventListener('click', onCancel);
+            closeBtn?.removeEventListener('click', onCancel);
+            modal.removeEventListener('click', onBackdrop);
+            resolve(result);
+        }
+
+        function onOk() { cleanup(true); }
+        function onCancel() { cleanup(false); }
+        function onBackdrop(e) { if (e.target === modal) cleanup(false); }
+
+        btnOk?.addEventListener('click', onOk);
+        btnCancel?.addEventListener('click', onCancel);
+        closeBtn?.addEventListener('click', onCancel);
+        modal.addEventListener('click', onBackdrop);
+    });
+}
 
 // Start app
 document.addEventListener('DOMContentLoaded', () => App.init());

@@ -173,19 +173,6 @@
         }
     }
 
-    function setText(id, text) {
-        const el = document.getElementById(id);
-        if (el) el.textContent = text;
-    }
-
-    function setBar(id, value) {
-        const el = document.getElementById(id);
-        if (el) {
-            el.style.width = `${Math.min(value, 100)}%`;
-            el.className = `progress-bar-fill ${getBarColor(value)}`;
-        }
-    }
-
     // Refresh button
     const refreshBtn = document.getElementById('refresh-metrics-btn');
     if (refreshBtn) {
@@ -199,23 +186,3 @@
 
     App.onPageLoad('dashboard', loadDashboard);
 })();
-
-// Shared helpers
-function statusBadge(status) {
-    if (!status) return '<span class="status-badge pending">N/A</span>';
-    const map = {
-        active: 'online', online: 'online', completed: 'online',
-        offline: 'offline', inactive: 'offline', failed: 'offline',
-        pending: 'pending', provisioning: 'pending',
-        maintenance: 'maintenance', warning: 'warning',
-    };
-    const cls = map[status.toLowerCase()] || 'pending';
-    return `<span class="status-badge ${cls}">${esc(status)}</span>`;
-}
-
-function esc(str) {
-    if (str === null || str === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = String(str);
-    return div.innerHTML;
-}

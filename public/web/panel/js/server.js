@@ -129,23 +129,10 @@
         }
     }
 
-    function setText(id, text) {
-        const el = document.getElementById(id);
-        if (el) el.textContent = text;
-    }
-
-    function setBar(id, value) {
-        const el = document.getElementById(id);
-        if (el) {
-            el.style.width = `${Math.min(value, 100)}%`;
-            el.className = `progress-bar-fill ${getBarColor(value)}`;
-        }
-    }
-
     // Expose for inline onclick
     window.ApkManager = {
         remove: async (filename) => {
-            if (!confirm(`Excluir o APK "${filename}"?`)) return;
+            if (!await confirmAction(`Excluir o APK "${filename}"?`, { danger: true, okText: 'Excluir' })) return;
             try {
                 await API.delete(`/server/apks/${encodeURIComponent(filename)}`);
                 showToast(`APK "${filename}" excluído.`, 'success');

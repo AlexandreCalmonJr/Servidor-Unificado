@@ -1,7 +1,5 @@
 // MDM Dashboard — Totems Page
 
-// MDM Dashboard — Totems Page
-
 (() => {
     let allTotems = [];
 
@@ -180,7 +178,7 @@
     }
 
     async function removeTotem(serial) {
-        if (!confirm(`Tem certeza que deseja remover o totem ${serial}?`)) return;
+        if (!await confirmAction(`Tem certeza que deseja remover o totem ${serial}?`, { danger: true, okText: 'Remover' })) return;
         try {
             await API.delete(`/totems/totems/${serial}`);
             showToast('Totem removido com sucesso', 'success');
