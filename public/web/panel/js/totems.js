@@ -1,11 +1,14 @@
 // MDM Dashboard — Totems Page
 
+// MDM Dashboard — Totems Page
+
 (() => {
     let allTotems = [];
 
     function loadTotems() {
         fetchTotems();
         setupSearch();
+        setupTotemModal();
     }
 
     async function fetchTotems() {
@@ -34,8 +37,17 @@
         if (!tbody) return;
 
         if (totems.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><div class="empty-icon">🖥️</div><p>Nenhum totem encontrado.</p></td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><div class="empty-icon">🖥️</div><p>Nenhum totem encontrado.</p></td></tr>';
             return;
+        }
+
+        // Add Actions header if not present
+        const thead = document.querySelector('#page-totems thead tr');
+        if (thead && !thead.querySelector('th.actions-col')) {
+            const th = document.createElement('th');
+            th.className = 'actions-col';
+            th.textContent = 'Ações';
+            thead.appendChild(th);
         }
 
         tbody.innerHTML = totems.map(t => {
@@ -58,6 +70,10 @@
           <td>${paperBadge(paperStatus)}</td>
           <td>${online ? '<span class="status-badge online">Online</span>' : '<span class="status-badge offline">Offline</span>'}</td>
           <td>${formatDate(lastUpdate)}</td>
+          <td>
+             <button class="btn btn-ghost btn-sm" onclick="TotemManager.edit('${esc(serial)}')" title="Editar">✏️</button>
+             <button class="btn btn-danger btn-sm" onclick="TotemManager.remove('${esc(serial)}')" title="Excluir">🗑</button>
+          </td>
         </tr>
       `;
         }).join('');
@@ -108,6 +124,77 @@
             renderTotems(filtered);
         });
     }
+
+    // ===== MODAL & CRUD =====
+    function setupTotemModal() {
+        const modal = document.getElementById('totem-modal');
+        const closeBtn = document.getElementById('totem-modal-close');
+        const cancelBtn = document.getElementById('totem-modal-cancel');
+        const saveBtn = document.getElementById('totem-modal-save');
+
+        [closeBtn, cancelBtn].forEach(b => {
+            if (b) b.addEventListener('click', () => modal.classList.remove('active'));
+        });
+        if (modal) modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
+        if (saveBtn) saveBtn.addEventListener('click', handleSaveTotem);
+    }
+
+    async function openTotemModal(serial) {
+        try {
+            const totem = await API.get(`/totems/totems/${serial}`);
+            if (!totem) throw new Error('Totem não encontrado');
+
+            document.getElementById('edit-totem-serial').value = serial;
+            document.getElementById('form-totem-hostname').value = totem.hostname || totem.device_name || '';
+            document.getElementById('form-totem-serial').value = totem.serialNumber || totem.serial_number || '';
+            document.getElementById('form-totem-ip').value = totem.ip || totem.ip_address || '';
+            document.getElementById('form-totem-notes').value = totem.notes || '';
+
+            document.getElementById('totem-modal').classList.add('active');
+        } catch (e) {
+            showToast('Erro ao carregar dados do totem', 'error');
+        }
+    }
+
+    async function handleSaveTotem() {
+        const serial = document.getElementById('edit-totem-serial').value;
+        const hostname = document.getElementById('form-totem-hostname').value.trim();
+        const notes = document.getElementById('form-totem-notes').value.trim();
+
+        if (!hostname) {
+            showToast('Hostname é obrigatório', 'warning');
+            return;
+        }
+
+        try {
+            await API.put(`/totems/totems/${serial}`, {
+                hostname,
+                notes
+            });
+            showToast('Totem atualizado com sucesso', 'success');
+            document.getElementById('totem-modal').classList.remove('active');
+            fetchTotems();
+        } catch (e) {
+            showToast(`Erro ao salvar: ${e.message}`, 'error');
+        }
+    }
+
+    async function removeTotem(serial) {
+        if (!confirm(`Tem certeza que deseja remover o totem ${serial}?`)) return;
+        try {
+            await API.delete(`/totems/totems/${serial}`);
+            showToast('Totem removido com sucesso', 'success');
+            fetchTotems();
+        } catch (e) {
+            showToast(`Erro ao remover: ${e.message}`, 'error');
+        }
+    }
+
+    // Export to global scope
+    window.TotemManager = {
+        edit: openTotemModal,
+        remove: removeTotem
+    };
 
     App.onPageLoad('totems', loadTotems);
 })();

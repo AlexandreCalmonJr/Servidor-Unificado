@@ -813,9 +813,80 @@
                 <div class="detail-grid" id="device-detail-grid">
                     <!-- Filled by JS -->
                 </div>
+
+                <div class="history-section"
+                    style="margin-top: 24px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                    <h4 style="margin-bottom: 12px; font-size: 0.95rem; color: var(--text-primary);">Histórico de
+                        Localização</h4>
+                    <div class="table-container" style="max-height: 200px; overflow-y: auto;">
+                        <table class="data-table" style="font-size: 0.85rem;">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>BSSID</th>
+                                    <th>Setor</th>
+                                    <th>Andar</th>
+                                </tr>
+                            </thead>
+                            <tbody id="device-history-body">
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted">Carregando...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-ghost" id="device-modal-close-btn">Fechar</button>
+                <button class="btn btn-primary" id="device-modal-edit-btn">Editar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== DEVICE EDIT MODAL ===== -->
+    <div class="modal-overlay" id="device-edit-modal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3>Editar Dispositivo</h3>
+                <button class="modal-close" id="device-edit-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="device-edit-form">
+                    <input type="hidden" id="edit-device-serial">
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Nome</label>
+                            <input type="text" id="form-device-name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Serial</label>
+                            <input type="text" id="form-device-serial" readonly
+                                style="background:var(--bg-secondary);cursor:not-allowed;">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Unidade</label>
+                        <input type="text" id="form-device-unit">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Setor</label>
+                            <input type="text" id="form-device-sector">
+                        </div>
+                        <div class="form-group">
+                            <label>Andar</label>
+                            <input type="text" id="form-device-floor">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="device-edit-modal-cancel">Cancelar</button>
+                <button class="btn btn-primary" id="device-edit-modal-save">Salvar</button>
             </div>
         </div>
     </div>
@@ -849,6 +920,48 @@
             <div class="modal-footer">
                 <button class="btn btn-ghost" id="module-modal-cancel">Cancelar</button>
                 <button class="btn btn-primary" id="module-modal-save">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== TOTEM MODAL ===== -->
+    <div class="modal-overlay" id="totem-modal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3 id="totem-modal-title">Editar Totem</h3>
+                <button class="modal-close" id="totem-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="totem-form">
+                    <input type="hidden" id="edit-totem-serial">
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Hostname</label>
+                            <input type="text" id="form-totem-hostname" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Serial</label>
+                            <input type="text" id="form-totem-serial" readonly
+                                style="background:var(--bg-secondary);cursor:not-allowed;">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>IP</label>
+                        <input type="text" id="form-totem-ip" readonly
+                            style="background:var(--bg-secondary);cursor:not-allowed;">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Notas / Observações</label>
+                        <textarea id="form-totem-notes" rows="3" placeholder="Anotações administrativas..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="totem-modal-cancel">Cancelar</button>
+                <button class="btn btn-primary" id="totem-modal-save">Salvar</button>
             </div>
         </div>
     </div>

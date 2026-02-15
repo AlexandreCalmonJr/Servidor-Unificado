@@ -455,7 +455,7 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
       }
 
       // ===== ✅ CORREÇÃO 2: Lógica de $set/$push separada =====
-      
+
       // Campos para $set
       const setFields = {
         maintenance_status: maintenance_status,
@@ -479,7 +479,7 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
               'maintenance_history_entry inválido: faltam timestamp ou status'
             );
           }
-          
+
           // Adiciona a operação $push ao objeto principal
           updateOperation.$push = { maintenance_history: historyEntry };
 
@@ -568,6 +568,50 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
       success: true,
       message: `Dispositivo ${serial_number} excluído`
     });
+  }));
+
+  // Atualizar dispositivo (Painel)
+  router.put('/:serial_number', flexibleAuth, modifyApiLimiter, [
+    body('device_name').optional().trim().escape(),
+    body('unit').optional().trim().escape(),
+    body('sector').optional().trim().escape(),
+    body('floor').optional().trim().escape(),
+  ], asyncHandler(async (req, res) => {
+    const { serial_number } = req.params;
+    const updateData = matchedData(req);
+
+    const device = await Device.findOneAndUpdate(
+      { serial_number },
+      { $set: updateData },
+      { new: true }
+    );
+
+    if (!device) {
+      throw new NotFoundError(`Dispositivo não encontrado: ${serial_number}`);
+    }
+
+    logger.logDeviceOperation('device_updated', {
+      serial_number,
+    }, {
+      by: req.user.username,
+      changes: updateData
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Dispositivo atualizado',
+      device
+    });
+  }));
+
+  // [R] READ (Single): Obter um dispositivo específico
+  router.get('/:serial_number', flexibleAuth, getApiLimiter, asyncHandler(async (req, res) => {
+    const { serial_number } = req.params;
+    const device = await Device.findOne({ serial_number }).lean();
+    if (!device) {
+      throw new NotFoundError(`Dispositivo não encontrado: ${serial_number}`);
+    }
+    res.status(200).json(device);
   }));
 
   // Histórico de localização
