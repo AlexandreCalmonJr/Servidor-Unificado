@@ -283,6 +283,12 @@ app.use('/api/server', serverRoutes(logger, getApiLimiter, auth));
 app.use('/api/diagnostics', diagnosticRoutes(logger, getApiLimiter, auth));
 app.use('/api/totems', totemRoutes(logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth));
 
+// ===== PAINEL ADMIN (NOVO) =====
+app.use('/panel', express.static(path.join(__dirname, 'public', 'web', 'panel')));
+app.get('/panel', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'web', 'panel', 'login.html'));
+});
+
 // ===== DASHBOARD (OPCIONAL) =====
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));

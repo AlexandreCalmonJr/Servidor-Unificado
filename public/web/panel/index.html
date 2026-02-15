@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="MDM Server — Painel de Administração">
+    <title>MDM Server — Painel</title>
+    <link rel="stylesheet" href="css/panel.css">
+    <link rel="icon" type="image/png" href="../favicon.png">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+    <div class="app-layout">
+        <!-- Mobile overlay -->
+        <div class="mobile-overlay" id="mobile-overlay"></div>
+
+        <!-- ===== SIDEBAR ===== -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">M</div>
+                <span class="logo-text">MDM Server</span>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section-label">Principal</div>
+                <button class="nav-item active" data-page="dashboard">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-label">Dashboard</span>
+                </button>
+                <button class="nav-item" data-page="devices">
+                    <span class="nav-icon">📱</span>
+                    <span class="nav-label">Dispositivos</span>
+                </button>
+                <button class="nav-item" data-page="totems">
+                    <span class="nav-icon">🖥️</span>
+                    <span class="nav-label">Totems</span>
+                </button>
+                <button class="nav-item" data-page="modules">
+                    <span class="nav-icon">📦</span>
+                    <span class="nav-label">Módulos</span>
+                </button>
+                <button class="nav-item" data-page="commands">
+                    <span class="nav-icon">⌨️</span>
+                    <span class="nav-label">Comandos</span>
+                </button>
+
+                <div class="nav-section-label">Administração</div>
+                <button class="nav-item" data-page="provisioning">
+                    <span class="nav-icon">🔑</span>
+                    <span class="nav-label">Provisionamento</span>
+                </button>
+                <button class="nav-item" data-page="profiles">
+                    <span class="nav-icon">📄</span>
+                    <span class="nav-label">Perfis</span>
+                </button>
+                <button class="nav-item" data-page="mappings">
+                    <span class="nav-icon">🗺️</span>
+                    <span class="nav-label">Mapeamentos</span>
+                </button>
+                <button class="nav-item" data-page="diagnostics">
+                    <span class="nav-icon">🔍</span>
+                    <span class="nav-label">Diagnósticos</span>
+                </button>
+                <button class="nav-item" data-page="users">
+                    <span class="nav-icon">👤</span>
+                    <span class="nav-label">Usuários</span>
+                </button>
+                <button class="nav-item" data-page="server">
+                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-label">Servidor & APKs</span>
+                </button>
+                <button class="nav-item" data-page="reports">
+                    <span class="nav-icon">📋</span>
+                    <span class="nav-label">Relatórios</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <button class="sidebar-toggle" id="sidebar-toggle">
+                    <span class="toggle-icon">◀</span>
+                    <span class="toggle-label">Recolher</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- ===== MAIN ===== -->
+        <div class="main-content">
+            <!-- Topbar -->
+            <header class="topbar">
+                <div class="topbar-left">
+                    <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+                    <span class="page-title" id="page-title">Dashboard</span>
+                </div>
+                <div class="topbar-right">
+                    <div class="global-search">
+                        <input type="text" class="search-input" id="global-search-input"
+                            placeholder="🔍 Buscar dispositivo, módulo..." style="min-width:220px;">
+                        <div class="search-results" id="global-search-results" style="display:none;"></div>
+                    </div>
+                    <div class="server-status">
+                        <span class="status-dot" id="server-status-dot"></span>
+                        <span id="server-uptime">--</span>
+                    </div>
+                    <div class="topbar-user" id="topbar-user">
+                        <div class="user-avatar" id="user-avatar">--</div>
+                        <div>
+                            <div class="user-name" id="user-display-name">Carregando...</div>
+                            <div class="user-role" id="user-display-role"></div>
+                        </div>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" id="logout-btn" title="Sair">⏻ Sair</button>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- ===== DASHBOARD ===== -->
+                <div class="page-section active" id="page-dashboard">
+                    <div class="section-header">
+                        <h2>Visão Geral</h2>
+                        <button class="btn btn-ghost btn-sm" id="refresh-metrics-btn">↻ Atualizar</button>
+                    </div>
+
+                    <div class="metrics-grid stagger-enter" id="metrics-grid">
+                        <div class="metric-card orange">
+                            <div class="metric-header">
+                                <span class="metric-label">Dispositivos</span>
+                                <span class="metric-icon">📱</span>
+                            </div>
+                            <div class="metric-value" id="m-devices">
+                                <div class="skeleton skeleton-value"></div>
+                            </div>
+                            <div class="metric-sub" id="m-devices-sub">carregando...</div>
+                        </div>
+                        <div class="metric-card green">
+                            <div class="metric-header">
+                                <span class="metric-label">Provisionados</span>
+                                <span class="metric-icon">✓</span>
+                            </div>
+                            <div class="metric-value" id="m-provisioned">
+                                <div class="skeleton skeleton-value"></div>
+                            </div>
+                            <div class="metric-sub" id="m-provisioned-sub">carregando...</div>
+                        </div>
+                        <div class="metric-card yellow">
+                            <div class="metric-header">
+                                <span class="metric-label">Comandos Pendentes</span>
+                                <span class="metric-icon">⏳</span>
+                            </div>
+                            <div class="metric-value" id="m-commands">
+                                <div class="skeleton skeleton-value"></div>
+                            </div>
+                            <div class="metric-sub">na fila</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-header">
+                                <span class="metric-label">CPU</span>
+                                <span class="metric-icon">⚡</span>
+                            </div>
+                            <div class="metric-value" id="m-cpu">
+                                <div class="skeleton skeleton-value"></div>
+                            </div>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar-bg">
+                                    <div class="progress-bar-fill" id="m-cpu-bar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-header">
+                                <span class="metric-label">Memória</span>
+                                <span class="metric-icon">🧠</span>
+                            </div>
+                            <div class="metric-value" id="m-memory">
+                                <div class="skeleton skeleton-value"></div>
+                            </div>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar-bg">
+                                    <div class="progress-bar-fill" id="m-memory-bar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="metric-card blue">
+                            <div class="metric-header">
+                                <span class="metric-label">Uptime</span>
+                                <span class="metric-icon">⏱</span>
+                            </div>
+                            <div class="metric-value" id="m-uptime">
+                                <div class="skeleton skeleton-value"></div>
+                            </div>
+                            <div class="metric-sub" id="m-uptime-sub">servidor</div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Devices Table -->
+                    <div class="table-container">
+                        <div class="table-header">
+                            <h3>Dispositivos Recentes</h3>
+                        </div>
+                        <div style="overflow-x: auto;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>Serial</th>
+                                        <th>Última Conexão</th>
+                                        <th>Setor</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recent-devices-body">
+                                    <tr>
+                                        <td colspan="5" class="empty-state">
+                                            <p>Carregando...</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- CHARTS ROW -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+                        <div class="table-container" style="padding:20px;">
+                            <h3 style="margin-bottom:12px;">Distribuição de Status</h3>
+                            <div style="position:relative;height:240px;"><canvas id="chart-status"></canvas></div>
+                        </div>
+                        <div class="table-container" style="padding:20px;">
+                            <h3 style="margin-bottom:12px;">Recursos do Servidor</h3>
+                            <div style="position:relative;height:240px;"><canvas id="chart-resources"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== DEVICES ===== -->
+                <div class="page-section" id="page-devices">
+                    <div class="section-header">
+                        <h2>Dispositivos</h2>
+                    </div>
+
+                    <div class="table-container">
+                        <div class="table-header">
+                            <h3>Lista de Dispositivos</h3>
+                            <div class="table-actions">
+                                <input type="text" class="search-input" id="device-search"
+                                    placeholder="Buscar dispositivo...">
+                                <select class="filter-select" id="device-filter">
+                                    <option value="all">Todos</option>
+                                    <option value="active">Ativo</option>
+                                    <option value="completed">Provisionado</option>
+                                    <option value="pending">Pendente</option>
+                                    <option value="maintenance">Manutenção</option>
+                                    <option value="failed">Falha</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="overflow-x: auto;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>Serial</th>
+                                        <th>Modelo</th>
+                                        <th>Bateria</th>
+                                        <th>IP</th>
+                                        <th>Setor</th>
+                                        <th>Status</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="devices-table-body">
+                                    <tr>
+                                        <td colspan="8" class="empty-state">
+                                            <p>Carregando...</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== TOTEMS ===== -->
+                <div class="page-section" id="page-totems">
+                    <div class="section-header">
+                        <h2>Totems</h2>
+                    </div>
+
+                    <div class="table-container">
+                        <div class="table-header">
+                            <h3>Monitoramento de Totems</h3>
+                            <div class="table-actions">
+                                <input type="text" class="search-input" id="totem-search" placeholder="Buscar totem...">
+                            </div>
+                        </div>
+                        <div style="overflow-x: auto;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Hostname</th>
+                                        <th>Serial</th>
+                                        <th>IP</th>
+                                        <th>Unidade</th>
+                                        <th>Impressora</th>
+                                        <th>Papel</th>
+                                        <th>Status</th>
+                                        <th>Última Atualização</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="totems-table-body">
+                                    <tr>
+                                        <td colspan="8" class="empty-state">
+                                            <p>Carregando...</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== USERS ===== -->
+                <div class="page-section" id="page-users">
+                    <div class="section-header">
+                        <h2>Usuários</h2>
+                        <button class="btn btn-primary" id="add-user-btn">+ Novo Usuário</button>
+                    </div>
+
+                    <div class="table-container">
+                        <div class="table-header">
+                            <h3>Lista de Usuários</h3>
+                            <div class="table-actions">
+                                <input type="text" class="search-input" id="user-search"
+                                    placeholder="Buscar usuário...">
+                            </div>
+                        </div>
+                        <div style="overflow-x: auto;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Usuário</th>
+                                        <th>Email</th>
+                                        <th>Permissão</th>
+                                        <th>Setor</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="users-table-body">
+                                    <tr>
+                                        <td colspan="5" class="empty-state">
+                                            <p>Carregando...</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== SERVER & APKs ===== -->
+                <div class="page-section" id="page-server">
+                    <div class="section-header">
+                        <h2>Servidor & APKs</h2>
+                    </div>
+
+                    <!-- Server Info Cards -->
+                    <div class="metrics-grid" style="margin-bottom: 24px;" id="server-metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-header">
+                                <span class="metric-label">CPU</span>
+                                <span class="metric-icon">⚡</span>
+                            </div>
+                            <div class="metric-value" id="srv-cpu">--%</div>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar-bg">
+                                    <div class="progress-bar-fill" id="srv-cpu-bar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-header">
+                                <span class="metric-label">Memória</span>
+                                <span class="metric-icon">🧠</span>
+                            </div>
+                            <div class="metric-value" id="srv-memory">--%</div>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar-bg">
+                                    <div class="progress-bar-fill" id="srv-memory-bar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="metric-card blue">
+                            <div class="metric-header">
+                                <span class="metric-label">Uptime</span>
+                                <span class="metric-icon">⏱</span>
+                            </div>
+                            <div class="metric-value" id="srv-uptime">--</div>
+                            <div class="metric-sub" id="srv-uptime-sub">servidor</div>
+                        </div>
+                    </div>
+
+                    <!-- APK Management -->
+                    <div class="table-container">
+                        <div class="table-header">
+                            <h3>APKs Disponíveis</h3>
+                            <div class="table-actions">
+                                <button class="btn btn-primary btn-sm" id="upload-apk-btn">⬆ Upload APK</button>
+                            </div>
+                        </div>
+                        <div id="apk-list">
+                            <div class="empty-state">
+                                <div class="empty-icon">📦</div>
+                                <p>Carregando APKs...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Upload Zone (hidden by default) -->
+                    <div class="modal-overlay" id="upload-modal">
+                        <div class="modal-box">
+                            <div class="modal-header">
+                                <h3>Upload de APK</h3>
+                                <button class="modal-close" id="upload-modal-close">×</button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="upload-zone" id="upload-zone">
+                                    <div class="upload-icon">📤</div>
+                                    <p>Arraste o arquivo .apk aqui ou clique para selecionar</p>
+                                    <p class="upload-hint">Apenas arquivos .apk — Máximo 200MB</p>
+                                    <input type="file" id="apk-file-input" accept=".apk" style="display: none;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== MODULES ===== -->
+                <div class="page-section" id="page-modules">
+                    <div class="section-header">
+                        <h2>Módulos</h2>
+                        <button class="btn btn-primary" id="add-module-btn">+ Novo Módulo</button>
+                    </div>
+                    <div id="modules-cards" class="modules-grid">
+                        <div class="empty-state">
+                            <p>Carregando módulos...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== MAPPINGS ===== -->
+                <div class="page-section" id="page-mappings">
+                    <div class="section-header">
+                        <h2>Mapeamentos</h2>
+                    </div>
+
+                    <div class="tab-bar">
+                        <button class="tab-btn active" data-tab="units">🏢 Unidades</button>
+                        <button class="tab-btn" data-tab="bssid">📡 BSSID</button>
+                        <button class="tab-btn" data-tab="ip">🌐 IP</button>
+                    </div>
+
+                    <!-- Units Tab -->
+                    <div class="tab-panel active" id="tab-units">
+                        <div class="table-container">
+                            <div class="table-header">
+                                <h3>Unidades</h3>
+                                <button class="btn btn-primary btn-sm" id="add-unit-btn">+ Nova Unidade</button>
+                            </div>
+                            <div style="overflow-x: auto;">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Nome</th>
+                                            <th>Faixas de IP</th>
+                                            <th>Criado em</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="units-table-body">
+                                        <tr>
+                                            <td colspan="4" class="empty-state">
+                                                <p>Carregando...</p>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BSSID Tab -->
+                    <div class="tab-panel" id="tab-bssid">
+                        <div class="table-container">
+                            <div class="table-header">
+                                <h3>Mapeamento BSSID</h3>
+                                <button class="btn btn-primary btn-sm" id="add-bssid-btn">+ Novo BSSID</button>
+                            </div>
+                            <div style="overflow-x: auto;">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>MAC Address</th>
+                                            <th>Setor</th>
+                                            <th>Andar</th>
+                                            <th>Unidade</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="bssid-table-body">
+                                        <tr>
+                                            <td colspan="5" class="empty-state">
+                                                <p>Carregando...</p>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- IP Tab -->
+                    <div class="tab-panel" id="tab-ip">
+                        <div class="table-container">
+                            <div class="table-header">
+                                <h3>Mapeamento de IP</h3>
+                                <button class="btn btn-primary btn-sm" id="add-ip-btn">+ Novo IP</button>
+                            </div>
+                            <div style="overflow-x: auto;">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Localização</th>
+                                            <th>IP Inicial</th>
+                                            <th>IP Final</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ip-table-body">
+                                        <tr>
+                                            <td colspan="4" class="empty-state">
+                                                <p>Carregando...</p>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== REPORTS ===== -->
+                <div class="page-section" id="page-reports">
+                    <div class="section-header">
+                        <h2>Relatórios</h2>
+                        <button class="btn btn-primary" id="export-csv-btn">⬇ Exportar CSV</button>
+                    </div>
+                    <div class="metrics-grid" id="report-summary-grid">
+                        <div class="empty-state">
+                            <p>Carregando...</p>
+                        </div>
+                    </div>
+                    <div id="report-breakdown" style="margin-top: 24px;"></div>
+                </div>
+
+                <!-- ===== COMMANDS ===== -->
+                <div class="page-section" id="page-commands">
+                    <div class="section-header">
+                        <h2>Comandos Remotos</h2>
+                    </div>
+
+                    <!-- Step 1: Select Module -->
+                    <div class="table-container" style="margin-bottom: 16px;">
+                        <div class="table-header">
+                            <h3>1. Selecionar Módulo</h3>
+                        </div>
+                        <div style="padding: 16px;">
+                            <select class="filter-select" id="cmd-module-select" style="width: 100%; max-width: 400px;">
+                                <option value="" disabled selected>Selecione um módulo...</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Select Asset -->
+                    <div class="table-container" style="margin-bottom: 16px;">
+                        <div class="table-header">
+                            <h3>2. Selecionar Ativo</h3>
+                        </div>
+                        <div id="cmd-asset-list" style="padding: 16px;">
+                            <div class="empty-state">
+                                <div class="empty-icon">⬆️</div>
+                                <p>Selecione um módulo acima.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Send Command -->
+                    <div id="cmd-send-area" style="display: none; margin-bottom: 16px;">
+                        <div class="table-container">
+                            <div class="table-header">
+                                <h3>3. Enviar Comando</h3>
+                                <button class="btn btn-primary" id="cmd-send-btn">⚡ Enviar Comando</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Command History -->
+                    <div id="cmd-history-area" style="display: none;">
+                        <div class="table-container">
+                            <div class="table-header">
+                                <h3>Histórico de Comandos</h3>
+                            </div>
+                            <div style="overflow-x: auto;">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Tipo</th>
+                                            <th>Comando</th>
+                                            <th>Status</th>
+                                            <th>Enviado</th>
+                                            <th>Concluído</th>
+                                            <th>Resultado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="cmd-history-body">
+                                        <tr>
+                                            <td colspan="6" class="empty-state">
+                                                <p>Selecione um ativo.</p>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== PROVISIONING ===== -->
+                <div class="page-section" id="page-provisioning">
+                    <div class="section-header">
+                        <h2>Provisionamento</h2>
+                        <button class="btn btn-primary" id="add-token-btn">+ Gerar Token</button>
+                    </div>
+                    <div id="token-grid" class="token-grid">
+                        <div class="empty-state">
+                            <p>Carregando...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== PROFILES ===== -->
+                <div class="page-section" id="page-profiles">
+                    <div class="section-header">
+                        <h2>Perfis de Configuração</h2>
+                        <button class="btn btn-primary" id="add-profile-btn">+ Novo Perfil</button>
+                    </div>
+                    <div id="profile-grid" class="profile-grid">
+                        <div class="empty-state">
+                            <p>Carregando...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== DIAGNOSTICS ===== -->
+                <div class="page-section" id="page-diagnostics">
+                    <div class="section-header">
+                        <h2>Diagnósticos</h2>
+                    </div>
+
+                    <div class="diag-grid">
+                        <!-- Location Test -->
+                        <div class="diag-card">
+                            <h4>🧪 Teste de Localização</h4>
+                            <div class="form-group">
+                                <label for="diag-serial">Serial</label>
+                                <input type="text" id="diag-serial" placeholder="Número serial...">
+                            </div>
+                            <div style="display:flex;gap:8px;">
+                                <div class="form-group" style="flex:1;">
+                                    <label for="diag-ip">IP</label>
+                                    <input type="text" id="diag-ip" placeholder="10.0.0.1">
+                                </div>
+                                <div class="form-group" style="flex:1;">
+                                    <label for="diag-bssid">BSSID</label>
+                                    <input type="text" id="diag-bssid" placeholder="AA:BB:CC:DD:EE:FF">
+                                </div>
+                            </div>
+                            <button class="btn btn-primary" id="diag-run-btn" style="width:100%;">▶ Executar
+                                Diagnóstico</button>
+                            <div class="diag-result" id="diag-location-result">
+                                <span style="color:var(--text-muted);">Preencha os dados acima e clique em
+                                    executar.</span>
+                            </div>
+                        </div>
+
+                        <!-- Cache Stats -->
+                        <div class="diag-card">
+                            <h4>⚡ Cache de Localização</h4>
+                            <div id="diag-cache">
+                                <span style="color:var(--text-muted);">Carregando...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BSSID Validation -->
+                    <div class="table-container" style="margin-top: 16px;">
+                        <div class="table-header">
+                            <h3>📡 Validação de BSSIDs</h3>
+                        </div>
+                        <div id="diag-bssid-validation" style="padding: 16px;">
+                            <div class="empty-state">
+                                <p>Carregando...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Unmapped Devices -->
+                    <div class="table-container" style="margin-top: 16px;">
+                        <div class="table-header">
+                            <h3>❓ Dispositivos Não Mapeados</h3>
+                        </div>
+                        <div style="overflow-x: auto;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>Serial</th>
+                                        <th>IP</th>
+                                        <th>Setor</th>
+                                        <th>Andar</th>
+                                        <th>Recomendações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="diag-unmapped-body">
+                                    <tr>
+                                        <td colspan="6" class="empty-state">
+                                            <p>Carregando...</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Suggestions -->
+                    <div class="table-container" style="margin-top: 16px;">
+                        <div class="table-header">
+                            <h3>💡 Sugestões de Cadastro</h3>
+                        </div>
+                        <div id="diag-suggestions" style="padding: 16px;">
+                            <div class="empty-state">
+                                <p>Carregando...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== USER MODAL ===== -->
+    <div class="modal-overlay" id="user-modal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3 id="user-modal-title">Novo Usuário</h3>
+                <button class="modal-close" id="user-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="user-form">
+                    <input type="hidden" id="edit-user-id">
+                    <div class="form-group">
+                        <label for="form-username">Usuário</label>
+                        <input type="text" id="form-username" required placeholder="ex: joao.silva">
+                    </div>
+                    <div class="form-group">
+                        <label for="form-email">Email</label>
+                        <input type="email" id="form-email" required placeholder="joao@empresa.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="form-password">Senha</label>
+                        <input type="password" id="form-password" placeholder="Mínimo 6 caracteres">
+                    </div>
+                    <div class="form-group">
+                        <label for="form-role">Permissão</label>
+                        <select id="form-role" required>
+                            <option value="user">Usuário</option>
+                            <option value="admin">Administrador</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="form-sector">Setor</label>
+                        <input type="text" id="form-sector" placeholder="Ex: Engenharia, Produção">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="user-modal-cancel">Cancelar</button>
+                <button class="btn btn-primary" id="user-modal-save">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== DEVICE DETAIL MODAL ===== -->
+    <div class="modal-overlay" id="device-modal">
+        <div class="modal-box" style="max-width: 640px;">
+            <div class="modal-header">
+                <h3 id="device-modal-title">Detalhes do Dispositivo</h3>
+                <button class="modal-close" id="device-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-grid" id="device-detail-grid">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="device-modal-close-btn">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MODULE MODAL ===== -->
+    <div class="modal-overlay" id="module-modal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3 id="module-modal-title">Novo Módulo</h3>
+                <button class="modal-close" id="module-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="module-form">
+                    <input type="hidden" id="edit-module-id">
+                    <div class="form-group">
+                        <label for="form-module-name">Nome do Módulo</label>
+                        <input type="text" id="form-module-name" required placeholder="Ex: Notebooks TI">
+                    </div>
+                    <div class="form-group">
+                        <label for="form-module-type">Tipo</label>
+                        <select id="form-module-type" required>
+                            <option value="" disabled selected>Selecione o tipo...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="form-module-desc">Descrição</label>
+                        <textarea id="form-module-desc" rows="3" placeholder="Descrição opcional..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="module-modal-cancel">Cancelar</button>
+                <button class="btn btn-primary" id="module-modal-save">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== UNIT MODAL ===== -->
+    <div class="modal-overlay" id="unit-modal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3 id="unit-modal-title">Nova Unidade</h3>
+                <button class="modal-close" id="unit-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-unit-name">
+                <div class="form-group">
+                    <label for="form-unit-name">Nome da Unidade</label>
+                    <input type="text" id="form-unit-name" required placeholder="Ex: Filial São Paulo">
+                </div>
+                <div class="form-group">
+                    <label>Faixas de IP</label>
+                    <div id="ip-ranges-container">
+                        <div class="ip-range-row">
+                            <input type="text" class="range-start" placeholder="IP Inicial (ex: 192.168.1.1)">
+                            <span style="color: var(--text-muted);">—</span>
+                            <input type="text" class="range-end" placeholder="IP Final (ex: 192.168.1.254)">
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-ghost btn-sm" id="add-ip-range-btn" style="margin-top: 8px;">+
+                        Adicionar Faixa</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="unit-modal-cancel">Cancelar</button>
+                <button class="btn btn-primary" id="unit-modal-save">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== BSSID MODAL ===== -->
+    <div class="modal-overlay" id="bssid-modal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3>Novo Mapeamento BSSID</h3>
+                <button class="modal-close" id="bssid-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="form-bssid-mac">MAC Address</label>
+                    <input type="text" id="form-bssid-mac" required placeholder="AA:BB:CC:DD:EE:FF">
+                </div>
+                <div class="form-group">
+                    <label for="form-bssid-sector">Setor</label>
+                    <input type="text" id="form-bssid-sector" required placeholder="Ex: Recepção">
+                </div>
+                <div class="form-group">
+                    <label for="form-bssid-floor">Andar</label>
+                    <input type="text" id="form-bssid-floor" required placeholder="Ex: 2º Andar">
+                </div>
+                <div class="form-group">
+                    <label for="form-bssid-unit">Unidade (opcional)</label>
+                    <select id="form-bssid-unit">
+                        <option value="">Sem unidade</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="bssid-modal-cancel">Cancelar</button>
+                <button class="btn btn-primary" id="bssid-modal-save">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== IP MODAL ===== -->
+    <div class="modal-overlay" id="ip-modal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3>Novo Mapeamento IP</h3>
+                <button class="modal-close" id="ip-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="form-ip-location">Localização</label>
+                    <input type="text" id="form-ip-location" required placeholder="Ex: Prédio A">
+                </div>
+                <div class="form-group">
+                    <label for="form-ip-start">IP Inicial</label>
+                    <input type="text" id="form-ip-start" required placeholder="10.0.0.1">
+                </div>
+                <div class="form-group">
+                    <label for="form-ip-end">IP Final</label>
+                    <input type="text" id="form-ip-end" required placeholder="10.0.0.254">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="ip-modal-cancel">Cancelar</button>
+                <button class="btn btn-primary" id="ip-modal-save">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== PROVISION MODAL ===== -->
+    <div class="modal-overlay" id="provision-modal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3>Gerar Token de Provisionamento</h3>
+                <button class="modal-close" id="provision-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="form-provision-org">Organização</label>
+                    <input type="text" id="form-provision-org" required placeholder="Ex: Empresa ABC">
+                </div>
+                <div class="form-group">
+                    <label for="form-provision-profile">Perfil de Configuração</label>
+                    <select id="form-provision-profile" required class="filter-select" style="width: 100%;">
+                        <option value="" disabled selected>Selecione um perfil...</option>
+                    </select>
+                </div>
+                <div style="display:flex;gap:16px;">
+                    <div class="form-group" style="flex:1;">
+                        <label for="form-provision-uses">Usos Máximos</label>
+                        <input type="number" id="form-provision-uses" value="1" min="1" max="100">
+                    </div>
+                    <div class="form-group" style="flex:1;">
+                        <label for="form-provision-hours">Expiração (horas)</label>
+                        <input type="number" id="form-provision-hours" value="24" min="1" max="720">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="provision-modal-cancel">Cancelar</button>
+                <button class="btn btn-primary" id="provision-modal-save">🔑 Gerar Token</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== PROFILE MODAL ===== -->
+    <div class="modal-overlay" id="profile-modal">
+        <div class="modal-box" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 id="profile-modal-title">Novo Perfil</h3>
+                <button class="modal-close" id="profile-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="form-profile-name">Nome do Perfil</label>
+                    <input type="text" id="form-profile-name" required placeholder="Ex: Quiosque Padrão">
+                </div>
+                <div class="form-group">
+                    <label for="form-profile-desc">Descrição</label>
+                    <input type="text" id="form-profile-desc" placeholder="Descrição opcional">
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="font-weight:600;margin-bottom:8px;display:block;">Restrições</label>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox"
+                                id="form-profile-camera"> Desativar Câmera</label>
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox"
+                                id="form-profile-bluetooth"> Desativar Bluetooth</label>
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox"
+                                id="form-profile-usb"> Desativar USB</label>
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox"
+                                id="form-profile-dev" checked> Desativar Dev Options</label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="form-profile-wifi">WiFi Configs</label>
+                    <textarea id="form-profile-wifi" rows="3" placeholder="SSID|senha|WPA2 (um por linha)"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="form-profile-whitelist">App Whitelist</label>
+                    <textarea id="form-profile-whitelist" rows="2" placeholder="com.app.name (um por linha)"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="form-profile-blacklist">App Blacklist</label>
+                    <textarea id="form-profile-blacklist" rows="2" placeholder="com.app.name (um por linha)"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="profile-modal-cancel">Cancelar</button>
+                <button class="btn btn-primary" id="profile-modal-save">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== COMMAND MODAL ===== -->
+    <div class="modal-overlay" id="command-modal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3>Enviar Comando</h3>
+                <button class="modal-close" id="command-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div style="padding: 8px 0 16px; color: var(--text-muted); font-size: 0.85rem;">
+                    Alvo: <strong id="cmd-target-label" style="color: var(--accent);">--</strong>
+                </div>
+                <div class="form-group">
+                    <label for="form-cmd-type">Tipo de Comando</label>
+                    <select id="form-cmd-type" required class="filter-select" style="width: 100%;">
+                        <option value="" disabled selected>Selecione...</option>
+                    </select>
+                </div>
+                <div class="form-group" id="cmd-custom-group">
+                    <label for="form-cmd-command">Comando</label>
+                    <input type="text" id="form-cmd-command" placeholder="Ex: ipconfig /flushdns"
+                        style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border-color);border-radius:var(--radius-md);color:var(--text-primary);font-family:var(--font-mono);font-size:0.85rem;">
+                </div>
+                <div style="display:flex;gap:16px;align-items:center;">
+                    <div class="form-group" style="flex:1;">
+                        <label for="form-cmd-timeout">Timeout (ms)</label>
+                        <input type="number" id="form-cmd-timeout" value="60000" min="5000" max="300000"
+                            style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border-color);border-radius:var(--radius-md);color:var(--text-primary);font-family:var(--font-mono);font-size:0.85rem;">
+                    </div>
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:20px;">
+                            <input type="checkbox" id="form-cmd-elevation">
+                            <span>Elevação (Admin)</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="command-modal-cancel">Cancelar</button>
+                <button class="btn btn-primary" id="command-modal-save">⚡ Enviar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== RESULT MODAL ===== -->
+    <div class="modal-overlay" id="result-modal">
+        <div class="modal-box" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3>Resultado do Comando</h3>
+                <button class="modal-close" id="result-modal-close">×</button>
+            </div>
+            <div class="modal-body" id="result-content">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="result-modal-close-btn">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/devices.js"></script>
+    <script src="js/totems.js"></script>
+    <script src="js/modules.js"></script>
+    <script src="js/commands.js"></script>
+    <script src="js/provisioning.js"></script>
+    <script src="js/profiles.js"></script>
+    <script src="js/mappings.js"></script>
+    <script src="js/diagnostics.js"></script>
+    <script src="js/users.js"></script>
+    <script src="js/server.js"></script>
+    <script src="js/reports.js"></script>
+</body>
+
+</html>

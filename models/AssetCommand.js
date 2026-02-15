@@ -78,16 +78,14 @@ const AssetCommandSchema = new mongoose.Schema({
   },
   createdAt: {
     type: Date,
-    default: Date.now,
-    index: true
+    default: Date.now
   },
   sentAt: Date,
   executedAt: Date,
   completedAt: Date,
   expiresAt: {
     type: Date,
-    default: () => new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 horas
-    index: true
+    default: () => new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 horas
   }
 });
 
