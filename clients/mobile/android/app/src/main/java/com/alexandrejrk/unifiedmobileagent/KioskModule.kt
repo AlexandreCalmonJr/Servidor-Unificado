@@ -1,11 +1,4 @@
-// android/app/src/main/java/com/yourapp/KioskModule.kt
-// Módulo nativo para:
-//   - startLockTask()  / stopLockTask()  (Kiosk Mode)
-//   - setPreferredLauncher()             (definir como launcher padrão via Device Owner)
-//   - hideStatusBar() / showStatusBar()  (imersão total)
-//   - isLockTaskActive()                 (verificar estado)
-
-package com.yourapp
+package com.alexandrejrk.unifiedmobileagent
 
 import android.app.ActivityManager
 import android.app.admin.DevicePolicyManager
@@ -37,7 +30,7 @@ class KioskModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun startKioskMode(promise: Promise) {
         try {
-            val activity = currentActivity ?: run {
+            val activity = reactContext.currentActivity ?: run {
                 promise.reject("NO_ACTIVITY", "Activity não disponível")
                 return
             }
@@ -63,7 +56,7 @@ class KioskModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun stopKioskMode(promise: Promise) {
         try {
-            val activity = currentActivity ?: run {
+            val activity = reactContext.currentActivity ?: run {
                 promise.reject("NO_ACTIVITY", "Activity não disponível")
                 return
             }
@@ -105,7 +98,7 @@ class KioskModule(private val reactContext: ReactApplicationContext) :
                     addCategory(Intent.CATEGORY_HOME)
                     addCategory(Intent.CATEGORY_DEFAULT)
                 }
-                val activity = ComponentName(reactContext, MainActivity::class.java)
+                val activity = ComponentName(reactContext, "com.alexandrejrk.unifiedmobileagent.MainActivity")
                 dpm.addPersistentPreferredActivity(adminComponent, intentFilter, activity)
                 promise.resolve(true)
             } else {
@@ -140,7 +133,7 @@ class KioskModule(private val reactContext: ReactApplicationContext) :
 
     @ReactMethod
     fun hideStatusBar(promise: Promise) {
-        currentActivity?.runOnUiThread {
+        reactContext.currentActivity?.runOnUiThread {
             hideSystemUI()
             promise.resolve(true)
         } ?: promise.reject("NO_ACTIVITY", "Activity não disponível")
@@ -148,7 +141,7 @@ class KioskModule(private val reactContext: ReactApplicationContext) :
 
     @ReactMethod
     fun showStatusBar(promise: Promise) {
-        currentActivity?.runOnUiThread {
+        reactContext.currentActivity?.runOnUiThread {
             showSystemUI()
             promise.resolve(true)
         } ?: promise.reject("NO_ACTIVITY", "Activity não disponível")
@@ -207,7 +200,7 @@ class KioskModule(private val reactContext: ReactApplicationContext) :
     // ── HELPERS ───────────────────────────────────────────────────────
 
     private fun hideSystemUI() {
-        val window = currentActivity?.window ?: return
+        val window = reactContext.currentActivity?.window ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.insetsController?.let { controller ->
                 controller.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
@@ -228,7 +221,7 @@ class KioskModule(private val reactContext: ReactApplicationContext) :
     }
 
     private fun showSystemUI() {
-        val window = currentActivity?.window ?: return
+        val window = reactContext.currentActivity?.window ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.insetsController?.show(
                 WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars()

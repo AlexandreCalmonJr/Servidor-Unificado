@@ -1,15 +1,10 @@
-// android/app/src/main/java/com/yourapp/DeviceAdminReceiver.kt
-// Necessário para Device Owner / Lock Task Mode sem popup de confirmação
-// Sem Device Owner, o usuário ainda pode sair do kiosk com 3 toques em "voltar"
+package com.alexandrejrk.unifiedmobileagent
 
-package com.yourapp
-
-import android.app.admin.DeviceAdminReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
 
-class DeviceAdminReceiver : DeviceAdminReceiver() {
+class DeviceAdminReceiver : android.app.admin.DeviceAdminReceiver() {
 
     override fun onEnabled(context: Context, intent: Intent) {
         Log.i("MDM", "Device Admin habilitado")

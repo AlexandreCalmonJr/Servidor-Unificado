@@ -2,6 +2,7 @@ package com.alexandrejrk.unifiedmobileagent
 
 import android.os.Build
 import android.os.Bundle
+import android.content.Intent // Importante!
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -69,9 +70,4 @@ class MainActivity : ReactActivity() {
         // Admin ativado, pode continuar o fluxo
     }
   }
-
-  override fun getPackages() = PackageList(this).packages.apply {
-    add(KioskPackage())  // ← adicionar
-  }
-
 }

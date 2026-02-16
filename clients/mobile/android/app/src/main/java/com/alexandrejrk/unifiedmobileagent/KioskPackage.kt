@@ -1,5 +1,4 @@
-// android/app/src/main/java/com/yourapp/KioskPackage.kt
-package com.yourapp
+package com.alexandrejrk.unifiedmobileagent
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule
