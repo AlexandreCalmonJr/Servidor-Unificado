@@ -1,86 +1,202 @@
+// clients/mobile/src/screens/HomeScreen.js
+// Espelho de DeviceService (main.dart):
+//   - sendDeviceData()   → POST /api/devices/data     (data_interval)
+//   - sendHeartbeat()    → POST /api/devices/heartbeat (heartbeat_interval)
+//   - checkForCommands() → via CommandService          (command_check_interval)
+//   - _deviceInfo fields → battery, network, ip_address, serial_number, etc.
+
 import React, { useState, useEffect, useRef, useContext } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Animated, Easing, SafeAreaView, StatusBar, Dimensions } from 'react-native';
+import {
+    StyleSheet, Text, View, TouchableOpacity, ScrollView,
+    Animated, Easing, SafeAreaView, StatusBar
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Device from 'expo-device';
+import * as Battery from 'expo-battery';
+import * as Network from 'expo-network';
 import * as SecureStore from 'expo-secure-store';
+import * as Application from 'expo-application';
+import { Platform } from 'react-native';
 import api from '../services/api';
 import { AuthContext } from '../context/AuthContext';
-
 import CommandService from '../services/CommandService';
 
-const { width } = Dimensions.get('window');
+export default function HomeScreen({ navigation }) {
+    const { deviceInfo, refreshDeviceInfo, serverUrl } = useContext(AuthContext);
 
-export default function HomeScreen() {
-    const [isSyncing, setIsSyncing] = useState(false);
-    const [status, setStatus] = useState('Online');
-    const [lastSync, setLastSync] = useState(null);
+    const [isSyncing,    setIsSyncing]    = useState(false);
+    const [syncStatus,   setSyncStatus]   = useState('Online');
+    const [lastDataSync, setLastDataSync] = useState(null);
+    const [lastHeartbeat, setLastHeartbeat] = useState(null);
+    const [batteryLevel, setBatteryLevel] = useState(0);
+    const [ipAddress,    setIpAddress]    = useState('...');
+    const [serialNumber, setSerialNumber] = useState('...');
+    const [liveInfo,     setLiveInfo]     = useState({});
+
     const rotateAnim = useRef(new Animated.Value(0)).current;
-
-    // Auth Context to get device info if needed, or just load from secure store
+    const syncTimerRef     = useRef(null);
+    const heartbeatTimerRef = useRef(null);
 
     useEffect(() => {
-        // Initial Heartbeat
-        handleSync();
-        const interval = setInterval(handleSync, 30000); // Auto sync every 30s
+        // Carrega informações ao montar
+        _loadInfo();
 
-        // Start Command Service
+        // Inicia ciclos (main.dart → background_service onStart)
+        _startCycles();
+
+        // Inicia verificação de comandos (CommandService)
         CommandService.start();
 
+        // Sincronização inicial
+        handleSync();
+
         return () => {
-            clearInterval(interval);
+            clearInterval(syncTimerRef.current);
+            clearInterval(heartbeatTimerRef.current);
             CommandService.stop();
         };
     }, []);
 
-    const handleSync = async () => {
-        if (isSyncing) return;
-        setIsSyncing(true);
-        setStatus('Sincronizando...');
+    const _loadInfo = async () => {
+        // Lê campos do SecureStore (main.dart → _updateDeviceStatus)
+        const serial = await SecureStore.getItemAsync('serial_number') || 'N/A';
+        setSerialNumber(serial);
 
-        // Spin animation
+        try {
+            const level = await Battery.getBatteryLevelAsync();
+            setBatteryLevel(Math.round(level * 100));
+        } catch (_) {}
+
+        try {
+            const ip = await Network.getIpAddressAsync();
+            setIpAddress(ip || 'N/A');
+        } catch (_) {}
+
+        const info = await refreshDeviceInfo();
+        setLiveInfo(info || {});
+    };
+
+    // _startCycles — background_service onStart (main.dart)
+    const _startCycles = async () => {
+        const dataIntervalMin    = parseInt(await SecureStore.getItemAsync('data_interval'))    || 10;
+        const heartbeatIntervalMin = parseInt(await SecureStore.getItemAsync('heartbeat_interval')) || 3;
+
+        // Ciclo de envio de dados (main.dart: data_interval)
+        syncTimerRef.current = setInterval(() => {
+            handleSync();
+        }, dataIntervalMin * 60 * 1000);
+
+        // Ciclo de heartbeat (main.dart: heartbeat_interval)
+        heartbeatTimerRef.current = setInterval(() => {
+            _sendHeartbeat();
+        }, heartbeatIntervalMin * 60 * 1000);
+
+        console.log(`[HomeScreen] Ciclos iniciados — dados: ${dataIntervalMin}min | heartbeat: ${heartbeatIntervalMin}min`);
+    };
+
+    // Animação de sincronização
+    const _startSpinAnimation = () => {
         Animated.loop(
             Animated.timing(rotateAnim, {
                 toValue: 1,
                 duration: 1000,
                 easing: Easing.linear,
-                useNativeDriver: true
+                useNativeDriver: true,
             })
         ).start();
+    };
+
+    const _stopSpinAnimation = () => {
+        rotateAnim.stopAnimation();
+        rotateAnim.setValue(0);
+    };
+
+    // handleSync → DeviceService.sendDeviceData() (main.dart)
+    const handleSync = async () => {
+        if (isSyncing) return;
+        setIsSyncing(true);
+        setSyncStatus('Sincronizando...');
+        _startSpinAnimation();
 
         try {
-            const serialNumber = await SecureStore.getItemAsync('device_registered') === 'true'
-                ? await SecureStore.getItemAsync('device_id') // or Android ID if stored
-                : 'unknown';
+            // Atualiza info em tempo real antes de enviar
+            const info = await refreshDeviceInfo();
+            setLiveInfo(info || {});
 
-            // We need to send the actual serial number used during registration
-            // For now, let's assume the backend handles the ID we got from registration response
-            // or we stored the Android ID as 'serial_number' locally.
-            // Let's use a dummy heartbeat for now or try to use the stored ID.
+            // Atualiza bateria e IP
+            try {
+                const level = await Battery.getBatteryLevelAsync();
+                setBatteryLevel(Math.round(level * 100));
+                info.battery = Math.round(level * 100);
+            } catch (_) {}
 
-            // In a real scenario, we should store the 'serial_number' used for registration.
+            try {
+                const ip = await Network.getIpAddressAsync();
+                setIpAddress(ip || 'N/A');
+                info.ip_address = ip || 'N/A';
+            } catch (_) {}
 
-            // Mocking success for UI demo if API fails (since we might not have a real server running reachable from here)
-            // But trying real request:
-            // const response = await api.post('/devices/heartbeat', { serial_number: ... });
+            const token = await SecureStore.getItemAsync('auth_token');
+            if (!token) {
+                setSyncStatus('Token ausente');
+                return;
+            }
 
-            setTimeout(() => {
-                setIsSyncing(false);
-                setStatus('Online');
-                setLastSync(new Date().toLocaleTimeString());
-                rotateAnim.setValue(0);
-            }, 2000);
+            // POST /api/devices/data  (DeviceService.sendDeviceData em main.dart)
+            const response = await api.post('/devices/data', {
+                ...info,
+                last_seen:  new Date().toISOString(),
+                status:     'online',
+                is_mobile:  true,
+            });
+
+            if (response.status === 200 || response.data?.success) {
+                const now = new Date();
+                setLastDataSync(now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+                setSyncStatus('Online');
+                // Salva last_sync (main.dart → prefs.setString('last_sync'))
+                await SecureStore.setItemAsync('last_sync', now.toISOString());
+                console.log('[HomeScreen] ✅ Dados enviados');
+            } else {
+                setSyncStatus('Erro no envio');
+            }
 
         } catch (error) {
-            console.error(error);
+            console.error('[HomeScreen] ❌ Falha ao sincronizar:', error.message);
+            setSyncStatus(error.response?.status === 401 ? 'Token inválido' : 'Offline');
+        } finally {
             setIsSyncing(false);
-            setStatus('Offline');
+            _stopSpinAnimation();
         }
     };
 
-    const spin = rotateAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: ['0deg', '360deg']
-    });
+    // _sendHeartbeat → DeviceService.sendHeartbeat() (main.dart)
+    const _sendHeartbeat = async () => {
+        try {
+            const token    = await SecureStore.getItemAsync('auth_token');
+            const deviceId = await SecureStore.getItemAsync('serial_number');
+            if (!token || !deviceId) return;
+
+            // POST /api/devices/heartbeat  (main.dart → sendHeartbeat)
+            const response = await api.post('/devices/heartbeat', {
+                device_id: deviceId,
+                serial_number: deviceId,
+                battery:   batteryLevel,
+                last_seen: new Date().toISOString(),
+            });
+
+            if (response.status === 200) {
+                setLastHeartbeat(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+                console.log('[HomeScreen] 💓 Heartbeat enviado');
+            }
+        } catch (e) {
+            console.warn('[HomeScreen] Heartbeat falhou:', e.message);
+        }
+    };
+
+    const spin = rotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+
+    const batteryColor = batteryLevel > 50 ? '#10b981' : batteryLevel > 20 ? '#f59e0b' : '#ef4444';
 
     return (
         <SafeAreaView style={styles.container}>
@@ -91,14 +207,16 @@ export default function HomeScreen() {
                     <Text style={styles.headerTitle}>Agente Mobile</Text>
                     <Text style={styles.headerSubtitle}>Monitoramento Ativo</Text>
                 </View>
-                <View style={styles.statusBadge}>
-                    <Text style={styles.statusText}>{status}</Text>
+                <View style={[styles.statusBadge, { backgroundColor: syncStatus === 'Online' ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)' }]}>
+                    <Text style={[styles.statusText, { color: syncStatus === 'Online' ? '#10b981' : '#ef4444' }]}>
+                        {syncStatus}
+                    </Text>
                 </View>
             </View>
 
             <ScrollView contentContainerStyle={styles.content}>
 
-                {/* SYNC BUTTON */}
+                {/* BOTÃO SINCRONIZAR */}
                 <View style={styles.syncContainer}>
                     <TouchableOpacity onPress={handleSync} style={styles.syncButton}>
                         <LinearGradient
@@ -114,31 +232,48 @@ export default function HomeScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {/* STATUS CARDS */}
+                {/* STATS CARDS  (home_screen.dart → _buildStatusDashboard) */}
                 <View style={styles.grid}>
                     <View style={styles.card}>
                         <Text style={styles.cardLabel}>Bateria</Text>
-                        <Text style={styles.cardValue}>98%</Text>
+                        <Text style={[styles.cardValue, { color: batteryColor }]}>{batteryLevel}%</Text>
+                        <View style={styles.batteryBar}>
+                            <View style={[styles.batteryFill, { width: `${batteryLevel}%`, backgroundColor: batteryColor }]} />
+                        </View>
                     </View>
                     <View style={styles.card}>
-                        <Text style={styles.cardLabel}>Armazenamento</Text>
-                        <Text style={styles.cardValue}>45GB Livres</Text>
+                        <Text style={styles.cardLabel}>Status</Text>
+                        <Text style={[styles.cardValue, { color: syncStatus === 'Online' ? '#10b981' : '#ef4444' }]}>
+                            {syncStatus === 'Online' ? 'Online' : 'Offline'}
+                        </Text>
+                        <Text style={styles.cardSub}>{syncStatus}</Text>
                     </View>
                 </View>
 
+                {/* INFO DO DISPOSITIVO  (home_screen.dart → _buildStatusItem) */}
                 <View style={styles.infoCard}>
-                    <Text style={styles.infoTitle}>Informações do Dispositivo</Text>
-                    <View style={styles.row}>
-                        <Text style={styles.label}>Modelo:</Text>
-                        <Text style={styles.value}>{Device.modelName || 'Genérico'}</Text>
-                    </View>
-                    <View style={styles.row}>
-                        <Text style={styles.label}>OS:</Text>
-                        <Text style={styles.value}>Android {Device.osVersion}</Text>
-                    </View>
-                    <View style={styles.row}>
-                        <Text style={styles.label}>Último Sync:</Text>
-                        <Text style={styles.value}>{lastSync || 'Nunca'}</Text>
+                    <Text style={styles.infoTitle}>📱 Informações do Dispositivo</Text>
+
+                    <InfoRow label="Modelo"          value={Device.modelName || 'N/A'} />
+                    <InfoRow label="OS"              value={`${Platform.OS} ${Device.osVersion || ''}`.trim()} />
+                    <InfoRow label="Fabricante"      value={Device.manufacturer || 'N/A'} />
+                    <InfoRow label="Serial"          value={serialNumber} />
+                    <InfoRow label="IP"              value={ipAddress} />
+                    <InfoRow label="BSSID/MAC"       value={liveInfo.mac_address_radio || 'N/A'} />
+                    <InfoRow label="Setor"           value={liveInfo.sector || 'N/A'} />
+                    <InfoRow label="Andar"           value={liveInfo.floor  || 'N/A'} />
+                    <InfoRow label="Último Envio"    value={lastDataSync  || 'Nunca'} />
+                    <InfoRow label="Último Heartbeat" value={lastHeartbeat || 'Nunca'} />
+                </View>
+
+                {/* AÇÕES RÁPIDAS  (home_screen.dart → _buildQuickActions) */}
+                <View style={styles.quickActions}>
+                    <Text style={styles.infoTitle}>⚡ Ações Rápidas</Text>
+                    <View style={styles.actionsRow}>
+                        <ActionBtn label="Sincronizar"  icon="🔄" color="#06b6d4" onPress={handleSync} />
+                        <ActionBtn label="Heartbeat"    icon="💓" color="#10b981" onPress={_sendHeartbeat} />
+                        <ActionBtn label="Configurações" icon="⚙️" color="#8b5cf6"
+                            onPress={() => navigation.navigate('Settings')} />
                     </View>
                 </View>
 
@@ -147,26 +282,66 @@ export default function HomeScreen() {
     );
 }
 
+function InfoRow({ label, value }) {
+    return (
+        <View style={styles.row}>
+            <Text style={styles.rowLabel}>{label}:</Text>
+            <Text style={styles.rowValue} numberOfLines={1} ellipsizeMode="middle">{value}</Text>
+        </View>
+    );
+}
+
+function ActionBtn({ label, icon, color, onPress }) {
+    return (
+        <TouchableOpacity style={styles.actionBtn} onPress={onPress}>
+            <View style={[styles.actionIcon, { backgroundColor: `${color}22` }]}>
+                <Text style={{ fontSize: 22 }}>{icon}</Text>
+            </View>
+            <Text style={styles.actionLabel}>{label}</Text>
+        </TouchableOpacity>
+    );
+}
+
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#0f172a' },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 40 },
-    headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
-    headerSubtitle: { fontSize: 14, color: '#94a3b8' },
-    statusBadge: { backgroundColor: 'rgba(16,185,129,0.2)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-    statusText: { color: '#10b981', fontWeight: 'bold', fontSize: 12 },
-    content: { padding: 20 },
-    syncContainer: { alignItems: 'center', marginVertical: 30 },
-    syncButton: { width: 160, height: 160, borderRadius: 80, elevation: 10, shadowColor: '#06b6d4', shadowOpacity: 0.5, shadowRadius: 20 },
-    syncGradient: { flex: 1, borderRadius: 80, justifyContent: 'center', alignItems: 'center' },
-    syncIcon: { fontSize: 40, color: '#fff', marginBottom: 8 },
-    syncText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-    grid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-    card: { backgroundColor: 'rgba(30, 41, 59, 0.5)', width: '48%', padding: 20, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
-    cardLabel: { color: '#94a3b8', fontSize: 12, marginBottom: 5 },
-    cardValue: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
-    infoCard: { backgroundColor: 'rgba(30, 41, 59, 0.5)', padding: 20, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
-    infoTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginBottom: 15 },
-    row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-    label: { color: '#94a3b8' },
-    value: { color: '#fff', fontWeight: '500' }
+    container:     { flex: 1, backgroundColor: '#0f172a' },
+    header:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 40 },
+    headerTitle:   { fontSize: 22, fontWeight: 'bold', color: '#fff' },
+    headerSubtitle: { fontSize: 13, color: '#94a3b8' },
+    statusBadge:   { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
+    statusText:    { fontWeight: 'bold', fontSize: 12 },
+    content:       { padding: 20, paddingBottom: 40 },
+    syncContainer: { alignItems: 'center', marginVertical: 24 },
+    syncButton:    { width: 140, height: 140, borderRadius: 70, elevation: 10, shadowColor: '#06b6d4', shadowOpacity: 0.5, shadowRadius: 20 },
+    syncGradient:  { flex: 1, borderRadius: 70, justifyContent: 'center', alignItems: 'center' },
+    syncIcon:      { fontSize: 36, color: '#fff', marginBottom: 8 },
+    syncText:      { color: '#fff', fontSize: 14, fontWeight: '600' },
+    grid:          { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+    card: {
+        backgroundColor: 'rgba(30,41,59,0.8)', width: '48%',
+        padding: 18, borderRadius: 14,
+        borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+    },
+    cardLabel:     { color: '#94a3b8', fontSize: 12, marginBottom: 6 },
+    cardValue:     { color: '#fff', fontSize: 22, fontWeight: 'bold' },
+    cardSub:       { color: '#64748b', fontSize: 11, marginTop: 2 },
+    batteryBar:    { height: 4, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 2, marginTop: 8, overflow: 'hidden' },
+    batteryFill:   { height: '100%', borderRadius: 2 },
+    infoCard: {
+        backgroundColor: 'rgba(30,41,59,0.8)', padding: 20,
+        borderRadius: 14, borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.07)', marginBottom: 20,
+    },
+    infoTitle:     { color: '#fff', fontSize: 15, fontWeight: 'bold', marginBottom: 16 },
+    row:           { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+    rowLabel:      { color: '#94a3b8', fontSize: 13, flex: 1 },
+    rowValue:      { color: '#fff', fontWeight: '500', fontSize: 13, flex: 2, textAlign: 'right' },
+    quickActions: {
+        backgroundColor: 'rgba(30,41,59,0.8)', padding: 20,
+        borderRadius: 14, borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.07)',
+    },
+    actionsRow:    { flexDirection: 'row', justifyContent: 'space-around', marginTop: 4 },
+    actionBtn:     { alignItems: 'center' },
+    actionIcon:    { width: 52, height: 52, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+    actionLabel:   { color: '#94a3b8', fontSize: 11, fontWeight: '500' },
 });

@@ -1,43 +1,57 @@
+// clients/mobile/src/services/api.js
+// Espelho dos headers do auth_service.dart do Flutter:
+//   - Authorization: Bearer <token>
+//   - AUTH_TOKEN: <token>   (fallback legado)
+// Base URL construída de server_host + server_port (igual ao DeviceService._serverUrl)
+
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
 const api = axios.create({
-    timeout: 10000,
+    timeout: 15000,
     headers: {
         'Content-Type': 'application/json',
-    }
+    },
 });
 
-// Dynamic Base URL Interceptor
+// Interceptor — monta baseURL e headers dinamicamente (DeviceService → initialize)
 api.interceptors.request.use(async (config) => {
-    const serverUrl = await SecureStore.getItemAsync('server_url');
-    if (serverUrl) {
-        config.baseURL = serverUrl.replace(/\/$/, '') + '/api'; // Ensure no trailing slash and append /api
+    const host  = await SecureStore.getItemAsync('server_host');
+    const port  = await SecureStore.getItemAsync('server_port');
+    const token = await SecureStore.getItemAsync('auth_token');
+
+    if (host && port) {
+        const baseUrl = `http://${host}:${port}`;
+        config.baseURL = `${baseUrl}/api`;
     }
 
-    // Auth Token (User)
-    const token = await SecureStore.getItemAsync('user_token');
     if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-
-    // Fleet/Device Token (for registration/handshake)
-    const fleetToken = await SecureStore.getItemAsync('fleet_token');
-    if (fleetToken) {
-        config.headers['auth_token'] = fleetToken;
+        config.headers['Authorization'] = `Bearer ${token}`;
+        config.headers['AUTH_TOKEN']    = token; // fallback legado (igual ao Flutter)
     }
 
     return config;
-}, (error) => {
-    return Promise.reject(error);
-});
+}, (error) => Promise.reject(error));
 
-export const saveServerUrl = async (url) => {
-    await SecureStore.setItemAsync('server_url', url);
-};
+// ──────────────────────────────────────────────────────────
+// HELPERS DE URL E TOKEN (para uso direto sem interceptor)
+// ──────────────────────────────────────────────────────────
 
 export const getServerUrl = async () => {
-    return await SecureStore.getItemAsync('server_url');
+    const host = await SecureStore.getItemAsync('server_host');
+    const port = await SecureStore.getItemAsync('server_port');
+    if (!host || !port) return null;
+    return `http://${host}:${port}`;
+};
+
+export const getAuthToken = async () => {
+    return await SecureStore.getItemAsync('auth_token');
+};
+
+export const saveServerConfig = async (host, port, token) => {
+    await SecureStore.setItemAsync('server_host', host);
+    await SecureStore.setItemAsync('server_port', port);
+    if (token) await SecureStore.setItemAsync('auth_token', token);
 };
 
 export default api;

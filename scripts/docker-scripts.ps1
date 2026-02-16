@@ -187,7 +187,7 @@ function Restore-Backup {
     
     if ([string]::IsNullOrEmpty($BackupDir)) {
         Write-ColorOutput "❌ Erro: Especifique o diretório do backup" "Red"
-        Write-ColorOutput "Uso: .\docker-scripts.ps1 restore <dir>" "Yellow"
+        Write-ColorOutput "Uso: .\scripts\docker-scripts.ps1 restore <dir>" "Yellow"
         Write-ColorOutput "`nBackups disponíveis:" "Blue"
         Get-ChildItem backups
         return
@@ -274,7 +274,7 @@ function Show-Help {
            DOCKER SCRIPTS - SERVIDOR MDM
 ===============================================================
 
-Uso: .\docker-scripts.ps1 [comando] [argumentos]
+Uso: .\scripts\docker-scripts.ps1 [comando] [argumentos]
 
 Comandos Disponíveis:
 
@@ -296,11 +296,11 @@ Comandos Disponíveis:
 
 Exemplos:
 
-  .\docker-scripts.ps1 init
-  .\docker-scripts.ps1 start
-  .\docker-scripts.ps1 logs mongodb
-  .\docker-scripts.ps1 rebuild
-  .\docker-scripts.ps1 backup
+  .\scripts\docker-scripts.ps1 init
+  .\scripts\docker-scripts.ps1 start
+  .\scripts\docker-scripts.ps1 logs mongodb
+  .\scripts\docker-scripts.ps1 rebuild
+  .\scripts\docker-scripts.ps1 backup
 
 ===============================================================
 "@ -ForegroundColor Cyan
