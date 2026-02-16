@@ -18,6 +18,7 @@ import DeviceRegisterScreen from './src/screens/DeviceRegisterScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import LauncherScreen from './src/screens/LauncherScreen';
 
 const Stack = createStackNavigator();
 const Tab   = createBottomTabNavigator();
@@ -42,6 +43,14 @@ function MainTabs() {
                 component={HomeScreen}
                 options={{
                     tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🏠</Text>,
+                }}
+            />
+            <Tab.Screen
+                name="Launcher"
+                component={LauncherScreen}
+                options={{
+                    tabBarLabel: 'Launcher',
+                    tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🚀</Text>,
                 }}
             />
             <Tab.Screen

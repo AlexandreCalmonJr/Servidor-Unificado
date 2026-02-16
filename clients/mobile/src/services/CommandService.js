@@ -14,6 +14,10 @@ import * as FileSystem from 'expo-file-system';
 import * as Updates from 'expo-updates';
 import * as IntentLauncher from 'expo-intent-launcher';
 import api from './api';
+import {
+    startKioskMode, stopKioskMode,
+    setAsDefaultLauncher, saveAllowedApps,
+} from './KioskService';
 
 // Intervalo padrão (main.dart → command_check_interval: 1 minuto)
 const DEFAULT_INTERVAL_MS = 1 * 60 * 1000; // 1 minuto em ms
@@ -149,6 +153,48 @@ class CommandService {
                     success = true;
                     result  = 'App reiniciado';
                     break;
+
+                // ── KIOSK / LAUNCHER ──────────────────────────────────
+
+                // Ativar modo kiosk (trava o dispositivo)
+                case 'enable_kiosk':
+                case 'start_kiosk': {
+                    const ok = await startKioskMode();
+                    success = ok;
+                    result  = ok ? 'Modo kiosk ativado' : 'Falha ao ativar kiosk';
+                    break;
+                }
+
+                // Desativar modo kiosk
+                case 'disable_kiosk':
+                case 'stop_kiosk': {
+                    const ok = await stopKioskMode();
+                    success = ok;
+                    result  = ok ? 'Modo kiosk desativado' : 'Falha ao desativar kiosk';
+                    break;
+                }
+
+                // Definir como launcher padrão
+                case 'set_default_launcher': {
+                    const ok = await setAsDefaultLauncher();
+                    success = ok;
+                    result  = 'Launcher configurado';
+                    break;
+                }
+
+                // Atualizar lista de apps permitidos no launcher
+                // payload: { packages: ["com.whatsapp", "com.chrome", ...] }
+                case 'update_allowed_apps': {
+                    const packages = params.packages || params.allowed_apps || [];
+                    if (!Array.isArray(packages)) {
+                        throw new Error('packages deve ser um array de packageNames');
+                    }
+                    await saveAllowedApps(packages);
+                    success = true;
+                    result  = `${packages.length} app(s) permitido(s) atualizado(s)`;
+                    console.log('[CommandService] 📱 Apps permitidos atualizados:', packages);
+                    break;
+                }
 
                 // Mensagem remota (push_message / show_message)
                 case 'push_message':
