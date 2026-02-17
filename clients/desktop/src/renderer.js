@@ -11,20 +11,20 @@ const { ipcRenderer } = require('electron');
 // ESTADO (agent_provider.dart)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-let agentStatus      = 'unconfigured'; // unconfigured | configuring | configured
+let agentStatus = 'unconfigured'; // unconfigured | configuring | configured
 let availableModules = [];
 let selectedModuleId = null;
-let forceLegacyMode  = false;
-let searchQuery      = '';
+let forceLegacyMode = false;
+let searchQuery = '';
 let selectedInterval = 300;
 
 // Opções de intervalo (agent_provider.dart → intervalOptions)
 const intervalOptions = [
-    { label: '5 Minutos',  value: 300  },
-    { label: '15 Minutos', value: 900  },
+    { label: '5 Minutos', value: 300 },
+    { label: '15 Minutos', value: 900 },
     { label: '30 Minutos', value: 1800 },
-    { label: '1 Hora',     value: 3600 },
-    { label: '2 Horas',    value: 7200 },
+    { label: '1 Hora', value: 3600 },
+    { label: '2 Horas', value: 7200 },
 ];
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -40,7 +40,7 @@ document.getElementById('close-btn')?.addEventListener('click', () => ipcRendere
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 const navItems = document.querySelectorAll('.nav-item');
-const views    = document.querySelectorAll('.view-section');
+const views = document.querySelectorAll('.view-section');
 
 navItems.forEach(item => {
     item.addEventListener('click', () => {
@@ -77,7 +77,7 @@ function goToPage(step) {
     });
     document.querySelectorAll('.step-dot').forEach((el, i) => {
         el.classList.toggle('active', i === step);
-        el.classList.toggle('done',   i < step);
+        el.classList.toggle('done', i < step);
     });
 }
 
@@ -92,8 +92,8 @@ function nextPage() {
 // ── PÁGINA 1: Conexão (onboarding_screen.dart → _OnboardingStep1) ──
 
 document.getElementById('step1-continue')?.addEventListener('click', async () => {
-    const ip    = document.getElementById('input-ip').value.trim();
-    const port  = document.getElementById('input-port').value.trim();
+    const ip = document.getElementById('input-ip').value.trim();
+    const port = document.getElementById('input-port').value.trim();
     const token = document.getElementById('input-token').value.trim();
     forceLegacyMode = document.getElementById('check-legacy')?.checked || false;
 
@@ -147,7 +147,7 @@ document.getElementById('step1-continue')?.addEventListener('click', async () =>
 function setStep1Loading(loading, text = '') {
     const btn = document.getElementById('step1-continue');
     if (!btn) return;
-    btn.disabled    = loading;
+    btn.disabled = loading;
     btn.textContent = loading ? text : 'Testar e Continuar';
 }
 
@@ -248,9 +248,9 @@ function renderModuleList() {
             </div>
             <div class="module-item__action">
                 ${isSelected
-                    ? '<svg width="20" height="20" fill="#2563eb" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>'
-                    : `<div class="module-item__count"><svg width="12" height="12" fill="#a1a1aa" viewBox="0 0 24 24"><path d="M20 7H4V5h16v2zm2 5H2v2h20v-2zM4 17h16v2H4v-2z"/></svg><span>${assetCount}</span></div>`
-                }
+                ? '<svg width="20" height="20" fill="#2563eb" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>'
+                : `<div class="module-item__count"><svg width="12" height="12" fill="#a1a1aa" viewBox="0 0 24 24"><path d="M20 7H4V5h16v2zm2 5H2v2h20v-2zM4 17h16v2H4v-2z"/></svg><span>${assetCount}</span></div>`
+            }
             </div>
         `;
 
@@ -269,13 +269,13 @@ function highlightText(text, query) {
     if (!query || !text.toLowerCase().includes(query.toLowerCase())) {
         return escapeHtml(text);
     }
-    const lowerText  = text.toLowerCase();
+    const lowerText = text.toLowerCase();
     const lowerQuery = query.toLowerCase();
     let result = '', start = 0;
     let idx = lowerText.indexOf(lowerQuery);
     while (idx !== -1) {
         result += escapeHtml(text.substring(start, idx));
-        result += `<mark style="background:rgba(254,240,138,0.2);color:#fef08a;font-weight:bold;">${escapeHtml(text.substring(idx, idx + query.length))}</mark>`;
+        result += `<mark class="stat-icon blue" style="background: rgba(59, 130, 246, 0.2); color: var(--accent-secondary); font-weight:bold;">${escapeHtml(text.substring(idx, idx + query.length))}</mark>`;
         start = idx + query.length;
         idx = lowerText.indexOf(lowerQuery, start);
     }
@@ -294,8 +294,8 @@ function escapeHtml(str) {
 function getModuleIcon(type) {
     // module_info.dart → IconData get icon
     const icons = {
-        desktop:  '🖥️', notebook: '💻', panel:   '📺',
-        printer:  '🖨️', mobile:   '📱', totem:   '🏧',
+        desktop: '🖥️', notebook: '💻', panel: '📺',
+        printer: '🖨️', mobile: '📱', totem: '🏧',
     };
     return icons[(type || '').toLowerCase()] || '🔌';
 }
@@ -347,22 +347,22 @@ document.getElementById('step3-save')?.addEventListener('click', async () => {
         return;
     }
 
-    const ip        = document.getElementById('input-ip')?.value.trim()        || '';
-    const port      = document.getElementById('input-port')?.value.trim()      || '3000';
-    const token     = document.getElementById('input-token')?.value.trim()     || '';
-    const assetName = document.getElementById('input-asset-name')?.value.trim()|| '';
-    const sector    = document.getElementById('input-sector')?.value.trim()    || '';
-    const floor     = document.getElementById('input-floor')?.value.trim()     || '';
-    const interval  = parseInt(document.getElementById('input-interval')?.value || '300', 10);
+    const ip = document.getElementById('input-ip')?.value.trim() || '';
+    const port = document.getElementById('input-port')?.value.trim() || '3000';
+    const token = document.getElementById('input-token')?.value.trim() || '';
+    const assetName = document.getElementById('input-asset-name')?.value.trim() || '';
+    const sector = document.getElementById('input-sector')?.value.trim() || '';
+    const floor = document.getElementById('input-floor')?.value.trim() || '';
+    const interval = parseInt(document.getElementById('input-interval')?.value || '300', 10);
 
     // Se assetName vazio, usa COMPUTERNAME (agent_provider.dart → saveSettingsAndRestartService)
     const finalAssetName = assetName || process.env.COMPUTERNAME || os.hostname?.() || '';
 
     const settings = {
         ip, port, token,
-        moduleId:       selectedModuleId || '',
+        moduleId: selectedModuleId || '',
         sector, floor,
-        assetName:      finalAssetName,
+        assetName: finalAssetName,
         interval,
         forceLegacyMode,
     };
@@ -388,29 +388,29 @@ async function refreshStatusView() {
     const settings = store ? store.get('settings', {}) : await ipcRenderer.invoke('get-settings');
 
     // Status do serviço (status_screen.dart → _buildServiceStatus)
-    const statusDot  = document.getElementById('status-dot');
+    const statusDot = document.getElementById('status-dot');
     const statusText = document.getElementById('status-text');
     const statusBadge = document.getElementById('status-badge');
 
     if (statusDot && statusText) {
         const isRunning = status.isRunning;
-        statusDot.className  = `status-dot ${isRunning ? 'status-dot--online' : 'status-dot--offline'}`;
+        statusDot.className = `status-dot ${isRunning ? 'status-dot--online' : 'status-dot--offline'}`;
         statusText.textContent = isRunning ? 'ATIVO' : 'PARADO';
         if (statusBadge) statusBadge.className = `status-badge ${isRunning ? 'status-badge--online' : 'status-badge--offline'}`;
     }
 
-    _setText('status-last-sync',    _formatDateTime(status.lastRunTime));
-    _setText('status-current',      status.lastRunStatus || 'N/A');
-    _setText('status-next-run',     _formatNextRun(status.nextRunTime));
-    _setText('status-interval',     `${Math.floor((settings.interval || 300) / 60)} minutos`);
+    _setText('status-last-sync', _formatDateTime(status.lastRunTime));
+    _setText('status-current', status.lastRunStatus || 'N/A');
+    _setText('status-next-run', _formatNextRun(status.nextRunTime));
+    _setText('status-interval', `${Math.floor((settings.interval || 300) / 60)} minutos`);
 
     // Configuração de conexão (status_screen.dart → _buildConnectionConfig)
     const serverUrl = `http://${settings.ip || ''}:${settings.port || ''}`;
-    _setText('config-server',   serverUrl);
-    _setText('config-module',   settings.forceLegacyMode ? 'Modo Legado' : (settings.moduleId || 'N/A'));
-    _setText('config-asset',    settings.assetName || 'Automático');
+    _setText('config-server', serverUrl);
+    _setText('config-module', settings.forceLegacyMode ? 'Modo Legado' : (settings.moduleId || 'N/A'));
+    _setText('config-asset', settings.assetName || 'Automático');
     const sector = settings.sector || 'N/A';
-    const floor  = settings.floor  || 'N/A';
+    const floor = settings.floor || 'N/A';
     _setText('config-location', `${sector} - ${floor}`);
 
     // Stats cards (status_screen.dart → _buildSyncStats)
@@ -418,8 +418,8 @@ async function refreshStatusView() {
         ? new Date(status.lastRunTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
         : 'N/A'
     );
-    _setText('stat-status',     status.isRunning ? 'Online' : 'Offline');
-    _setText('stat-errors',     String(status.errorCount || 0));
+    _setText('stat-status', status.isRunning ? 'Online' : 'Offline');
+    _setText('stat-errors', String(status.errorCount || 0));
 
     const statusColor = document.getElementById('stat-status-color');
     if (statusColor) statusColor.style.color = status.isRunning ? '#10b981' : '#ef4444';
@@ -504,13 +504,13 @@ document.getElementById('btn-reconfigure')?.addEventListener('click', () => {
 async function loadSettingsView() {
     const s = await ipcRenderer.invoke('get-settings');
 
-    _setInputValue('setting-ip',        s.ip        || '');
-    _setInputValue('setting-port',      s.port      || '3000');
-    _setInputValue('setting-token',     s.token     || '');
-    _setInputValue('setting-asset',     s.assetName || '');
-    _setInputValue('setting-sector',    s.sector    || '');
-    _setInputValue('setting-floor',     s.floor     || '');
-    _setInputValue('setting-module-id', s.moduleId  || '');
+    _setInputValue('setting-ip', s.ip || '');
+    _setInputValue('setting-port', s.port || '3000');
+    _setInputValue('setting-token', s.token || '');
+    _setInputValue('setting-asset', s.assetName || '');
+    _setInputValue('setting-sector', s.sector || '');
+    _setInputValue('setting-floor', s.floor || '');
+    _setInputValue('setting-module-id', s.moduleId || '');
 
     const legacySwitch = document.getElementById('setting-legacy');
     if (legacySwitch) legacySwitch.checked = s.forceLegacyMode || false;
@@ -552,14 +552,14 @@ function updateLegacyWarning(isLegacy) {
 // Salvar configurações (settings_screen.dart → salvar individualmente)
 document.getElementById('save-settings-btn')?.addEventListener('click', async () => {
     const settings = {
-        ip:             document.getElementById('setting-ip')?.value.trim()        || '',
-        port:           document.getElementById('setting-port')?.value.trim()      || '3000',
-        token:          document.getElementById('setting-token')?.value.trim()     || '',
-        assetName:      document.getElementById('setting-asset')?.value.trim()     || '',
-        sector:         document.getElementById('setting-sector')?.value.trim()    || '',
-        floor:          document.getElementById('setting-floor')?.value.trim()     || '',
-        moduleId:       document.getElementById('setting-module-id')?.value.trim() || '',
-        interval:       parseInt(document.getElementById('setting-interval')?.value || '300', 10),
+        ip: document.getElementById('setting-ip')?.value.trim() || '',
+        port: document.getElementById('setting-port')?.value.trim() || '3000',
+        token: document.getElementById('setting-token')?.value.trim() || '',
+        assetName: document.getElementById('setting-asset')?.value.trim() || '',
+        sector: document.getElementById('setting-sector')?.value.trim() || '',
+        floor: document.getElementById('setting-floor')?.value.trim() || '',
+        moduleId: document.getElementById('setting-module-id')?.value.trim() || '',
+        interval: parseInt(document.getElementById('setting-interval')?.value || '300', 10),
         forceLegacyMode: document.getElementById('setting-legacy')?.checked || false,
     };
 
@@ -569,8 +569,8 @@ document.getElementById('save-settings-btn')?.addEventListener('click', async ()
 
 // Detectar sistema (settings_screen.dart → _detectSystem)
 document.getElementById('detect-system-btn')?.addEventListener('click', async () => {
-    const ip    = document.getElementById('setting-ip')?.value.trim();
-    const port  = document.getElementById('setting-port')?.value.trim();
+    const ip = document.getElementById('setting-ip')?.value.trim();
+    const port = document.getElementById('setting-port')?.value.trim();
     const token = document.getElementById('setting-token')?.value.trim();
     const detectionEl = document.getElementById('detection-result');
 
@@ -598,24 +598,24 @@ document.getElementById('detect-system-btn')?.addEventListener('click', async ()
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 const overlayOnboarding = document.getElementById('overlay-onboarding');
-const viewConfigured    = document.getElementById('view-configured');
+const viewConfigured = document.getElementById('view-configured');
 
 function showOnboarding() {
     agentStatus = 'unconfigured';
-    if (overlayOnboarding)  overlayOnboarding.style.display = 'flex';
-    if (viewConfigured)     viewConfigured.style.display    = 'none';
+    if (overlayOnboarding) overlayOnboarding.style.display = 'flex';
+    if (viewConfigured) viewConfigured.style.display = 'none';
 }
 
 function showConfiguredView(settings) {
     agentStatus = 'configured';
     if (overlayOnboarding) overlayOnboarding.style.display = 'none';
-    if (viewConfigured)    viewConfigured.style.display    = 'block';
+    if (viewConfigured) viewConfigured.style.display = 'block';
 
     // Atualiza display de configurações
     const serverUrl = `http://${settings.ip}:${settings.port}`;
-    _setText('dash-server',  serverUrl);
-    _setText('dash-module',  settings.forceLegacyMode ? 'Modo Legado' : (settings.moduleId || 'N/A'));
-    _setText('dash-mode',    settings.forceLegacyMode ? '⚡ Legado' : '🔷 Módulos');
+    _setText('dash-server', serverUrl);
+    _setText('dash-module', settings.forceLegacyMode ? 'Modo Legado' : (settings.moduleId || 'N/A'));
+    _setText('dash-mode', settings.forceLegacyMode ? '⚡ Legado' : '🔷 Módulos');
 
     // Inicia atualização automática do status
     clearInterval(statusRefreshTimer);
@@ -656,8 +656,8 @@ function checkAdminAuth(callback) {
     overlay.style.display = 'flex';
 
     const confirmBtn = document.getElementById('admin-login-btn');
-    const cancelBtn  = document.getElementById('admin-cancel-btn');
-    const infoMsg    = document.getElementById('admin-info');
+    const cancelBtn = document.getElementById('admin-cancel-btn');
+    const infoMsg = document.getElementById('admin-info');
 
     const newConfirm = confirmBtn.cloneNode(true);
     confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
@@ -665,7 +665,7 @@ function checkAdminAuth(callback) {
     cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
 
     newConfirm.addEventListener('click', async () => {
-        const pass    = document.getElementById('admin-password').value;
+        const pass = document.getElementById('admin-password').value;
         const isValid = await ipcRenderer.invoke('verify-admin', pass);
         if (isValid) {
             adminAuthenticated = true;
@@ -693,8 +693,8 @@ function showToast(message, type = 'info') {
     const toast = document.createElement('div');
     const bg = {
         success: 'rgba(16,185,129,0.9)',
-        error:   'rgba(239,68,68,0.9)',
-        info:    'rgba(37,99,235,0.9)',
+        error: 'rgba(239,68,68,0.9)',
+        info: 'rgba(37,99,235,0.9)',
     }[type] || 'rgba(37,99,235,0.9)';
 
     toast.style.cssText = `
@@ -746,14 +746,14 @@ async function init() {
     const settings = await ipcRenderer.invoke('get-settings');
 
     // Restaura o estado dos controllers do wizard
-    if (settings.ip)       _setInputValue('input-ip',        settings.ip);
-    if (settings.port)     _setInputValue('input-port',      settings.port);
-    if (settings.token)    _setInputValue('input-token',     settings.token);
+    if (settings.ip) _setInputValue('input-ip', settings.ip);
+    if (settings.port) _setInputValue('input-port', settings.port);
+    if (settings.token) _setInputValue('input-token', settings.token);
     if (settings.assetName) _setInputValue('input-asset-name', settings.assetName);
-    if (settings.sector)   _setInputValue('input-sector',    settings.sector);
-    if (settings.floor)    _setInputValue('input-floor',     settings.floor);
+    if (settings.sector) _setInputValue('input-sector', settings.sector);
+    if (settings.floor) _setInputValue('input-floor', settings.floor);
 
-    forceLegacyMode  = settings.forceLegacyMode || false;
+    forceLegacyMode = settings.forceLegacyMode || false;
     selectedModuleId = settings.moduleId || null;
     selectedInterval = settings.interval || 300;
 

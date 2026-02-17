@@ -32,7 +32,7 @@ function validatePayload(payload, moduleType) {
     const warnings = [];
 
     if (!hasValidValue(payload.serial_number)) errors.push('Serial number inválido ou ausente');
-    if (!hasValidValue(payload.asset_name))    errors.push('Asset name inválido ou ausente');
+    if (!hasValidValue(payload.asset_name)) errors.push('Asset name inválido ou ausente');
     if (!hasValidValue(payload.hostname)) {
         warnings.push('Hostname ausente - usando fallback');
         payload.hostname = payload.asset_name || 'UNKNOWN';
@@ -40,7 +40,7 @@ function validatePayload(payload, moduleType) {
 
     const type = (moduleType || '').toLowerCase();
     if (type === 'notebook') {
-        if (!hasValidValue(payload.battery_level))    warnings.push('Nível de bateria não detectado');
+        if (!hasValidValue(payload.battery_level)) warnings.push('Nível de bateria não detectado');
         if (!hasValidValue(payload.mac_address_radio)) warnings.push('BSSID não detectado - localização WiFi indisponível');
     }
     if (type === 'desktop') {
@@ -96,6 +96,8 @@ if ($wlanOutput) {
 }
 $connectionType  = if ($wifiInterface) { 'WiFi' } else { 'Ethernet' }
 $macAddressRadio = if ($wifiInterface) { ($wifiInterface.MacAddress -replace '-', ':').ToUpper() } else { 'N/A' }
+$uptime = (Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime
+$uptimeString = "$($uptime.Days)d $($uptime.Hours)h $($uptime.Minutes)m"
 $serial = (Get-WmiObject Win32_BIOS).SerialNumber
 if (!$serial -or $serial -eq 'N/A' -or $serial -match '^0+$') { $serial = $env:COMPUTERNAME }
 $cpu = Get-WmiObject Win32_Processor | Select-Object -First 1
@@ -132,6 +134,7 @@ $hdType = if ($diskModel -match 'SSD|NVMe|Solid') { 'SSD' } else { 'HDD' }
     battery_health = $batteryHealth; biometric_reader = 'N/A'
     connected_printer = 'N/A'; installed_software = @()
     java_version = 'N/A'; browser_version = 'N/A'; is_encrypted = $false
+    uptime = $uptimeString
 } | ConvertTo-Json -Compress
 `;
 
@@ -142,7 +145,7 @@ function _getSerialNumberSync() {
             .filter(l => l.trim() && !l.includes('SerialNumber'))
             .map(l => l.trim())[0];
         if (serial && !/^0+$/.test(serial)) return serial;
-    } catch (_) {}
+    } catch (_) { }
     return os.hostname();
 }
 
@@ -175,6 +178,7 @@ function _fallbackCoreInfo() {
         biometric_reader: 'N/A', connected_printer: 'N/A',
         installed_software: [], java_version: 'N/A',
         browser_version: 'N/A', is_encrypted: false,
+        uptime: 'N/A',
     };
 }
 
@@ -192,7 +196,7 @@ async function getCoreSystemInfo() {
             `powershell -ExecutionPolicy Bypass -NoProfile -File "${tmpScript}"`,
             { timeout: 30000 },
             async (err, stdout) => {
-                try { fs.unlinkSync(tmpScript); } catch (_) {}
+                try { fs.unlinkSync(tmpScript); } catch (_) { }
 
                 if (err || !stdout.trim()) {
                     console.error('[CommandPoller] Erro no script PS1:', err?.message);
@@ -224,36 +228,36 @@ async function getCoreSystemInfo() {
 function _inferTotemType(biometric, zebra, bematech) {
     const notDetected = v => !v || v === 'N/A' || v === 'Não detectado';
     const hasBiometric = !notDetected(biometric);
-    const hasPrinter   = !notDetected(zebra) || !notDetected(bematech);
+    const hasPrinter = !notDetected(zebra) || !notDetected(bematech);
     if (hasBiometric && hasPrinter) return 'Totem Completo';
     if (hasBiometric) return 'Totem com Biometria';
-    if (hasPrinter)   return 'Totem com Impressora';
+    if (hasPrinter) return 'Totem com Impressora';
     return 'Desktop/Workstation';
 }
 
 function buildLegacyPayload(coreInfo, sector, floor) {
     const peripherals = (coreInfo.connected_printer || 'N/A / N/A').split('/');
-    const zebraStatus    = (peripherals[0] || 'N/A').trim();
+    const zebraStatus = (peripherals[0] || 'N/A').trim();
     const bematechStatus = (peripherals[1] || 'N/A').trim();
 
     return {
-        hostname:         coreInfo.hostname          || 'Unknown',
-        serialNumber:     coreInfo.serial_number     || 'Unknown',
-        model:            coreInfo.model             || 'N/A',
-        serviceTag:       coreInfo.serial_number     || 'N/A',
-        ip:               coreInfo.ip_address        || 'N/A',
-        macAddress:       coreInfo.mac_address       || 'N/A',
+        hostname: coreInfo.hostname || 'Unknown',
+        serialNumber: coreInfo.serial_number || 'Unknown',
+        model: coreInfo.model || 'N/A',
+        serviceTag: coreInfo.serial_number || 'N/A',
+        ip: coreInfo.ip_address || 'N/A',
+        macAddress: coreInfo.mac_address || 'N/A',
         mac_address_radio: coreInfo.mac_address_radio || 'N/A',
         installedPrograms: coreInfo.installed_software || [],
         biometricReaderStatus: coreInfo.biometric_reader || 'Não detectado',
         zebraStatus,
         bematechStatus,
         totemType: _inferTotemType(coreInfo.biometric_reader, zebraStatus, bematechStatus),
-        ram:       coreInfo.ram      || 'N/A',
-        hdType:    coreInfo.storage_type || 'N/A',
-        hdStorage: coreInfo.storage  || 'N/A',
-        sector:    sector            || 'N/A',
-        floor:     floor             || 'N/A',
+        ram: coreInfo.ram || 'N/A',
+        hdType: coreInfo.storage_type || 'N/A',
+        hdStorage: coreInfo.storage || 'N/A',
+        sector: sector || 'N/A',
+        floor: floor || 'N/A',
         printerStatus: coreInfo.connected_printer || 'N/A',
     };
 }
@@ -297,9 +301,9 @@ async function _sendPayload(payload, serverUrl, moduleId, moduleType, token) {
     }
 
     // Sanitização (monitoring_service.dart → _sendPayload)
-    let serial    = String(payload.serial_number || '').trim();
-    let assetName = String(payload.asset_name    || '').trim();
-    const hostname = String(payload.hostname     || '').trim();
+    let serial = String(payload.serial_number || '').trim();
+    let assetName = String(payload.asset_name || '').trim();
+    const hostname = String(payload.hostname || '').trim();
 
     if (!serial || serial === 'N/A' || serial.toLowerCase() === 'null' || /^0+$/.test(serial)) {
         console.warn(`[CommandPoller] ⚠️ Serial inválido: "${serial}". Usando hostname...`);
@@ -310,7 +314,7 @@ async function _sendPayload(payload, serverUrl, moduleId, moduleType, token) {
     }
 
     payload.serial_number = serial;
-    payload.asset_name    = assetName;
+    payload.asset_name = assetName;
     if (hostname && hostname !== 'N/A') payload.hostname = hostname;
 
     console.log(`[CommandPoller] 📤 Enviando ativo: Nome="${assetName}" | S/N="${serial}"`);
@@ -373,16 +377,16 @@ async function sendToModuleSystem(coreInfo, serverUrl, moduleId, token, sector, 
             delete payload.battery_level;
             delete payload.battery_health;
             delete payload.biometric_reader;
-            payload.screen_size          = payload.screen_size      || 'N/A';
-            payload.resolution           = payload.resolution        || '1920x1080';
-            payload.brightness           = 100;
-            payload.volume               = 50;
-            payload.hdmi_input           = 'HDMI 1';
-            payload.firmware_version     = payload.os_version        || 'N/A';
-            payload.is_online            = true;
-            payload.current_content      = 'Default Playlist';
+            payload.screen_size = payload.screen_size || 'N/A';
+            payload.resolution = payload.resolution || '1920x1080';
+            payload.brightness = 100;
+            payload.volume = 50;
+            payload.hdmi_input = 'HDMI 1';
+            payload.firmware_version = payload.os_version || 'N/A';
+            payload.is_online = true;
+            payload.current_content = 'Default Playlist';
             payload.content_last_updated = new Date().toISOString();
-            payload.connected_devices    = [];
+            payload.connected_devices = [];
             break;
     }
 
@@ -513,8 +517,8 @@ async function reportCommandResult(serverUrl, moduleId, commandId, token, { succ
     try {
         const body = {
             success,
-            stdout:  stdout.length  > 5000 ? stdout.substring(0, 5000)  : stdout,
-            stderr:  stderr.length  > 2000 ? stderr.substring(0, 2000)  : stderr,
+            stdout: stdout.length > 5000 ? stdout.substring(0, 5000) : stdout,
+            stderr: stderr.length > 2000 ? stderr.substring(0, 2000) : stderr,
             exitCode,
             executionTime,
         };
@@ -549,7 +553,7 @@ async function _runCommand(command, options = {}) {
                     `powershell -Command "Start-Process -FilePath '${tmpBat}' -Verb RunAs -Wait"`,
                     { timeout },
                     (err, stdout, stderr) => {
-                        try { fs.unlinkSync(tmpBat); } catch (_) {}
+                        try { fs.unlinkSync(tmpBat); } catch (_) { }
                         resolve({
                             stdout: (stdout || '').trim(),
                             stderr: (err?.message || stderr || '').trim(),
@@ -575,11 +579,11 @@ async function _runCommand(command, options = {}) {
 }
 
 async function executeCommand(serverUrl, moduleId, command, token) {
-    const commandId         = command.id;
-    const commandType       = command.commandType;
-    const commandText       = command.command;
+    const commandId = command.id;
+    const commandType = command.commandType;
+    const commandText = command.command;
     const requiresElevation = command.requiresElevation || false;
-    const timeout           = command.timeout || 60000;
+    const timeout = command.timeout || 60000;
 
     console.log(`[CommandPoller] ⚙️ Executando comando: ${commandType}`);
     console.log(`[CommandPoller]    Admin: ${requiresElevation} | Timeout: ${timeout}ms`);
@@ -589,10 +593,10 @@ async function executeCommand(serverUrl, moduleId, command, token) {
 
     try {
         const result = await _runCommand(commandText, { requiresElevation, timeout });
-        stdout   = result.stdout;
-        stderr   = result.stderr;
+        stdout = result.stdout;
+        stderr = result.stderr;
         exitCode = result.exitCode;
-        success  = exitCode === 0;
+        success = exitCode === 0;
 
         console.log(success
             ? '[CommandPoller] ✅ Comando executado com sucesso'
@@ -627,18 +631,18 @@ async function checkAndExecuteCommands(serverUrl, moduleId, serialNumber, token)
 
 class CommandPoller {
     constructor() {
-        this._syncTimer            = null;
-        this._commandTimer         = null;
-        this._isRunning            = false;
-        this._isExecuting          = false;
-        this._consecutiveErrors    = 0;
+        this._syncTimer = null;
+        this._commandTimer = null;
+        this._isRunning = false;
+        this._isExecuting = false;
+        this._consecutiveErrors = 0;
         this._maxConsecutiveErrors = 3;
-        this.lastRunStatus         = 'Aguardando';
-        this.lastRunTime           = null;
-        this.nextRunTime           = null;
-        this.syncCount             = 0;
-        this.errorCount            = 0;
-        this.startTime             = null;
+        this.lastRunStatus = 'Aguardando';
+        this.lastRunTime = null;
+        this.nextRunTime = null;
+        this.syncCount = 0;
+        this.errorCount = 0;
+        this.startTime = null;
     }
 
     get isRunning() { return this._isRunning; }
@@ -661,7 +665,7 @@ class CommandPoller {
             return;
         }
         this._isRunning = true;
-        this.startTime  = new Date();
+        this.startTime = new Date();
         console.log('[CommandPoller] ✅ Background Service: Iniciado');
         await this.runCycle();
         this._scheduleNextRun();
@@ -671,9 +675,9 @@ class CommandPoller {
     stop() {
         clearTimeout(this._syncTimer);
         clearInterval(this._commandTimer);
-        this._syncTimer    = null;
+        this._syncTimer = null;
         this._commandTimer = null;
-        this._isRunning    = false;
+        this._isRunning = false;
         this.lastRunStatus = 'Parado';
         console.log('[CommandPoller] 🛑 Background Service: Parado');
     }
@@ -704,9 +708,9 @@ class CommandPoller {
     }
 
     _scheduleNextRun() {
-        const s               = store.get('settings', {});
+        const s = store.get('settings', {});
         const intervalSeconds = s.interval || 300;
-        this.nextRunTime      = new Date(Date.now() + intervalSeconds * 1000);
+        this.nextRunTime = new Date(Date.now() + intervalSeconds * 1000);
         console.log(`[CommandPoller]    Agendando próximo ciclo em ${intervalSeconds}s (para: ${this.nextRunTime.toISOString()})`);
 
         clearTimeout(this._syncTimer);
@@ -724,7 +728,7 @@ class CommandPoller {
 
         if (!ip || !token || !moduleId) return;
 
-        const serverUrl    = `http://${ip}:${port}`;
+        const serverUrl = `http://${ip}:${port}`;
         const serialNumber = _getSerialNumberSync();
 
         clearInterval(this._commandTimer);
@@ -734,7 +738,7 @@ class CommandPoller {
                 this._isExecuting = true;
                 try {
                     await checkAndExecuteCommands(serverUrl, moduleId, serialNumber, token);
-                } catch (_) {}
+                } catch (_) { }
                 this._isExecuting = false;
             }
         }, 5000);
