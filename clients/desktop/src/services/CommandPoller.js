@@ -580,33 +580,65 @@ async function _runCommand(command, options = {}) {
 
 async function executeCommand(serverUrl, moduleId, command, token) {
     const commandId = command.id;
-    const commandType = command.commandType;
+    const commandType = (command.commandType || '').toUpperCase(); // Normalize
     const commandText = command.command;
     const requiresElevation = command.requiresElevation || false;
     const timeout = command.timeout || 60000;
 
-    console.log(`[CommandPoller] ⚙️ Executando comando: ${commandType}`);
-    console.log(`[CommandPoller]    Admin: ${requiresElevation} | Timeout: ${timeout}ms`);
+    logger.info(`⚙️ Executing command: ${commandType} (ID: ${commandId})`, { requiresElevation, timeout });
 
     const startTime = Date.now();
-    let stdout = '', stderr = '', exitCode = -1, success = false;
+    let stdout = '', stderr = '', exitCode = 0, success = true;
 
     try {
-        const result = await _runCommand(commandText, { requiresElevation, timeout });
-        stdout = result.stdout;
-        stderr = result.stderr;
-        exitCode = result.exitCode;
-        success = exitCode === 0;
+        // ─────────────────────────────────────────────────────────────────
+        // INTERNAL COMMANDS
+        // ─────────────────────────────────────────────────────────────────
+        if (commandType === 'INTERNAL' || commandType === 'SYSTEM') {
+            const cmd = commandText.toLowerCase();
 
-        console.log(success
-            ? '[CommandPoller] ✅ Comando executado com sucesso'
-            : '[CommandPoller] ❌ Comando falhou'
-        );
-        if (stdout) console.log(`[CommandPoller]    STDOUT: ${stdout.substring(0, 200)}...`);
-        if (stderr) console.warn(`[CommandPoller]    STDERR: ${stderr}`);
+            if (cmd === 'force_sync' || cmd === 'sync') {
+                logger.info('Running Force Sync via Command');
+                const syncSuccess = await module.exports.syncDeviceData();
+                if (!syncSuccess) throw new Error('Sync cycle failed');
+                stdout = 'Synchronization completed successfully';
+
+            } else if (cmd.startsWith('set_interval')) {
+                // Usage: set_interval 600
+                const parts = cmd.split(' ');
+                const seconds = parseInt(parts[1], 10);
+                if (isNaN(seconds) || seconds < 60) throw new Error('Invalid interval (min 60s)');
+
+                await module.exports.updateSettings({ interval: seconds });
+                stdout = `Interval updated to ${seconds} seconds`;
+
+            } else if (cmd === 'restart_service') {
+                await module.exports.initialize();
+                stdout = 'Service restarted';
+
+            } else {
+                throw new Error(`Unknown internal command: ${cmd}`);
+            }
+
+        } else {
+            // ─────────────────────────────────────────────────────────────────
+            // SHELL COMMANDS
+            // ─────────────────────────────────────────────────────────────────
+            const result = await _runCommand(commandText, { requiresElevation, timeout });
+            stdout = result.stdout;
+            stderr = result.stderr;
+            exitCode = result.exitCode;
+            success = exitCode === 0;
+        }
+
+        logger.info(success ? '✅ Command executed successfully' : '❌ Command failed');
+        if (stderr) logger.warn(`STDERR: ${stderr}`);
+
     } catch (e) {
-        stderr = `Erro de execução: ${e.message}`;
-        console.error('[CommandPoller] ❌ Exceção ao executar comando:', e.message);
+        success = false;
+        exitCode = -1;
+        stderr = `Execution Exception: ${e.message}`;
+        logger.error('❌ Exception executing command:', e.message);
     }
 
     await reportCommandResult(serverUrl, moduleId, commandId, token, {

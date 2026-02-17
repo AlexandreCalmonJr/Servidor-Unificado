@@ -2,17 +2,19 @@
 // Alinhado com settings_service.dart + agent_provider.dart + background_service.dart
 //
 // CAMPOS DO STORE (idênticos ao SettingsService do Flutter):
-//   ip, port, interval, moduleId, sector, floor, token, assetName, forceLegacyMode
+//   ip, port, interval, moduleId, sector, floor, token, assetName, forceLegacyMode, lockOnMinimize
 
 const { app, BrowserWindow, ipcMain, Tray, Menu } = require('electron');
 const path = require('path');
 const Store = require('electron-store');
 const axios = require('axios');
 const os = require('os');
+const logger = require('./src/services/Logger'); // Integrated Logger
 
 const store = new Store();
 let tray = null;
-let win  = null;
+let win = null;
+let isQuitting = false;
 
 // ──────────────────────────────────────────────────
 // JANELA PRINCIPAL
@@ -24,7 +26,7 @@ function createWindow() {
         minWidth: 900,
         minHeight: 600,
         webPreferences: {
-            nodeIntegration:  true,
+            nodeIntegration: true,
             contextIsolation: false,
         },
         frame: false,
@@ -35,60 +37,91 @@ function createWindow() {
 
     win.loadFile('src/index.html');
 
-    // ── Controles da janela (window_manager equivalente) ──
-    ipcMain.on('minimize-window', () => win.hide());
+    // ── Controles da janela ──
+    ipcMain.on('minimize-window', () => {
+        const settings = store.get('settings', {});
+        if (settings.lockOnMinimize) {
+            win.webContents.send('lock-app'); // Tell renderer to lock
+        }
+        win.hide();
+    });
+
     ipcMain.on('maximize-window', () => {
         win.isMaximized() ? win.unmaximize() : win.maximize();
     });
-    ipcMain.on('close-window', () => win.hide()); // Mantém na bandeja
+
+    ipcMain.on('close-window', () => {
+        const settings = store.get('settings', {});
+        if (settings.lockOnMinimize) {
+            win.webContents.send('lock-app');
+        }
+        win.hide();
+    });
+
+    // Start with DevTools if in dev mode (optional)
+    // win.webContents.openDevTools({ mode: 'detach' });
 
     // ──────────────────────────────────────────────────
-    // SETTINGS SERVICE  (settings_service.dart)
-    // Campos: ip, port, interval, moduleId, sector, floor, token, assetName, forceLegacyMode
+    // LOGGER IPC
+    // ──────────────────────────────────────────────────
+    ipcMain.handle('get-logs', () => logger.getLogs());
+    ipcMain.handle('clear-logs', () => {
+        logger.clearLogs();
+        return { success: true };
+    });
+    ipcMain.on('log-message', (event, { level, message, data }) => {
+        if (logger[level]) logger[level](message, data);
+    });
+
+    // ──────────────────────────────────────────────────
+    // SETTINGS SERVICE
     // ──────────────────────────────────────────────────
 
     ipcMain.handle('get-settings', () => {
         return store.get('settings', {
-            ip:             '',
-            port:           '3000',
-            token:          '',
-            moduleId:       '',
-            sector:         '',
-            floor:          '',
-            assetName:      '',
-            interval:       300,     // padrão 5 minutos (settings_service.dart)
+            ip: '',
+            port: '3000',
+            token: '',
+            moduleId: '',
+            sector: '',
+            floor: '',
+            assetName: '',
+            interval: 300,
             forceLegacyMode: false,
+            lockOnMinimize: true, // Default true for security
+            adminPassword: 'admin123' // Simple local storage for now
         });
     });
 
     ipcMain.handle('save-settings', async (event, settings) => {
-        // Garante que os campos correspondem exatamente ao SettingsService
         const normalized = {
-            ip:              String(settings.ip              || '').trim(),
-            port:            String(settings.port            || '3000').trim(),
-            token:           String(settings.token           || '').trim(),
-            moduleId:        String(settings.moduleId        || '').trim(),
-            sector:          String(settings.sector          || '').trim(),
-            floor:           String(settings.floor           || '').trim(),
-            assetName:       String(settings.assetName       || '').trim(),
-            interval:        Number(settings.interval)       || 300,
+            ip: String(settings.ip || '').trim(),
+            port: String(settings.port || '3000').trim(),
+            token: String(settings.token || '').trim(),
+            moduleId: String(settings.moduleId || '').trim(),
+            sector: String(settings.sector || '').trim(),
+            floor: String(settings.floor || '').trim(),
+            assetName: String(settings.assetName || '').trim(),
+            interval: Number(settings.interval) || 300,
             forceLegacyMode: settings.forceLegacyMode === true,
+            lockOnMinimize: settings.lockOnMinimize === true,
+            adminPassword: settings.adminPassword || 'admin123'
         };
 
         store.set('settings', normalized);
+        logger.info('Settings updated', normalized);
 
-        // Atualiza o serviço de background com as novas configs
+        // Atualiza o serviço de background
         try {
             const commandPoller = require('./src/services/CommandPoller');
             await commandPoller.updateSettings(normalized);
         } catch (e) {
-            console.warn('[main] Poller não disponível ainda:', e.message);
+            logger.warn('Failed to update CommandPoller settings', e.message);
         }
 
         return { success: true };
     });
 
-    // Salva apenas forceLegacyMode (settings_service.dart → saveForceLegacyMode)
     ipcMain.handle('save-force-legacy', async (event, value) => {
         const current = store.get('settings', {});
         current.forceLegacyMode = value === true;
@@ -97,24 +130,25 @@ function createWindow() {
         try {
             const commandPoller = require('./src/services/CommandPoller');
             await commandPoller.updateSettings({ forceLegacyMode: value === true });
-        } catch (_) {}
+        } catch (_) { }
 
         return { success: true };
     });
 
     // ──────────────────────────────────────────────────
-    // MÓDULOS  (agent_provider.dart → fetchModules)
+    // MÓDULOS
     // ──────────────────────────────────────────────────
 
     ipcMain.handle('fetch-modules', async (event, { ip, port, token }) => {
         try {
             const serverUrl = `http://${ip}:${port}`;
-            const headers   = {
+            const headers = {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
                 'AUTH_TOKEN': token,
             };
 
+            logger.info(`Fetching modules from ${serverUrl}`);
             const response = await axios.get(`${serverUrl}/api/modules`, {
                 headers,
                 timeout: 10000,
@@ -123,7 +157,7 @@ function createWindow() {
             return { success: true, modules: response.data?.modules || [] };
 
         } catch (e) {
-            // 404 → servidor não suporta módulos (agent_provider.dart → fetchModules case 404)
+            logger.error('Error fetching modules', e.message);
             if (e.response?.status === 404) {
                 return { success: true, modules: [], legacyOnly: true };
             }
@@ -135,19 +169,19 @@ function createWindow() {
     });
 
     // ──────────────────────────────────────────────────
-    // TESTE DE CONEXÃO  (agent_provider.dart → _testConnection)
-    // Rota: GET /api/auth/validate
+    // TESTE DE CONEXÃO
     // ──────────────────────────────────────────────────
 
     ipcMain.handle('test-connection', async (event, { ip, port, token }) => {
         try {
             const serverUrl = `http://${ip}:${port}`;
-            const headers   = {
+            const headers = {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
                 'AUTH_TOKEN': token,
             };
 
+            logger.info(`Testing connection to ${serverUrl}`);
             const response = await axios.get(`${serverUrl}/api/auth/validate`, {
                 headers,
                 timeout: 10000,
@@ -157,6 +191,7 @@ function createWindow() {
             return { success: true };
 
         } catch (e) {
+            logger.error('Connection test failed', e.message);
             if (e.response?.status === 401) {
                 return { success: false, error: 'Token inválido ou expirado.' };
             }
@@ -165,39 +200,41 @@ function createWindow() {
     });
 
     // ──────────────────────────────────────────────────
-    // SINCRONIZAÇÃO FORÇADA  (background_service.dart → runCycle)
+    // SINCRONIZAÇÃO FORÇADA
     // ──────────────────────────────────────────────────
 
     ipcMain.handle('force-sync', async () => {
         try {
             const commandPoller = require('./src/services/CommandPoller');
+            logger.info('Manual sync requested');
             await commandPoller.runCycle();
             return {
-                success:    true,
+                success: true,
                 lastRunTime: commandPoller.lastRunTime?.toISOString(),
-                status:     commandPoller.lastRunStatus,
+                status: commandPoller.lastRunStatus,
             };
         } catch (e) {
+            logger.error('Validation failed', e.message);
             return { success: false, error: e.message };
         }
     });
 
     // ──────────────────────────────────────────────────
-    // STATUS DO SERVIÇO  (status_screen.dart)
+    // STATUS DO SERVIÇO
     // ──────────────────────────────────────────────────
 
     ipcMain.handle('get-service-status', () => {
         try {
             const commandPoller = require('./src/services/CommandPoller');
             return {
-                isRunning:     commandPoller.isRunning,
+                isRunning: commandPoller.isRunning,
                 lastRunStatus: commandPoller.lastRunStatus,
-                lastRunTime:   commandPoller.lastRunTime?.toISOString() || null,
-                nextRunTime:   commandPoller.nextRunTime?.toISOString() || null,
-                syncCount:     commandPoller.syncCount,
-                errorCount:    commandPoller.errorCount,
+                lastRunTime: commandPoller.lastRunTime?.toISOString() || null,
+                nextRunTime: commandPoller.nextRunTime?.toISOString() || null,
+                syncCount: commandPoller.syncCount,
+                errorCount: commandPoller.errorCount,
             };
-        } catch (_) {
+        } catch (e) {
             return { isRunning: false, lastRunStatus: 'Erro', syncCount: 0, errorCount: 0 };
         }
     });
@@ -206,6 +243,7 @@ function createWindow() {
         try {
             const commandPoller = require('./src/services/CommandPoller');
             commandPoller.stop();
+            logger.info('Service stopped by user');
             return { success: true };
         } catch (e) {
             return { success: false, error: e.message };
@@ -216,6 +254,7 @@ function createWindow() {
         try {
             const commandPoller = require('./src/services/CommandPoller');
             await commandPoller.start();
+            logger.info('Service started by user');
             return { success: true };
         } catch (e) {
             return { success: false, error: e.message };
@@ -223,18 +262,17 @@ function createWindow() {
     });
 
     // ──────────────────────────────────────────────────
-    // INFORMAÇÕES DO SISTEMA  (status_screen.dart → _getSystemInfo)
-    // Campos compatíveis com a StatusScreen do Flutter
+    // INFORMAÇÕES DO SISTEMA
     // ──────────────────────────────────────────────────
 
     ipcMain.handle('get-system-info', () => {
         return {
             'Nome do Computador': process.env.COMPUTERNAME || os.hostname(),
-            'Usuário':            process.env.USERNAME    || os.userInfo().username || 'N/A',
+            'Usuário': process.env.USERNAME || os.userInfo().username || 'N/A',
             'Sistema Operacional': process.platform,
-            'Versão do SO':       os.release(),
+            'Versão do SO': os.release(),
             'Número de Processadores': String(os.cpus().length),
-            'Arquitetura':        process.arch,
+            'Arquitetura': process.arch,
         };
     });
 
@@ -243,89 +281,101 @@ function createWindow() {
     // ──────────────────────────────────────────────────
 
     ipcMain.handle('verify-admin', (event, password) => {
-        const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
+        const settings = store.get('settings', {});
+        // Fallback to env or default
+        const adminPass = settings.adminPassword || process.env.ADMIN_PASSWORD || 'admin123';
         return password === adminPass;
     });
 }
 
 // ──────────────────────────────────────────────────
-// SYSTEM TRAY  (system_tray_service.dart)
+// SYSTEM TRAY
 // ──────────────────────────────────────────────────
 
 function createTray() {
     const iconPath = path.join(__dirname, 'src/assets/icon.png');
     tray = new Tray(iconPath);
 
-    const contextMenu = Menu.buildFromTemplate([
-        {
-            label: 'Abrir Painel',
-            click: () => { win.show(); win.focus(); },
-        },
-        {
-            label: 'Forçar Sincronização',
-            click: async () => {
-                console.log('[main] Sincronização forçada pelo usuário');
-                const commandPoller = require('./src/services/CommandPoller');
-                await commandPoller.runCycle();
-            },
-        },
-        {
-            label: 'Reiniciar Serviço',
-            click: async () => {
-                console.log('[main] Reiniciando o serviço');
-                const commandPoller = require('./src/services/CommandPoller');
-                await commandPoller.initialize();
-            },
-        },
-        { type: 'separator' },
-        {
-            label: 'Sair',
-            click: () => {
-                app.isQuiting = true;
-                const commandPoller = require('./src/services/CommandPoller');
-                commandPoller.stop();
-                app.quit();
-            },
-        },
-    ]);
+    const updateContextMenu = () => {
+        const commandPoller = require('./src/services/CommandPoller');
+        const isRunning = commandPoller.isRunning;
 
-    tray.setToolTip('Agente de Monitoramento - Ativo');
-    tray.setContextMenu(contextMenu);
+        const contextMenu = Menu.buildFromTemplate([
+            { label: 'Unified Agent', enabled: false },
+            { type: 'separator' },
+            {
+                label: isRunning ? 'Status: Online 🟢' : 'Status: Conectando... 🟡',
+                enabled: false,
+            },
+            {
+                label: 'Abrir Painel',
+                click: () => { win.show(); win.focus(); },
+            },
+            {
+                label: 'Sincronizar Agora',
+                click: async () => {
+                    logger.info('Tray: Manual sync');
+                    await commandPoller.runCycle();
+                },
+            },
+            { type: 'separator' },
+            {
+                label: 'Encerrar',
+                click: () => {
+                    isQuitting = true;
+                    commandPoller.stop();
+                    app.quit();
+                },
+            },
+        ]);
+        tray.setContextMenu(contextMenu);
+    };
 
-    // Clique → abre/fecha janela (system_tray_service.dart → kSystemTrayEventClick)
+    tray.setToolTip('Unified Agent - Monitoramento Ativo');
+    updateContextMenu();
+
+    // Update tray menu periodically to reflect status
+    setInterval(updateContextMenu, 5000);
+
     tray.on('click', () => {
-        if (win.isVisible()) { win.hide(); } else { win.show(); win.focus(); }
+        if (win.isVisible()) {
+            win.hide();
+        } else {
+            win.show();
+            win.focus();
+        }
     });
 }
 
 // ──────────────────────────────────────────────────
-// CICLO DE VIDA  (main.dart)
+// CICLO DE VIDA
 // ──────────────────────────────────────────────────
 
 app.whenReady().then(async () => {
     createWindow();
 
     try { createTray(); } catch (e) {
-        console.log('[main] Tray não criada:', e.message);
+        logger.error('Failed to create tray', e.message);
     }
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
 
-    // Inicializa o Background Service  (main.dart → BackgroundService.initialize)
     const commandPoller = require('./src/services/CommandPoller');
     await commandPoller.initialize();
+    logger.info('App started');
 });
 
-// Minimiza para bandeja ao fechar (window_listener.dart → onWindowClose)
+// Minimiza para bandeja ao fechar
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
-        // Não fecha — mantém na bandeja
+        // Keep running in background
     }
 });
 
 app.on('before-quit', () => {
+    isQuitting = true;
     const commandPoller = require('./src/services/CommandPoller');
     commandPoller.stop();
 });

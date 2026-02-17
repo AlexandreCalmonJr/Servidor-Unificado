@@ -6,216 +6,222 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Unified Agent</title>
     <link rel="stylesheet" href="styles.css">
-    <!-- FontAwesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        /* Overlay Styles Inline for Simplicity */
-        .overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(10px);
-            z-index: 9999;
-            display: none;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-        }
-
-        .overlay-card {
-            background: rgba(30, 41, 59, 0.9);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 40px;
-            border-radius: 20px;
-            width: 400px;
-            text-align: center;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-        }
-
-        .overlay h2 {
-            margin-bottom: 20px;
-            color: #fff;
-        }
-
-        .overlay p {
-            color: #94a3b8;
-            margin-bottom: 30px;
-        }
-
-        .overlay input,
-        .overlay select {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 15px;
-            background: rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: #fff;
-            border-radius: 8px;
-        }
-
-        .overlay button {
-            width: 100%;
-            padding: 12px;
-            background: linear-gradient(135deg, #06b6d4, #3b82f6);
-            border: none;
-            color: white;
-            border-radius: 8px;
-            font-weight: bold;
-            cursor: pointer;
-            margin-top: 10px;
-        }
-
-        .overlay button.secondary {
-            background: transparent;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            margin-top: 10px;
-        }
-    </style>
 </head>
 
 <body>
-    <!-- SETUP OVERLAY -->
-    <div id="setup-overlay" class="overlay">
-        <div class="overlay-card">
-            <i class="fa-solid fa-rocket" style="font-size: 40px; color: #06b6d4; margin-bottom: 20px;"></i>
-            <h2>Configuração Inicial</h2>
-            <p>Bem-vindo ao Unified Agent. Configure o servidor e o módulo para iniciar.</p>
 
-            <input type="text" id="setup-url" placeholder="URL do Servidor ex: http://192.168.1.10:3000"
-                value="http://localhost:3000">
-            <select id="setup-module">
-                <option value="">Carregando módulos...</option>
-            </select>
-
-            <button id="setup-save-btn">Salvar e Iniciar</button>
-        </div>
-    </div>
-
-    <!-- ADMIN LOCK OVERLAY -->
-    <div id="admin-overlay" class="overlay">
-        <div class="overlay-card">
-            <i class="fa-solid fa-lock" style="font-size: 40px; color: #ef4444; margin-bottom: 20px;"></i>
-            <h2>Acesso Restrito</h2>
-            <p>Digite a senha de administrador para acessar as configurações.</p>
-
-            <input type="password" id="admin-password" placeholder="Senha de Admin">
-            <p id="admin-info" style="color: #ef4444; margin: 0; height: 20px; font-size: 12px;"></p>
-
-            <button id="admin-login-btn">Entrar</button>
-            <button id="admin-cancel-btn" class="secondary">Cancelar</button>
-        </div>
-    </div>
-
-    <div class="window-frame">
+    <div class="app-container">
+        <!-- TITLE BAR -->
         <div class="title-bar">
-            <div class="app-icon"><i class="fa-brands fa-windows"></i></div>
-            <div class="window-title">Unified Agent</div>
+            <div class="window-title">
+                <i class="fa-solid fa-cube" style="color: var(--accent-primary)"></i>
+                Unified Agent
+            </div>
             <div class="window-controls">
-                <button id="min-btn"><i class="fa-solid fa-minus"></i></button>
-                <button id="max-btn"><i class="fa-regular fa-square"></i></button>
-                <button id="close-btn"><i class="fa-solid fa-xmark"></i></button>
+                <button class="control-btn" id="min-btn"><i class="fa-solid fa-minus"></i></button>
+                <button class="control-btn" id="max-btn"><i class="fa-regular fa-square"></i></button>
+                <button class="control-btn close" id="close-btn"><i class="fa-solid fa-xmark"></i></button>
             </div>
         </div>
 
-        <div class="app-content">
-            <nav class="sidebar">
+        <!-- MAIN LAYOUT -->
+        <div class="main-content">
+
+            <!-- SIDEBAR -->
+            <nav class="sidebar" id="app-sidebar" style="display:none;"> <!-- Hidden until logged in -->
                 <div class="nav-item active" data-view="dashboard">
-                    <i class="fa-solid fa-table-columns"></i>
-                    <span>Painel</span>
+                    <i class="fa-solid fa-chart-pie"></i> Painel
                 </div>
-                <div class="nav-item" data-view="commands">
-                    <i class="fa-solid fa-terminal"></i>
-                    <span>Comandos</span>
+                <div class="nav-item" data-view="logs">
+                    <i class="fa-solid fa-scroll"></i> Logs
                 </div>
                 <div class="nav-item" data-view="settings">
-                    <i class="fa-solid fa-gear"></i>
-                    <span>Config</span>
+                    <i class="fa-solid fa-sliders"></i> Configuração Client
                 </div>
 
-                <div class="nav-footer">
-                    <div class="agent-version">v1.2.0</div>
+                <div class="sidebar-spacer"></div>
+
+                <div class="sidebar-footer">
+                    <div class="status-badge" id="global-status-badge">
+                        <div class="status-indicator" id="global-status-dot"></div>
+                        <span id="global-status-text">Iniciando...</span>
+                    </div>
                 </div>
             </nav>
 
-            <main class="main-view">
-                <!-- COMMANDS VIEW (HISTORY ONLY) -->
-                <div id="view-commands" class="view-section" style="display: none;">
-                    <header class="section-header">
-                        <h1>Histórico de Comandos</h1>
-                    </header>
+            <!-- VIEWS -->
+            <div class="view-container">
 
-                    <div class="glass-panel">
-                        <table class="device-table">
-                            <thead>
-                                <tr>
-                                    <th>Data</th>
-                                    <th>Comando</th>
-                                    <th>Status</th>
-                                    <th>Detalhes</th>
-                                </tr>
-                            </thead>
-                            <tbody id="command-history-body">
-                                <tr>
-                                    <td colspan="4" style="text-align:center; padding: 20px;">Nenhum comando recente.
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                <!-- VIEW: SETUP CONNECTION (STEP 1) -->
+                <div id="view-setup-connection" class="view-section"
+                    style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%;">
+                    <div class="login-card" style="width: 400px;">
+                        <div class="login-icon">
+                            <i class="fa-solid fa-network-wired"></i>
+                        </div>
+                        <h2 style="margin:0 0 8px 0;">Conexão Servidor</h2>
+                        <p style="color:var(--text-secondary); margin-bottom:24px;">Configure o servidor base para
+                            continuar.</p>
 
-                <!-- SETTINGS VIEW -->
-                <div id="view-settings" class="view-section" style="display: none;">
-                    <header class="section-header">
-                        <h1>Configurações</h1>
-                    </header>
-                    <div class="form-container">
-                        <div class="form-group">
-                            <label>IP do Servidor</label>
-                            <input type="text" id="setting-ip" placeholder="192.168.0.x">
-                        </div>
-                        <div class="form-group">
-                            <label>Porta</label>
-                            <input type="text" id="setting-port" placeholder="3000" value="3000">
-                        </div>
-                        <div class="form-group">
-                            <label>Módulo</label>
-                            <select id="setting-module-id">
-                                <option value="">Selecione ou Detecte...</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Token de Autenticação</label>
-                            <input type="text" id="setting-token" placeholder="Token de Autenticação">
-                        </div>
-
-                        <div class="form-group"
-                            style="flex-direction: row; align-items: center; gap: 10px; margin-top: 10px;">
-                            <input type="checkbox" id="setting-legacy" style="width: auto; margin: 0;">
-                            <label for="setting-legacy" style="margin: 0;">Forçar Modo Legado</label>
-                        </div>
-                        <div id="legacy-warning"
-                            style="display: none; color: #f59e0b; font-size: 13px; margin-bottom: 10px;">
-                            <i class="fa-solid fa-triangle-exclamation"></i> Modo legado ativado. Módulos não serão
-                            usados.
-                        </div>
-
-                        <div class="form-group">
-                            <button class="btn-primary" id="detect-system-btn"
-                                style="background: #3b82f6; margin-bottom: 10px;">
-                                <i class="fa-solid fa-magnifying-glass"></i> Detectar Sistema
-                            </button>
-                            <div id="detection-result" style="font-size: 13px; margin-bottom: 15px; display: none;">
+                        <div class="form-group" style="text-align:left;">
+                            <label>URL do Servidor</label>
+                            <div style="display:flex; gap:10px;">
+                                <input type="text" id="setup-ip" class="input-field" placeholder="192.168.0.x">
+                                <input type="text" id="setup-port" class="input-field" placeholder="3000"
+                                    style="width:80px;">
                             </div>
                         </div>
 
-                        <button class="btn-primary" id="save-settings-btn">Salvar Alterações</button>
+                        <div class="form-group" style="text-align:left;">
+                            <label>Token de Autenticação</label>
+                            <input type="password" id="setup-token" class="input-field" placeholder="Token do Servidor">
+                        </div>
+
+                        <button class="btn btn-primary btn-full" id="btn-test-save-connection">
+                            <i class="fa-solid fa-plug"></i> Conectar & Salvar
+                        </button>
+                        <p id="setup-error"
+                            style="color:var(--status-error); font-size:13px; margin-top:16px; min-height:20px;"></p>
                     </div>
                 </div>
-            </main>
+
+                <!-- VIEW: DASHBOARD -->
+                <div id="view-dashboard" class="view-section">
+                    <div class="header"
+                        style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+                        <h2 style="margin:0;">Visão Geral</h2>
+                        <button class="btn btn-primary" id="btn-force-sync">
+                            <i class="fa-solid fa-arrows-rotate"></i> Sincronizar
+                        </button>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon blue"><i class="fa-solid fa-server"></i></div>
+                            <div class="stat-content">
+                                <h4>Última Sincronização</h4>
+                                <p id="stat-last-sync">--:--</p>
+                            </div>
+                        </div>
+                        <div class="stat-card green">
+                            <div class="stat-icon green"><i class="fa-solid fa-check"></i></div>
+                            <div class="stat-content">
+                                <h4>Status</h4>
+                                <p id="stat-status-text">Online</p>
+                            </div>
+                        </div>
+                        <div class="stat-card cyan">
+                            <div class="stat-icon cyan"><i class="fa-solid fa-box"></i></div>
+                            <div class="stat-content">
+                                <h4>Módulo Ativo</h4>
+                                <p id="stat-module" style="font-size:16px;">Detectando...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3 class="card-title"><i class="fa-solid fa-laptop-code"></i> Informações do Dispositivo</h3>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                            <div class="form-group" style="margin:0;">
+                                <label>Hostname</label>
+                                <input type="text" id="info-hostname" class="input-field" readonly value="...">
+                            </div>
+                            <div class="form-group" style="margin:0;">
+                                <label>IP Address</label>
+                                <input type="text" id="info-ip" class="input-field" readonly value="...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW: LOGS -->
+                <div id="view-logs" class="view-section">
+                    <div class="header"
+                        style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+                        <h2 style="margin:0;">Logs do Sistema</h2>
+                        <button class="btn btn-secondary" id="btn-clear-logs">
+                            <i class="fa-solid fa-trash"></i> Limpar
+                        </button>
+                    </div>
+                    <div class="log-terminal" id="log-container">
+                        <!-- Logs injected here -->
+                    </div>
+                </div>
+
+                <!-- VIEW: SETTINGS -->
+                <div id="view-settings" class="view-section">
+                    <h2 style="margin-bottom:24px;">Configurações do Cliente</h2>
+
+                    <div class="card">
+                        <h3 class="card-title"><i class="fa-solid fa-cube"></i> Módulo & Localização</h3>
+                        <p style="color:var(--text-secondary); font-size:13px; margin-bottom:20px;">
+                            Este cliente está conectado a: <span id="lbl-connected-server"
+                                style="color:var(--accent-primary);">...</span>
+                            <button id="btn-change-server"
+                                style="background:none; border:none; color:var(--text-secondary); text-decoration:underline; cursor:pointer; font-size:12px; margin-left:8px;">Alterar
+                                Servidor</button>
+                        </p>
+
+                        <div class="form-group">
+                            <label>ID do Módulo (Opcional)</label>
+                            <div style="display:flex; gap:10px;">
+                                <input type="text" id="input-module" class="input-field" placeholder="Auto-detectar">
+                                <button class="btn btn-secondary" id="btn-detect-module"><i
+                                        class="fa-solid fa-magnifying-glass"></i> Detectar</button>
+                            </div>
+                        </div>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                            <div class="form-group">
+                                <label>Setor</label>
+                                <input type="text" id="input-sector" class="input-field">
+                            </div>
+                            <div class="form-group">
+                                <label>Andar/Sala</label>
+                                <input type="text" id="input-floor" class="input-field">
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-top:20px;display:flex;align-items:center;gap:12px;">
+                            <input type="checkbox" id="check-legacy" style="width:16px;height:16px;">
+                            <label for="check-legacy" style="margin:0;cursor:pointer;">Forçar modo legado
+                                (Totem/Compatibilidade)</label>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3 class="card-title"><i class="fa-solid fa-shield-halved"></i> Segurança</h3>
+                        <div class="form-group" style="margin-top:10px;display:flex;align-items:center;gap:12px;">
+                            <input type="checkbox" id="check-lock" style="width:16px;height:16px;">
+                            <label for="check-lock" style="margin:0;cursor:pointer;">Bloquear aplicativo ao minimizar
+                                (Exige senha)</label>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; justify-content:flex-end;">
+                        <button class="btn btn-primary" id="btn-save-settings" style="width:140px;">Salvar
+                            Config</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- LOCK / LOGIN OVERLAY -->
+    <div id="lock-screen" class="overlay" style="display:none;"> <!-- Start hidden, managed by renderer -->
+        <div class="login-card">
+            <div class="login-icon">
+                <i class="fa-solid fa-lock"></i>
+            </div>
+            <h2 style="margin:0 0 8px 0;">Acesso Restrito</h2>
+            <p style="color:var(--text-secondary); margin-bottom:24px;">Digite a senha de administrador</p>
+
+            <input type="password" id="login-password" class="input-field" placeholder="Senha"
+                style="text-align:center; font-size:18px; letter-spacing:2px; margin-bottom:24px;">
+
+            <button class="btn btn-primary btn-full" id="btn-login">Desbloquear</button>
+            <p id="login-error" style="color:var(--status-error); font-size:12px; height:16px; margin-top:12px;"></p>
         </div>
     </div>
 
