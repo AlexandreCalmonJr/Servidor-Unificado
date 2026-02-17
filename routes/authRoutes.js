@@ -16,6 +16,7 @@ const authRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
 
     // Rota para verificar token (protegida)
     router.get('/verify', auth, verifyToken);
+    router.get('/validate', auth, verifyToken); // Alias para mobile client
 
     // Rota para alterar senha (protegida - qualquer usuário logado)
     router.post('/change-password', auth, modifyApiLimiter, [

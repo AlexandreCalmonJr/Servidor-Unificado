@@ -10,7 +10,7 @@ class AppError extends Error {
     this.isOperational = isOperational;
     this.details = details;
     this.timestamp = new Date().toISOString();
-    
+
     Error.captureStackTrace(this, this.constructor);
   }
 }
@@ -77,16 +77,26 @@ const errorHandler = (logger) => {
     // Erros operacionais (esperados) - log como warn
     if (err.isOperational) {
       logger.warn('Erro operacional', errorContext);
-      
+
       return res.status(err.statusCode).json({
         success: false,
         status: err.status,
         message: err.message,
         ...(err.details && { details: err.details }),
-        ...(process.env.NODE_ENV === 'development' && { 
+        ...(process.env.NODE_ENV === 'development' && {
           path: req.path,
-          timestamp: err.timestamp 
+          timestamp: err.timestamp
         })
+      });
+    }
+
+    // Erros de JWT - log como warn e retorna 401
+    if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
+      logger.warn(`Erro de autenticação JWT: ${err.message}`, errorContext);
+      return res.status(401).json({
+        success: false,
+        status: 'fail',
+        message: 'Token inválido ou expirado'
       });
     }
 
@@ -101,8 +111,8 @@ const errorHandler = (logger) => {
     res.status(err.statusCode).json({
       success: false,
       status: 'error',
-      message: process.env.NODE_ENV === 'production' 
-        ? 'Ocorreu um erro interno no servidor' 
+      message: process.env.NODE_ENV === 'production'
+        ? 'Ocorreu um erro interno no servidor'
         : err.message,
       ...(process.env.NODE_ENV === 'development' && {
         error: {
