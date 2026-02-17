@@ -4,15 +4,15 @@ const User = require('../models/User');
 
 const auth = async (req, res, next) => {
   const logger = req.logger || console;
-  
+
   try {
     // SUPORTA MÚLTIPLOS FORMATOS DE TOKEN
     // 1. Header padrão: Authorization: Bearer <token>
     // 2. Header customizado: AUTH_TOKEN: <token>
     // 3. Query parameter: ?token=<token> (para agentes)
-    
+
     let token = null;
-    
+
     // Prioridade 1: AUTH_TOKEN (usado pelos agentes)
     if (req.headers['auth_token']) {
       token = req.headers['auth_token'];
@@ -31,23 +31,37 @@ const auth = async (req, res, next) => {
 
     if (!token) {
       logger.warn(`Tentativa de acesso sem token - IP: ${req.ip} - Path: ${req.path}`);
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Token de autenticação não fornecido' 
+      return res.status(401).json({
+        success: false,
+        message: 'Token de autenticação não fornecido'
       });
     }
 
-    // Verifica e decodifica o token
+    // Verificação de Token Estático (AUTH_TOKEN do .env)
+    // Permite que dispositivos/agentes usem a rota de validação
+    if (process.env.AUTH_TOKEN && token === process.env.AUTH_TOKEN) {
+      req.user = {
+        id: 'system_admin',
+        username: 'system',
+        role: 'admin',
+        sector: 'Global',
+        permissions: ['mobile', 'totem', 'admin']
+      };
+      logger.info('Autenticação bem-sucedida via AUTH_TOKEN estático');
+      return next();
+    }
+
+    // Verifica e decodifica o token JWT
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
-    
+
     // Busca o usuário completo
     const user = await User.findById(decoded.id).select('-password');
-    
+
     if (!user) {
       logger.warn(`Token válido mas usuário não encontrado - ID: ${decoded.id}`);
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Usuário não encontrado' 
+      return res.status(401).json({
+        success: false,
+        message: 'Usuário não encontrado'
       });
     }
 
@@ -58,8 +72,8 @@ const auth = async (req, res, next) => {
       email: user.email,
       role: user.role,
       sector: user.sector || 'Global',
-      permissions: user.role === 'admin' 
-        ? ['mobile', 'totem', 'admin'] 
+      permissions: user.role === 'admin'
+        ? ['mobile', 'totem', 'admin']
         : (user.permissions || [])
     };
 
@@ -70,19 +84,19 @@ const auth = async (req, res, next) => {
     // Se for um erro de JWT (token inválido ou expirado), não envie a resposta.
     // Em vez disso, passe o erro para o próximo handler (o callback no flexibleAuth).
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
-      
+
       // Loga a tentativa, mas permite o fallback
       logger.debug(`Falha na autenticação JWT (tentando fallback): ${error.message}`);
-      
+
       // Passa o erro para o próximo handler
-      return next(error); 
+      return next(error);
     }
 
     // Se for um erro 500 (ex: falha ao buscar usuário no DB), encerre a requisição.
     logger.error(`Erro na autenticação - IP: ${req.ip} - Erro: ${error.message}`);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Erro no servidor durante autenticação' 
+    res.status(500).json({
+      success: false,
+      message: 'Erro no servidor durante autenticação'
     });
   }
 };
