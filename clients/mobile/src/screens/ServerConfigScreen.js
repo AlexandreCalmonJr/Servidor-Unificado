@@ -18,8 +18,8 @@ export default function ServerConfigScreen({ navigation }) {
 
     const [serverHost, setServerHost] = useState('192.168.0.183');
     const [serverPort, setServerPort] = useState('3000');
-    const [authToken,  setAuthToken]  = useState('');
-    const [loading,    setLoading]    = useState(false);
+    const [authToken, setAuthToken] = useState('');
+    const [loading, setLoading] = useState(false);
     const [testResult, setTestResult] = useState(null); // 'success' | 'error' | null
     const [testMessage, setTestMessage] = useState('');
 
@@ -29,11 +29,11 @@ export default function ServerConfigScreen({ navigation }) {
     }, []);
 
     const loadSavedConfig = async () => {
-        const host  = await SecureStore.getItemAsync('server_host');
-        const port  = await SecureStore.getItemAsync('server_port');
+        const host = await SecureStore.getItemAsync('server_host');
+        const port = await SecureStore.getItemAsync('server_port');
         const token = await SecureStore.getItemAsync('auth_token');
-        if (host)  setServerHost(host);
-        if (port)  setServerPort(port);
+        if (host) setServerHost(host);
+        if (port) setServerPort(port);
         if (token) setAuthToken(token);
     };
 
@@ -51,11 +51,11 @@ export default function ServerConfigScreen({ navigation }) {
         try {
             const baseUrl = `http://${serverHost.trim()}:${serverPort.trim()}`;
             const response = await fetch(`${baseUrl}/api/auth/validate`, {
-                method:  'GET',
+                method: 'GET',
                 headers: {
-                    'Content-Type':  'application/json',
+                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${authToken.trim()}`,
-                    'AUTH_TOKEN':    authToken.trim(),
+                    'AUTH_TOKEN': authToken.trim(),
                 },
             });
 
@@ -86,11 +86,13 @@ export default function ServerConfigScreen({ navigation }) {
 
         setLoading(true);
         try {
-            await SecureStore.setItemAsync('server_host', serverHost.trim());
-            await SecureStore.setItemAsync('server_port', serverPort.trim());
-            await SecureStore.setItemAsync('auth_token',  authToken.trim());
-
-            navigation.replace('DeviceRegister');
+            await saveSettings({
+                serverHost: serverHost.trim(),
+                serverPort: serverPort.trim(),
+                authToken: authToken.trim(),
+            });
+            // Não precisa navegar manualmente; o AuthContext atualiza o estado (isConfigured)
+            // e o App.js muda a rota automaticamente.
         } catch (e) {
             Alert.alert('Erro', 'Falha ao salvar configurações: ' + e.message);
         } finally {
@@ -187,7 +189,7 @@ export default function ServerConfigScreen({ navigation }) {
                 </View>
 
                 <Text style={styles.hint}>
-                    URL gerada: http://{serverHost || '...' }:{serverPort || '...'}
+                    URL gerada: http://{serverHost || '...'}:{serverPort || '...'}
                 </Text>
             </ScrollView>
         </KeyboardAvoidingView>
@@ -195,15 +197,15 @@ export default function ServerConfigScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-    container:       { flex: 1, backgroundColor: '#0f172a' },
-    background:      { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
-    content:         { padding: 30, paddingTop: 80, paddingBottom: 40 },
-    iconContainer:   { alignItems: 'center', marginBottom: 16 },
-    icon:            { fontSize: 56 },
-    title:           { fontSize: 28, fontWeight: 'bold', color: '#fff', textAlign: 'center', marginBottom: 8 },
-    subtitle:        { fontSize: 15, color: '#94a3b8', textAlign: 'center', marginBottom: 36 },
-    inputGroup:      { marginBottom: 18 },
-    label:           { color: '#cbd5e1', marginBottom: 8, fontSize: 13, fontWeight: '500' },
+    container: { flex: 1, backgroundColor: '#0f172a' },
+    background: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
+    content: { padding: 30, paddingTop: 80, paddingBottom: 40 },
+    iconContainer: { alignItems: 'center', marginBottom: 16 },
+    icon: { fontSize: 56 },
+    title: { fontSize: 28, fontWeight: 'bold', color: '#fff', textAlign: 'center', marginBottom: 8 },
+    subtitle: { fontSize: 15, color: '#94a3b8', textAlign: 'center', marginBottom: 36 },
+    inputGroup: { marginBottom: 18 },
+    label: { color: '#cbd5e1', marginBottom: 8, fontSize: 13, fontWeight: '500' },
     input: {
         backgroundColor: 'rgba(255,255,255,0.07)',
         borderRadius: 12,
@@ -213,15 +215,15 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.12)',
         fontSize: 15,
     },
-    testResultBox:   { borderRadius: 10, padding: 12, marginBottom: 16 },
-    testSuccess:     { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: '#10b981', borderWidth: 1 },
-    testError:       { backgroundColor: 'rgba(239,68,68,0.15)',  borderColor: '#ef4444',  borderWidth: 1 },
-    testResultText:  { color: '#e2e8f0', fontSize: 13, lineHeight: 18 },
-    buttonRow:       { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
-    button:          { borderRadius: 12, alignItems: 'center', justifyContent: 'center', padding: 16, elevation: 4 },
-    saveButton:      { backgroundColor: '#06b6d4', flex: 2, marginLeft: 10 },
-    testButton:      { backgroundColor: 'transparent', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', flex: 1 },
-    buttonText:      { color: '#fff',     fontSize: 15, fontWeight: 'bold' },
-    testButtonText:  { color: '#cbd5e1',  fontSize: 15 },
-    hint:            { color: '#475569', fontSize: 12, textAlign: 'center', marginTop: 16 },
+    testResultBox: { borderRadius: 10, padding: 12, marginBottom: 16 },
+    testSuccess: { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: '#10b981', borderWidth: 1 },
+    testError: { backgroundColor: 'rgba(239,68,68,0.15)', borderColor: '#ef4444', borderWidth: 1 },
+    testResultText: { color: '#e2e8f0', fontSize: 13, lineHeight: 18 },
+    buttonRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+    button: { borderRadius: 12, alignItems: 'center', justifyContent: 'center', padding: 16, elevation: 4 },
+    saveButton: { backgroundColor: '#06b6d4', flex: 2, marginLeft: 10 },
+    testButton: { backgroundColor: 'transparent', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', flex: 1 },
+    buttonText: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
+    testButtonText: { color: '#cbd5e1', fontSize: 15 },
+    hint: { color: '#475569', fontSize: 12, textAlign: 'center', marginTop: 16 },
 });
