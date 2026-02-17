@@ -182,27 +182,34 @@
                             <input type="text" id="setting-port" placeholder="3000" value="3000">
                         </div>
                         <div class="form-group">
-                            <label>ID do Módulo (Manual)</label>
-                            <input type="text" id="setting-module-id" placeholder="ID do Módulo (Opcional se legado)">
+                            <label>Módulo</label>
+                            <select id="setting-module-id">
+                                <option value="">Selecione ou Detecte...</option>
+                            </select>
                         </div>
                         <div class="form-group">
                             <label>Token de Autenticação</label>
                             <input type="text" id="setting-token" placeholder="Token de Autenticação">
                         </div>
-                        
-                        <div class="form-group" style="flex-direction: row; align-items: center; gap: 10px; margin-top: 10px;">
+
+                        <div class="form-group"
+                            style="flex-direction: row; align-items: center; gap: 10px; margin-top: 10px;">
                             <input type="checkbox" id="setting-legacy" style="width: auto; margin: 0;">
                             <label for="setting-legacy" style="margin: 0;">Forçar Modo Legado</label>
                         </div>
-                        <div id="legacy-warning" style="display: none; color: #f59e0b; font-size: 13px; margin-bottom: 10px;">
-                            <i class="fa-solid fa-triangle-exclamation"></i> Modo legado ativado. Módulos não serão usados.
+                        <div id="legacy-warning"
+                            style="display: none; color: #f59e0b; font-size: 13px; margin-bottom: 10px;">
+                            <i class="fa-solid fa-triangle-exclamation"></i> Modo legado ativado. Módulos não serão
+                            usados.
                         </div>
 
                         <div class="form-group">
-                            <button class="btn-primary" id="detect-system-btn" style="background: #3b82f6; margin-bottom: 10px;">
+                            <button class="btn-primary" id="detect-system-btn"
+                                style="background: #3b82f6; margin-bottom: 10px;">
                                 <i class="fa-solid fa-magnifying-glass"></i> Detectar Sistema
                             </button>
-                            <div id="detection-result" style="font-size: 13px; margin-bottom: 15px; display: none;"></div>
+                            <div id="detection-result" style="font-size: 13px; margin-bottom: 15px; display: none;">
+                            </div>
                         </div>
 
                         <button class="btn-primary" id="save-settings-btn">Salvar Alterações</button>

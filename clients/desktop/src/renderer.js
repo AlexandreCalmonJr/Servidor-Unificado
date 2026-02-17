@@ -60,6 +60,7 @@ function switchView(item) {
     const view = document.getElementById(`view-${item.dataset.view}`);
     if (view) view.style.display = 'block';
     if (item.dataset.view === 'status') refreshStatusView();
+    if (item.dataset.view === 'settings') loadSettingsView();
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -510,7 +511,21 @@ async function loadSettingsView() {
     _setInputValue('setting-asset', s.assetName || '');
     _setInputValue('setting-sector', s.sector || '');
     _setInputValue('setting-floor', s.floor || '');
-    _setInputValue('setting-module-id', s.moduleId || '');
+    _setInputValue('setting-floor', s.floor || '');
+
+    // Popula o dropdown com o valor salvo (para não ficar vazio antes de detectar)
+    const moduleSelect = document.getElementById('setting-module-id');
+    if (moduleSelect && s.moduleId) {
+        // Limpa e adiciona o salvo
+        moduleSelect.innerHTML = '';
+        const opt = document.createElement('option');
+        opt.value = s.moduleId;
+        opt.textContent = `Módulo Salvo (${s.moduleId})`; // Será sobrescrito ao detectar
+        opt.selected = true;
+        moduleSelect.appendChild(opt);
+    } else if (moduleSelect) {
+        moduleSelect.innerHTML = '<option value="">Selecione ou Detecte...</option>';
+    }
 
     const legacySwitch = document.getElementById('setting-legacy');
     if (legacySwitch) legacySwitch.checked = s.forceLegacyMode || false;
@@ -567,27 +582,52 @@ document.getElementById('save-settings-btn')?.addEventListener('click', async ()
     showToast('Configurações salvas!', 'success');
 });
 
-// Detectar sistema (settings_screen.dart → _detectSystem)
+// Detectar sistema e popular dropdown (settings_screen.dart → _detectSystem)
 document.getElementById('detect-system-btn')?.addEventListener('click', async () => {
     const ip = document.getElementById('setting-ip')?.value.trim();
     const port = document.getElementById('setting-port')?.value.trim();
     const token = document.getElementById('setting-token')?.value.trim();
     const detectionEl = document.getElementById('detection-result');
+    const moduleSelect = document.getElementById('setting-module-id');
 
     if (!ip || !token) {
         showToast('IP e Token são obrigatórios.', 'error');
         return;
     }
 
-    if (detectionEl) { detectionEl.textContent = '🔍 Detectando...'; detectionEl.style.display = 'block'; }
+    if (detectionEl) { detectionEl.textContent = '🔍 Detectando e buscando módulos...'; detectionEl.style.display = 'block'; }
 
-    // Testa módulos primeiro
+    // Testa módulos
     const modResult = await ipcRenderer.invoke('fetch-modules', { ip, port, token });
 
     if (modResult.success && !modResult.legacyOnly && modResult.modules.length > 0) {
-        if (detectionEl) { detectionEl.textContent = `✅ Sistema Novo detectado. ${modResult.modules.length} módulo(s) disponível(is).`; detectionEl.style.color = '#10b981'; }
+        if (detectionEl) {
+            detectionEl.textContent = `✅ ${modResult.modules.length} módulo(s) encontrado(s). Verifique a lista.`;
+            detectionEl.style.color = '#10b981';
+        }
+
+        // Popular o dropdown
+        if (moduleSelect) {
+            moduleSelect.innerHTML = '<option value="">Selecione um módulo...</option>';
+            modResult.modules.forEach(m => {
+                const option = document.createElement('option');
+                option.value = m._id || m.id;
+                option.textContent = `${m.name} (${m.type})`;
+                moduleSelect.appendChild(option);
+            });
+
+            // Tenta selecionar automaticamente o mais provável (baseado em "desktop" ou "notebook")
+            // No futuro, podemos pedir ao main.js para adivinhar o tipo do dispositivo local
+            // Por enquanto, seleciona o primeiro se houver apenas um ou se for Desktop
+            const bestMatch = modResult.modules.find(m => (m.type || '').toLowerCase() === 'desktop') || modResult.modules[0];
+            if (bestMatch) {
+                moduleSelect.value = bestMatch._id || bestMatch.id;
+            }
+        }
+
     } else if (modResult.legacyOnly || (modResult.success && modResult.modules.length === 0)) {
-        if (detectionEl) { detectionEl.textContent = '🏛️ Sistema Legado detectado (Totem/Desktop).'; detectionEl.style.color = '#f59e0b'; }
+        if (detectionEl) { detectionEl.textContent = '🏛️ Sistema Legado detectado (sem módulos).'; detectionEl.style.color = '#f59e0b'; }
+        if (moduleSelect) moduleSelect.innerHTML = '<option value="">Sem módulos disponíveis</option>';
     } else {
         if (detectionEl) { detectionEl.textContent = `❌ Falha: ${modResult.error}`; detectionEl.style.color = '#ef4444'; }
     }
