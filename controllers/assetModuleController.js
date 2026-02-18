@@ -1,11 +1,15 @@
 // controllers/assetModuleController.js
 const AssetModuleConfig = require('../models/AssetModuleConfig');
-const Panel = require('../models/Panel');
-const Desktop = require('../models/Desktop');
-const Notebook = require('../models/Notebook');
-const Printer = require('../models/Printer');
-const Device = require('../models/Device'); // Mobile
-const Totem = require('../models/Totem');   // Totem
+const {
+  Panel,
+  Desktop,
+  Notebook,
+  Printer,
+  Mobile, // Antigo 'Device'
+  Totem,
+  Scanner,
+  Custom
+} = require('../models/Device');
 const User = require('../models/User'); // Para permissões
 
 // Mapeia o 'moduleId' (identificador) para o Modelo Mongoose
@@ -14,10 +18,10 @@ const assetModels = {
   desktop: Desktop,
   notebook: Notebook,
   printer: Printer,
-  mobile: Device,
+  mobile: Mobile,
   totem: Totem,
-  scanner: Device,
-  custom: Device,
+  scanner: Scanner,
+  custom: Custom,
 };
 
 /**
@@ -181,6 +185,41 @@ exports.updateModulePermissions = async (req, res) => {
     );
 
     res.json({ success: true, message: 'Permissões atualizadas com sucesso' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// GET /api/modules/:moduleId/stats
+exports.getModuleStats = async (req, res) => {
+  try {
+    const { moduleId } = req.params; // ex: 'totem', 'mobile', 'desktop'
+
+    // Verifica se é um tipo válido no nosso mapa
+    const Model = assetModels[moduleId];
+    if (!Model) {
+      return res.status(404).json({ success: false, message: 'Módulo desconhecido' });
+    }
+
+    // Contagens
+    const total = await Model.countDocuments();
+    const online = await Model.countDocuments({ status: { $regex: /online/i } });
+    const offline = await Model.countDocuments({ status: { $regex: /offline/i } });
+
+    // "Sem Monitorar" ou outros status
+    const unknown = total - online - offline;
+
+    res.json({
+      success: true,
+      moduleId,
+      stats: {
+        total,
+        online,
+        offline,
+        unknown
+      }
+    });
+
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

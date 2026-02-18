@@ -1,112 +1,108 @@
-const Totem = require('../models/Totem');
-const { getLocationFromIp } = require('./ipMappingService');
+const { Totem } = require('../models/Device');
+const locationService = require('./locationService');
 
 // --- Helper para calcular status ---
-// (Mova esta lógica para fora de 'getAll' para ser reutilizável)
 const _calculateStatus = (device) => {
   const now = new Date();
-  // Threshold de 2 minutos para offline
-  const isOffline = (now - new Date(device.lastSeen)) > (2 * 60 * 1000);
+  // Threshold de 2 minutos para offline (ajustável)
+  const isOffline = (now - new Date(device.last_seen)) > (2 * 60 * 1000);
 
   let status = isOffline ? 'Offline' : 'Online';
 
-  if (status === 'Online' && device.printerStatus && device.printerStatus.toLowerCase().includes('error')) {
+  if (status === 'Online' && device.printer_status && device.printer_status.toLowerCase().includes('error')) {
     status = 'Com Erro';
   }
 
-  // ===== INÍCIO DA CORREÇÃO =====
-
-  // 1. Renomeia 'unitRoutes' para 'location' para compatibilidade com o frontend
-  const { unit, ...rest } = device;
-  const location = unit || 'Desconhecida'; // Garante que não seja nulo
-
-  // 2. Adiciona valores padrão para campos que o frontend espera, mas o modelo não tem
-  const mozillaVersion = device.mozillaVersion || 'N/A';
-  const javaVersion = device.javaVersion || 'N/A';
-
+  // Mapeamento de campos legados para o frontend (que espera 'hostname', 'unit', etc.)
   return {
-    ...rest,
+    ...device, // Espalha campos do documento (lean)
     status,
-    location,         // Campo renomeado
-    mozillaVersion, // Campo com valor padrão
-    javaVersion       // Campo com valor padrão
+    // Campos mapeados para manter compatibilidade com frontend legado
+    hostname: device.asset_name, // asset_name é o novo hostname
+    location: device.unit || 'Desconhecida',
+    printerStatus: device.printer_status,
+    serialNumber: device.serial_number,
+    lastSeen: device.last_seen
   };
-
-  // ===== FIM DA CORREÇÃO =====
 };
 
-
-// --- Funções Existentes (Modificadas) ---
+// --- Funções Principais ---
 
 exports.createOrUpdate = async (data) => {
-  const { serialNumber, ip } = data;
+  const { serialNumber, ip, mac_address_radio, hostname, printerStatus, paperStatus } = data;
 
-  // Determinar a localização com base no IP
-  const unit = await getLocationFromIp(ip);
+  // 1. Determinar Localização (Unificada)
+  const locationResult = await locationService.mapDeviceLocation({
+    ip_address: ip,
+    mac_address_radio,
+    device_name: hostname || serialNumber
+  });
 
+  // 2. Montar Objeto Device (Flat)
   const deviceData = {
-    ...data,
-    unit, // Adiciona a localização
-    lastSeen: new Date() // Garante que 'lastSeen' seja atualizado
+    // Identificação
+    serial_number: serialNumber,
+    asset_name: hostname || `Totem-${serialNumber}`,
+    device_type: 'totem', // Importante para o discriminador
+
+    // Conectividade
+    ip_address: ip,
+    mac_address: mac_address_radio,
+
+    // Status
+    last_seen: new Date(),
+
+    // Localização
+    unit: locationResult.unit,
+    sector: locationResult.sector,
+    floor: locationResult.floor,
+
+    // Específicos de Totem
+    hostname: hostname, // Mantemos redundante no sub-doc se quiser
+    printer_status: printerStatus,
+    paper_status: paperStatus
   };
 
-  // Use findOneAndUpdate com 'upsert: true' para C/U em uma só operação
+  // 3. Upsert na Coleção Unificada
   const updatedDevice = await Totem.findOneAndUpdate(
-    { serialNumber },
+    { serial_number: serialNumber },
     { $set: deviceData },
     { new: true, upsert: true, setDefaultsOnInsert: true }
-  );
-
-  return updatedDevice;
-};
-
-exports.getAll = async () => {
-  const devices = await Totem.find({}).sort({ lastSeen: -1 }).lean();
-  // Usa o helper para calcular status
-  const devicesWithStatus = devices.map(_calculateStatus);
-  return devicesWithStatus;
-};
-
-
-// --- NOVAS FUNÇÕES CRUD ---
-
-/**
- * [R] READ (Single)
- * Busca um totem pelo Serial Number
- */
-exports.getBySerialNumber = async (serialNumber) => {
-  const device = await Totem.findOne({ serialNumber }).lean();
-  if (!device) {
-    return null;
-  }
-  // Retorna o dispositivo com o status calculado
-  return _calculateStatus(device);
-};
-
-/**
- * [U] UPDATE
- * Atualiza um totem pelo Serial Number (para dados do painel)
- */
-exports.updateBySerialNumber = async (serialNumber, updateData) => {
-  // O '$set' garante que apenas os campos em 'updateData' sejam atualizados
-  const updatedDevice = await Totem.findOneAndUpdate(
-    { serialNumber },
-    { $set: updateData },
-    { new: true } // Retorna o documento modificado
   ).lean();
-
-  if (!updatedDevice) {
-    return null;
-  }
 
   return _calculateStatus(updatedDevice);
 };
 
-/**
- * [D] DELETE
- * Exclui um totem pelo Serial Number
- */
+exports.getAll = async () => {
+  // Busca apenas dispositivos do tipo 'totem'
+  const devices = await Totem.find({ device_type: 'totem' })
+    .sort({ last_seen: -1 })
+    .lean();
+
+  return devices.map(_calculateStatus);
+};
+
+exports.getBySerialNumber = async (serialNumber) => {
+  const device = await Totem.findOne({ serial_number: serialNumber }).lean();
+  if (!device) return null;
+  return _calculateStatus(device);
+};
+
+exports.updateBySerialNumber = async (serialNumber, updateData) => {
+  // Mapeia atualizações parciais se necessário
+  // Por enquanto, assume que updateData já vem com chaves certas ou genéricas
+
+  const updatedDevice = await Totem.findOneAndUpdate(
+    { serial_number: serialNumber },
+    { $set: updateData },
+    { new: true }
+  ).lean();
+
+  if (!updatedDevice) return null;
+  return _calculateStatus(updatedDevice);
+};
+
 exports.deleteBySerialNumber = async (serialNumber) => {
-  const deletedDevice = await Totem.findOneAndDelete({ serialNumber });
-  return deletedDevice; // Retorna o documento que foi excluído
+  const deletedDevice = await Totem.findOneAndDelete({ serial_number: serialNumber });
+  return deletedDevice;
 };

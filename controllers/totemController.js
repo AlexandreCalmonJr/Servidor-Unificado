@@ -1,7 +1,7 @@
 // Ficheiro: controllers/totemController.js
 
 const totemService = require('../services/totemService');
-const ipMappingService = require('../services/ipMappingService');
+// const ipMappingService = require('../services/ipMappingService'); // Removido
 
 function cleanIpAddress(rawIp) {
   if (!rawIp) return null;
@@ -21,15 +21,19 @@ exports.handleTotemData = async (req, res) => {
     const rawIp = req.ip || req.connection.remoteAddress;
     const cleanIp = cleanIpAddress(rawIp);
 
+    // Adiciona IP limpo aos dados
     data.ip = cleanIp;
-    data.location = await ipMappingService.getLocationFromIp(cleanIp);
+
+    // REMOVIDO: data.location = await ipMappingService.getLocationFromIp(cleanIp);
+    // A resolução de localização agora é feita dentro de totemService.createOrUpdate
+    // para aproveitar BSSID e lógica centralizada.
 
     const device = await totemService.createOrUpdate(data);
 
     res.status(200).json({
       message: 'Dados de monitoramento recebidos!',
       deviceId: device._id,
-      location: device.location
+      location: device.unit // Retorna a unidade resolvida
     });
   } catch (error) {
     logger.error('Erro em handleTotemData:', error);

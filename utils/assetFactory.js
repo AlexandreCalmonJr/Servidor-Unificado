@@ -2,17 +2,27 @@
 // Sistema unificado de Factory + Validações + Transformações
 // ===================================================================
 
-const Desktop = require('../models/Desktop');
-const Notebook = require('../models/Notebook');
-const Panel = require('../models/Panel');
-const Printer = require('../models/Printer');
-const Device = require('../models/Device'); // Mobile
-const Totem = require('../models/Totem');   // Totem
+// File: utils/assetFactory.js
+// Sistema unificado de Factory + Validações + Transformações
+// ===================================================================
+
+const {
+  Device,
+  Desktop,
+  Notebook,
+  Panel,
+  Printer,
+  Totem,
+  Mobile, // Discriminator para 'mobile'
+  Scanner,
+  Custom
+} = require('../models/Device');
+
 const { body, validationResult } = require('express-validator');
-const locationService = require('../services/locationService'); // Importa o serviço de localização
+const locationService = require('../services/locationService');
 
 // ===================================================================
-// 1. REGISTRO DE MODELOS
+// 1. REGISTRO DE MODELOS (Agora usando Discriminators)
 // ===================================================================
 
 const MODEL_REGISTRY = {
@@ -41,7 +51,7 @@ const MODEL_REGISTRY = {
     description: 'Impressoras e multifuncionais',
   },
   mobile: {
-    model: Device,
+    model: Mobile, // Mobile agora é um Discriminator do Device
     displayName: 'Dispositivo Móvel',
     icon: 'smartphone',
     description: 'Smartphones e tablets',
@@ -53,13 +63,13 @@ const MODEL_REGISTRY = {
     description: 'Totems de autoatendimento',
   },
   scanner: {
-    model: Device,
+    model: Scanner,
     displayName: 'Coletor',
     icon: 'qr_code_scanner',
     description: 'Coletores de dados',
   },
   custom: {
-    model: Device,
+    model: Custom,
     displayName: 'Outros',
     icon: 'devices_other',
     description: 'Outros dispositivos',

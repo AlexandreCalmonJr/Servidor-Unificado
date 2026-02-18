@@ -13,6 +13,8 @@ const {
   updateAsset,
 } = require('../utils/assetFactory');
 
+const { getModuleStats, getActiveModules } = require('../controllers/assetModuleController');
+
 module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => {
   const router = express.Router();
 
@@ -50,6 +52,9 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   // MÓDULOS
   // ===================================================================
 
+  // GET /api/modules/active (CLIENTS) - Deve vir antes de /:moduleId
+  router.get('/active', flexibleAuth, getApiLimiter, getActiveModules);
+
   router.get('/', flexibleAuth, getApiLimiter, async (req, res) => {
     try {
       const modules = await AssetModuleConfig.find().sort({ created_at: -1 }).lean();
@@ -84,6 +89,9 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       res.status(500).json({ success: false, message: 'Erro interno', error: error.message });
     }
   });
+
+  // GET /api/modules/:moduleId/stats (DASHBOARD)
+  router.get('/:moduleId/stats', flexibleAuth, getApiLimiter, getModuleStats);
 
   // ===================================================================
   // CRIAÇÃO / ATUALIZAÇÃO DE MÓDULO (ADMIN)
