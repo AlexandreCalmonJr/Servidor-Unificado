@@ -9,6 +9,8 @@
         setupTotemModal();
     }
 
+    let paginator = null;
+
     async function fetchTotems() {
         const tbody = document.getElementById('totems-table-body');
         if (!tbody) return;
@@ -23,11 +25,20 @@
             }
 
             allTotems = Array.isArray(data) ? data : (data.totems || data.data || []);
-            renderTotems(allTotems);
+            initPaginator(allTotems);
         } catch (err) {
             tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><p>Erro ao carregar totems.</p></td></tr>';
             console.error('Erro ao carregar totems:', err);
         }
+    }
+
+    function initPaginator(items) {
+        paginator = Paginator(items, {
+            perPage: 15,
+            onPageChange: (pageItems) => renderTotems(pageItems)
+        });
+        renderTotems(paginator.getPage());
+        paginator.renderControls('totems-pagination');
     }
 
     function renderTotems(totems) {
@@ -35,7 +46,7 @@
         if (!tbody) return;
 
         if (totems.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><div class="empty-icon">🖥️</div><p>Nenhum totem encontrado.</p></td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><div class="empty-icon">🖥️</div><p>Nenhum totem encontrado.</p></td></tr>';
             return;
         }
 
@@ -119,7 +130,8 @@
                 const unit = (t.unit || t.location || '').toLowerCase();
                 return !q || hostname.includes(q) || serial.includes(q) || ip.includes(q) || unit.includes(q);
             });
-            renderTotems(filtered);
+
+            initPaginator(filtered);
         });
     }
 

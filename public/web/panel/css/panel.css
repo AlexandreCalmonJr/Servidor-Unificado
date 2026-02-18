@@ -1983,3 +1983,11 @@ input[type="checkbox"] {
     transition-duration: 0.01ms !important;
   }
 }
+/* ===== MODAL TABS ===== */
+.modal-tabs { display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 20px; gap: 8px; }
+.modal-tab { padding: 8px 16px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); cursor: pointer; font-weight: 500; font-size: 0.9rem; transition: all 0.2s; }
+.modal-tab:hover { color: var(--primary); background: var(--bg-hover); border-radius: 4px 4px 0 0; }
+.modal-tab.active { color: var(--primary); border-bottom-color: var(--primary); background: rgba(59, 130, 246, 0.1); border-radius: 4px 4px 0 0; }
+.tab-content { display: none; animation: fadeIn 0.2s ease; }
+.tab-content.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }

@@ -1,5 +1,5 @@
 // scripts/updateDeviceStatus.js
-const Device = require('../models/Device');
+const { Device } = require('../models/Device');
 
 // Define os limites de tempo
 const OFFLINE_THRESHOLD_MINUTES = 60;
@@ -15,18 +15,18 @@ const updateDeviceStatus = async (logger) => {
 
     // --- ETAPA 1: Marcar dispositivos 'online' como 'offline' ---
     const offlineThreshold = new Date(Date.now() - OFFLINE_THRESHOLD_MINUTES * 60 * 1000);
-    
+
     const offlineResult = await Device.updateMany(
       {
         last_seen: { $lt: offlineThreshold },
         status: 'online', // Apenas muda quem está 'online'
         maintenance_status: { $ne: true } // Ignora quem está em manutenção
       },
-      { 
-        $set: { 
+      {
+        $set: {
           status: 'offline',
           is_online: false
-        } 
+        }
       }
     );
 
@@ -43,10 +43,10 @@ const updateDeviceStatus = async (logger) => {
         status: 'offline', // Apenas muda quem já está 'offline'
         maintenance_status: { $ne: true }
       },
-      { 
-        $set: { 
+      {
+        $set: {
           status: 'Sem Monitorar'
-        } 
+        }
       }
     );
 
@@ -59,16 +59,16 @@ const updateDeviceStatus = async (logger) => {
     }
 
     logger.info('Verificação de status concluída.');
-    
+
     return {
       offlineCount: offlineResult.modifiedCount,
       unmonitoredCount: unmonitoredResult.modifiedCount
     };
 
   } catch (error) {
-    logger.error('❌ Erro durante a tarefa de atualização de status dos dispositivos:', { 
+    logger.error('❌ Erro durante a tarefa de atualização de status dos dispositivos:', {
       message: error.message,
-      stack: error.stack 
+      stack: error.stack
     });
     throw error;
   }

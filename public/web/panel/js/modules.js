@@ -91,6 +91,20 @@
         if (saveBtn) saveBtn.addEventListener('click', handleSaveModule);
     }
 
+    // Tab function for Modal
+    window.openTab = function (evt, tabName) {
+        evt.preventDefault();
+        const modal = evt.target.closest('.modal-box');
+        const tabContents = modal.querySelectorAll('.tab-content');
+        const tabLinks = modal.querySelectorAll('.modal-tab');
+
+        tabContents.forEach(tc => tc.style.display = 'none');
+        tabLinks.forEach(tl => tl.classList.remove('active'));
+
+        document.getElementById(tabName).style.display = 'block';
+        evt.currentTarget.classList.add('active');
+    };
+
     function openModuleModal(mod = null) {
         const modal = document.getElementById('module-modal');
         const title = document.getElementById('module-modal-title');
@@ -98,6 +112,14 @@
         const editId = document.getElementById('edit-module-id');
 
         if (form) form.reset();
+
+        // Reset Tabs
+        const tabContents = modal.querySelectorAll('.tab-content');
+        const tabLinks = modal.querySelectorAll('.modal-tab');
+        tabContents.forEach(tc => tc.style.display = 'none');
+        tabLinks.forEach(tl => tl.classList.remove('active'));
+        if (document.getElementById('tab-general')) document.getElementById('tab-general').style.display = 'block';
+        if (tabLinks.length > 0) tabLinks[0].classList.add('active');
 
         const typeSelect = document.getElementById('form-module-type');
         if (typeSelect && typeSelect.options.length <= 1) {
@@ -112,12 +134,35 @@
         if (mod) {
             title.textContent = 'Editar Módulo';
             editId.value = mod._id || mod.id;
+
+            // General
             document.getElementById('form-module-name').value = mod.name || '';
             document.getElementById('form-module-type').value = mod.type || 'custom';
             document.getElementById('form-module-desc').value = mod.description || '';
+            document.getElementById('form-module-active').checked = mod.is_active !== false;
+
+            // Client Config
+            const cc = mod.client_config || {};
+            document.getElementById('form-module-icon').value = cc.icon || 'box';
+            document.getElementById('form-module-color').value = cc.color || '#3b82f6';
+            document.getElementById('form-module-show-dash').checked = cc.show_on_dashboard !== false;
+            document.getElementById('form-module-tabs').value = (cc.tabs || []).join(', ');
+
+            // Feature Flags
+            const ff = mod.feature_flags || {};
+            document.getElementById('flag-remote-control').checked = !!ff.allow_remote_control;
+            document.getElementById('flag-track-location').checked = ff.track_location !== false;
+            document.getElementById('flag-require-auth').checked = ff.require_auth !== false;
+
         } else {
             title.textContent = 'Novo Módulo';
             editId.value = '';
+            document.getElementById('form-module-active').checked = true;
+            document.getElementById('form-module-color').value = '#3b82f6';
+            document.getElementById('form-module-icon').value = 'box';
+            document.getElementById('form-module-show-dash').checked = true;
+            document.getElementById('flag-track-location').checked = true;
+            document.getElementById('flag-require-auth').checked = true;
         }
 
         modal.classList.add('active');
@@ -128,13 +173,29 @@
         const name = document.getElementById('form-module-name').value.trim();
         const type = document.getElementById('form-module-type').value;
         const description = document.getElementById('form-module-desc').value.trim();
+        const is_active = document.getElementById('form-module-active').checked;
+
+        // Client Config
+        const client_config = {
+            icon: document.getElementById('form-module-icon').value.trim() || 'box',
+            color: document.getElementById('form-module-color').value,
+            show_on_dashboard: document.getElementById('form-module-show-dash').checked,
+            tabs: document.getElementById('form-module-tabs').value.split(',').map(t => t.trim()).filter(Boolean)
+        };
+
+        // Feature Flags
+        const feature_flags = {
+            allow_remote_control: document.getElementById('flag-remote-control').checked,
+            track_location: document.getElementById('flag-track-location').checked,
+            require_auth: document.getElementById('flag-require-auth').checked
+        };
 
         if (!name || !type) {
             showToast('Nome e tipo são obrigatórios.', 'warning');
             return;
         }
 
-        const body = { name, type, description };
+        const body = { name, type, description, is_active, client_config, feature_flags };
 
         try {
             if (editId) {

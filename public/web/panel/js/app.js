@@ -421,6 +421,8 @@ function Paginator(items, opts = {}) {
     let currentPage = 1;
     const totalPages = () => Math.max(1, Math.ceil(items.length / perPage));
 
+    let container = null;
+
     return {
         getPage() {
             const start = (currentPage - 1) * perPage;
@@ -430,20 +432,26 @@ function Paginator(items, opts = {}) {
         totalPages,
         setPage(p) { currentPage = Math.max(1, Math.min(p, totalPages())); },
         renderControls(containerId) {
-            const el = document.getElementById(containerId);
+            if (containerId) container = containerId;
+            const el = document.getElementById(container);
             if (!el) return;
+
             const tp = totalPages();
             if (tp <= 1) { el.innerHTML = ''; return; }
 
             let html = '<div class="pagination">';
             html += `<button class="btn btn-ghost btn-sm" data-page="${currentPage - 1}" ${currentPage === 1 ? 'disabled' : ''}>‹</button>`;
 
-            const range = [];
-            for (let i = 1; i <= tp; i++) {
-                if (i === 1 || i === tp || (i >= currentPage - 1 && i <= currentPage + 1)) {
-                    range.push(i);
-                } else if (range[range.length - 1] !== '...') {
-                    range.push('...');
+            let range = [];
+            if (tp <= 7) {
+                range = Array.from({ length: tp }, (_, i) => i + 1);
+            } else {
+                if (currentPage <= 4) {
+                    range = [1, 2, 3, 4, 5, '...', tp];
+                } else if (currentPage >= tp - 3) {
+                    range = [1, '...', tp - 4, tp - 3, tp - 2, tp - 1, tp];
+                } else {
+                    range = [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', tp];
                 }
             }
 
@@ -460,11 +468,12 @@ function Paginator(items, opts = {}) {
             html += '</div>';
             el.innerHTML = html;
 
-            el.querySelectorAll('[data-page]').forEach(btn => {
+            el.querySelectorAll('button[data-page]').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const p = parseInt(btn.dataset.page);
                     if (!isNaN(p)) {
                         this.setPage(p);
+                        this.renderControls(container); // Re-render controls
                         if (opts.onPageChange) opts.onPageChange(this.getPage(), this);
                     }
                 });

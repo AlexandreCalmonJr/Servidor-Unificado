@@ -9,12 +9,14 @@
         loadMetrics();
         loadRecentDevices();
         loadDeviceStatusChart();
+        loadModuleStats();
 
         // Auto-refresh every 30s
         if (refreshInterval) clearInterval(refreshInterval);
         refreshInterval = setInterval(() => {
             loadMetrics();
             loadDeviceStatusChart();
+            loadModuleStats();
         }, 30000);
     }
 
@@ -184,11 +186,68 @@
         });
     }
 
+    async function loadModuleStats() {
+        const grid = document.getElementById('module-stats-grid');
+        if (!grid) return;
+
+        try {
+            // 1. Fetch active modules
+            const modulesData = await API.get('/modules');
+            const modules = modulesData.modules || [];
+
+            if (modules.length === 0) {
+                grid.innerHTML = '<div class="metric-card"><div class="metric-sub">Nenhum módulo ativo</div></div>';
+                return;
+            }
+
+            // 2. Fetch stats for each module in parallel
+            const statsPromises = modules.map(m =>
+                API.get(`/modules/${m._id || m.id}/stats`)
+                    .then(stats => ({ ...m, stats }))
+                    .catch(err => ({ ...m, stats: null, error: err }))
+            );
+
+            const results = await Promise.all(statsPromises);
+
+            // 3. Render cards
+            grid.innerHTML = results.map(item => {
+                const s = item.stats || { total: 0, online: 0, offline: 0 };
+                const icon = getModuleIcon(item.type);
+
+                return `
+                <div class="metric-card" style="border-left: 4px solid var(--primary);">
+                    <div class="metric-header">
+                        <span class="metric-label" style="font-weight:600;">${esc(item.name)}</span>
+                        <span class="metric-icon">${icon}</span>
+                    </div>
+                    <div class="metric-value" style="font-size: 2rem;">${s.total}</div>
+                    <div class="metric-sub" style="display:flex; gap:10px; margin-top:4px;">
+                        <span style="color:var(--success)">● ${s.online} Online</span>
+                        <span style="color:var(--danger)">● ${s.offline} Offline</span>
+                    </div>
+                </div>
+                `;
+            }).join('');
+
+        } catch (err) {
+            console.error('Erro ao carregar stats dos módulos:', err);
+            grid.innerHTML = '<div class="metric-card"><div class="metric-sub">Erro ao carregar dados</div></div>';
+        }
+    }
+
+    function getModuleIcon(type) {
+        const icons = {
+            mobile: '📱', totem: '🖥️', desktop: '💻', notebook: '💻',
+            panel: '📺', printer: '🖨️', scanner: '📠', custom: '⚙️'
+        };
+        return icons[type] || '📦';
+    }
+
     // Expose for WebSocket
+    const originalRefresh = window.DashboardRefresh;
     window.DashboardRefresh = () => {
-        loadMetrics();
-        loadRecentDevices();
-        loadDeviceStatusChart();
+        if (originalRefresh) originalRefresh();
+        loadModuleStats();
     };
 
     App.onPageLoad('dashboard', loadDashboard);

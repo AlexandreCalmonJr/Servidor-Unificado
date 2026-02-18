@@ -12,6 +12,8 @@
         fetchDevices();
     }
 
+    let paginator = null;
+
     async function fetchDevices() {
         const tbody = document.getElementById('devices-table-body');
         if (!tbody) return;
@@ -19,11 +21,22 @@
         try {
             const data = await API.get('/devices');
             allDevices = Array.isArray(data) ? data : (data.devices || data.data || []);
-            renderDevices(allDevices);
+
+            // Init paginator
+            initPaginator(allDevices);
         } catch (err) {
             tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><p>Erro ao carregar dispositivos.</p></td></tr>';
             console.error('Erro ao carregar dispositivos:', err);
         }
+    }
+
+    function initPaginator(items) {
+        paginator = Paginator(items, {
+            perPage: 15,
+            onPageChange: (pageItems) => renderDevices(pageItems)
+        });
+        renderDevices(paginator.getPage());
+        paginator.renderControls('devices-pagination');
     }
 
     function renderDevices(devices) {
@@ -40,7 +53,7 @@
         }
 
         if (devices.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><div class="empty-icon">📱</div><p>Nenhum dispositivo móvel encontrado.</p></td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><div class="empty-icon">📱</div><p>Nenhum dispositivo encontrado.</p></td></tr>';
             return;
         }
 
@@ -52,7 +65,7 @@
         <td>${d.battery_level != null ? d.battery_level + '%' : (d.battery != null ? d.battery + '%' : 'N/A')}</td>
         <td class="mono">${esc(d.ip_address || d.ip || 'N/A')}</td>
         <td>${esc(d.sector || d.location || 'N/A')}</td>
-        <td><span class="status-badge ${d.provisioning_status || d.status}">${statusBadgeLabel(d.provisioning_status || d.status)}</span></td>
+        <td>${statusBadge(d.provisioning_status || d.status)}</td>
         <td>
           <button class="btn btn-ghost btn-sm" data-action="view" data-id="${esc(d._id || d.id || d.serial_number)}" title="Detalhes">👁</button>
           <button class="btn btn-ghost btn-sm" data-action="edit" data-serial="${esc(d.serial_number || d.serialNumber)}" title="Editar">✏️</button>
@@ -92,7 +105,8 @@
             return matchSearch && matchFilter;
         });
 
-        renderDevices(filtered);
+        // Re-init paginator with filtered results
+        initPaginator(filtered);
     }
 
     // ===== ACTION DELEGATION (CSP-safe) =====

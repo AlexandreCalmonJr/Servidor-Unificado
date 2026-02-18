@@ -245,7 +245,20 @@ function getValidationsByType(moduleType) {
 const validateByModuleId = async (req, res, next) => {
   try {
     const AssetModuleConfig = require('../models/AssetModuleConfig');
-    const module = await AssetModuleConfig.findById(req.params.moduleId);
+    const mongoose = require('mongoose');
+    const param = req.params.moduleId;
+    let module = null;
+
+    if (mongoose.isValidObjectId(param)) {
+      module = await AssetModuleConfig.findById(param);
+    } else if (isSupported(param)) {
+      // Se for uma string de tipo conhecido (ex: 'mobile', 'desktop')
+      // Tenta achar uma config, ou usa um objeto virtual
+      module = await AssetModuleConfig.findOne({ type: param });
+      if (!module) {
+        module = { type: param, name: param, is_active: true };
+      }
+    }
 
     if (!module) {
       return res.status(404).json({

@@ -18,6 +18,16 @@ const { getModuleStats, getActiveModules } = require('../controllers/assetModule
 module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => {
   const router = express.Router();
 
+  // ===== HELPER: Busca Módulo por ID ou Tipo =====
+  const mongoose = require('mongoose');
+  const findModuleParam = (param) => {
+    if (mongoose.isValidObjectId(param)) {
+      return AssetModuleConfig.findById(param);
+    }
+    // Tenta buscar por tipo (ex: 'mobile', 'desktop')
+    return AssetModuleConfig.findOne({ type: param });
+  };
+
   // ===== AUTENTICAÇÃO FLEXÍVEL (JWT + Legacy Token) =====
   const flexibleAuth = (req, res, next) => {
     auth(req, res, (err) => {
@@ -76,7 +86,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
 
   router.get('/:moduleId', flexibleAuth, getApiLimiter, async (req, res) => {
     try {
-      const module = await AssetModuleConfig.findById(req.params.moduleId).lean();
+      const module = await findModuleParam(req.params.moduleId).lean();
       if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
 
       const Model = getModelByType(module.type);
@@ -112,13 +122,21 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
 
       try {
-        const { name, type, description = '', table_columns = [], custom_fields = {}, settings = {} } = req.body;
+        const {
+          name, type, description = '',
+          table_columns = [], custom_fields = {}, settings = {},
+          client_config = {}, feature_flags = {}
+        } = req.body;
+
         const exists = await AssetModuleConfig.findOne({ name: new RegExp(`^${name}$`, 'i') });
         if (exists) return res.status(400).json({ success: false, message: 'Nome já existe' });
 
         const module = await new AssetModuleConfig({
           name, type, description, table_columns, custom_fields, settings,
-          is_custom: type === 'custom', is_active: true, created_by: req.user.id
+          client_config, feature_flags,
+          is_custom: type === 'custom',
+          is_active: req.body.is_active !== undefined ? req.body.is_active : true,
+          created_by: req.user.id
         }).save();
 
         logger.info(`Módulo criado: ${name} por ${req.user.username}`);
@@ -134,7 +152,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
     if (req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Acesso negado' });
 
     try {
-      const module = await AssetModuleConfig.findById(req.params.moduleId);
+      const module = await findModuleParam(req.params.moduleId);
       if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
 
       Object.assign(module, req.body, { updated_by: req.user.id, updated_at: new Date() });
@@ -152,7 +170,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
     if (req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Acesso negado' });
 
     try {
-      const module = await AssetModuleConfig.findById(req.params.moduleId);
+      const module = await findModuleParam(req.params.moduleId);
       if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
 
       const Model = getModelByType(module.type);
@@ -175,7 +193,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
 
   router.get('/:moduleId/assets', flexibleAuth, getApiLimiter, async (req, res) => {
     try {
-      const module = await AssetModuleConfig.findById(req.params.moduleId);
+      const module = await findModuleParam(req.params.moduleId);
       if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
 
       const Model = getModelByType(module.type);
@@ -304,7 +322,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
 
   router.delete('/:moduleId/assets/:assetId', auth, modifyApiLimiter, async (req, res) => {
     try {
-      const module = await AssetModuleConfig.findById(req.params.moduleId);
+      const module = await findModuleParam(req.params.moduleId);
       if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
 
       const Model = getModelByType(module.type);
@@ -327,7 +345,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
     try {
       const { moduleId, assetId } = req.params;
 
-      const module = await AssetModuleConfig.findById(moduleId);
+      const module = await findModuleParam(moduleId);
       if (!module) {
         return res.status(404).json({
           success: false,
@@ -385,7 +403,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       const { moduleId, assetId } = req.params;
       const { maintenance_status, maintenance_ticket, maintenance_reason, maintenance_history_entry } = req.body;
 
-      const module = await AssetModuleConfig.findById(moduleId);
+      const module = await findModuleParam(moduleId);
       if (!module) {
         return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
       }
@@ -453,7 +471,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
     if (req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Acesso negado' });
 
     try {
-      const module = await AssetModuleConfig.findById(req.params.moduleId);
+      const module = await findModuleParam(req.params.moduleId);
       if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
 
       const key = `module:${module.type}`;
@@ -472,7 +490,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       const { userIds } = req.body;
       if (!Array.isArray(userIds)) return res.status(400).json({ success: false, message: 'userIds deve ser array' });
 
-      const module = await AssetModuleConfig.findById(req.params.moduleId);
+      const module = await findModuleParam(req.params.moduleId);
       if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
 
       const key = `module:${module.type}`;
@@ -492,7 +510,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
     try {
       const { moduleId, assetId } = req.params;
 
-      const module = await AssetModuleConfig.findById(moduleId);
+      const module = await findModuleParam(moduleId);
       if (!module) {
         return res.status(404).json({
           success: false,

@@ -1,6 +1,6 @@
 const express = require('express');
 const { body, validationResult, query, matchedData } = require('express-validator');
-const Device = require('../models/Device');
+const { Device } = require('../models/Device');
 const Command = require('../models/Command');
 const LocationHistory = require('../models/LocationHistory');
 const locationService = require('../services/locationService');
@@ -116,19 +116,43 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
       await historyEntry.save();
     }
 
-    const device = await Device.findOneAndUpdate(
-      { serial_number: deviceData.serial_number },
-      { $set: deviceData, $setOnInsert: { maintenance_status: false, maintenance_reason: '', maintenance_ticket: '' } },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
-    );
+    let hasChanges = true;
+    if (existingDevice) {
+      // Comparar campos relevantes para evitar escritas desnecessárias
+      const fieldsToCheck = ['device_name', 'device_model', 'imei', 'battery', 'ip_address', 'mac_address_radio', 'unit', 'sector', 'floor', 'wifi_ipv6', 'wifi_gateway_ip', 'wifi_broadcast', 'wifi_submask', 'network'];
+      const isSame = fieldsToCheck.every(field => existingDevice[field] == deviceData[field] || (existingDevice[field] == null && deviceData[field] == null));
 
-    WebSocketServer.broadcastToAll({
-      type: 'device_online',
-      deviceId: device._id,
-      hostname: device.device_name,
-      status: 'online',
-      timestamp: new Date()
-    });
+      // Se status mudou de offline para online, considera mudança
+      if (existingDevice.status !== 'online') hasChanges = true;
+      else if (isSame) hasChanges = false;
+    }
+
+    let device;
+    if (!hasChanges) {
+      // Apenas atualiza heartbeat/timestamps
+      device = await Device.findOneAndUpdate(
+        { serial_number: deviceData.serial_number },
+        { $set: { last_seen: deviceData.last_seen, last_sync: deviceData.last_sync, status: 'online', is_online: true } },
+        { new: true }
+      );
+      // logger.debug(`[Optimization] Write suppression active for ${deviceData.serial_number}`);
+    } else {
+      device = await Device.findOneAndUpdate(
+        { serial_number: deviceData.serial_number },
+        { $set: deviceData, $setOnInsert: { maintenance_status: false, maintenance_reason: '', maintenance_ticket: '' } },
+        { new: true, upsert: true, setDefaultsOnInsert: true }
+      );
+    }
+
+    if (!existingDevice || existingDevice.status !== 'online') {
+      WebSocketServer.broadcastToAll({
+        type: 'device_online',
+        deviceId: device._id,
+        hostname: device.device_name,
+        status: 'online',
+        timestamp: new Date()
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -147,6 +171,8 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
 
     const { serial_number } = matchedData(req);
 
+    const existing = await Device.findOne({ serial_number }).select('status').lean();
+
     const device = await Device.findOneAndUpdate(
       { serial_number: serial_number, maintenance_status: { $ne: true } },
       { $set: { last_seen: new Date(), status: 'online', is_online: true } },
@@ -158,13 +184,15 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
       throw new NotFoundError(`Dispositivo não encontrado: ${serial_number}`);
     }
 
-    WebSocketServer.broadcastToAll({
-      type: 'device_online',
-      deviceId: device._id,
-      hostname: device.device_name,
-      status: 'online',
-      timestamp: new Date()
-    });
+    if (!existing || existing.status !== 'online') {
+      WebSocketServer.broadcastToAll({
+        type: 'device_online',
+        deviceId: device._id,
+        hostname: device.device_name,
+        status: 'online',
+        timestamp: new Date()
+      });
+    }
 
     res.status(200).json({ success: true, message: 'Heartbeat registrado' });
   }));

@@ -39,6 +39,8 @@
         }
     }
 
+    let paginator = null;
+
     async function fetchAssets(moduleId) {
         const tbody = document.getElementById('dynamic-table-body');
         if (!tbody) return;
@@ -47,10 +49,19 @@
             const data = await API.get(`/modules/${moduleId}/assets`);
             allAssets = data.assets || [];
 
-            renderAssets(allAssets);
+            initPaginator(allAssets);
         } catch (err) {
             tbody.innerHTML = `<tr><td colspan="7" class="empty-state"><p style="color:var(--danger);">Erro: ${esc(err.message)}</p></td></tr>`;
         }
+    }
+
+    function initPaginator(items) {
+        paginator = Paginator(items, {
+            perPage: 15,
+            onPageChange: (pageItems) => renderAssets(pageItems)
+        });
+        renderAssets(paginator.getPage());
+        paginator.renderControls('dynamic-pagination');
     }
 
     function renderAssets(assets) {
@@ -93,7 +104,8 @@
                 (a.ip_address || '').toLowerCase().includes(q) ||
                 (a.location || '').toLowerCase().includes(q)
             );
-            renderAssets(filtered);
+
+            initPaginator(filtered);
         });
     }
 

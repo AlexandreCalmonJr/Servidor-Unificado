@@ -186,21 +186,84 @@
             <button class="modal-close" id="module-modal-close">×</button>
         </div>
         <div class="modal-body">
+            <div class="modal-tabs">
+                <button class="modal-tab active" onclick="openTab(event, 'tab-general')">Geral</button>
+                <button class="modal-tab" onclick="openTab(event, 'tab-client')">Cliente UI</button>
+                <button class="modal-tab" onclick="openTab(event, 'tab-features')">Funcionalidades</button>
+            </div>
+
             <form id="module-form">
                 <input type="hidden" id="edit-module-id">
-                <div class="form-group">
-                    <label for="form-module-name">Nome do Módulo</label>
-                    <input type="text" id="form-module-name" required placeholder="Ex: Notebooks TI">
+
+                <!-- TAB GERAL -->
+                <div id="tab-general" class="tab-content active">
+                    <div class="form-group">
+                        <label for="form-module-name">Nome do Módulo</label>
+                        <input type="text" id="form-module-name" required placeholder="Ex: Notebooks TI">
+                    </div>
+                    <div class="form-group">
+                        <label for="form-module-type">Tipo Base</label>
+                        <select id="form-module-type" required>
+                            <option value="" disabled selected>Selecione o tipo...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="form-module-desc">Descrição</label>
+                        <textarea id="form-module-desc" rows="3" placeholder="Descrição opcional..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                            <input type="checkbox" id="form-module-active" checked>
+                            <span>Módulo Ativo</span>
+                        </label>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="form-module-type">Tipo</label>
-                    <select id="form-module-type" required>
-                        <option value="" disabled selected>Selecione o tipo...</option>
-                    </select>
+
+                <!-- TAB CLIENTE -->
+                <div id="tab-client" class="tab-content" style="display:none;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Ícone (Material Icon)</label>
+                            <input type="text" id="form-module-icon" placeholder="ex: ad_units" value="box">
+                        </div>
+                        <div class="form-group" style="max-width: 100px;">
+                            <label>Cor</label>
+                            <input type="color" id="form-module-color" value="#3b82f6"
+                                style="width:100%;height:38px;padding:0;border:none;">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                            <input type="checkbox" id="form-module-show-dash" checked>
+                            <span>Mostrar no Dashboard</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>Abas Visíveis (separadas por vírgula)</label>
+                        <input type="text" id="form-module-tabs" placeholder="info, location, apps">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="form-module-desc">Descrição</label>
-                    <textarea id="form-module-desc" rows="3" placeholder="Descrição opcional..."></textarea>
+
+                <!-- TAB FEATURES -->
+                <div id="tab-features" class="tab-content" style="display:none;">
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                            <input type="checkbox" id="flag-remote-control">
+                            <span>Permitir Controle Remoto</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                            <input type="checkbox" id="flag-track-location" checked>
+                            <span>Rastreamento de Localização</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                            <input type="checkbox" id="flag-require-auth" checked>
+                            <span>Exigir Autenticação no Agente</span>
+                        </label>
+                    </div>
                 </div>
             </form>
         </div>

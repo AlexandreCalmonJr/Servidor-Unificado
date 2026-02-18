@@ -193,18 +193,40 @@ exports.updateModulePermissions = async (req, res) => {
 // GET /api/modules/:moduleId/stats
 exports.getModuleStats = async (req, res) => {
   try {
-    const { moduleId } = req.params; // ex: 'totem', 'mobile', 'desktop'
+    const { moduleId } = req.params; // ex: 'totem', 'mobile' OU ObjectId
+    const mongoose = require('mongoose');
+
+    let type = moduleId;
+
+    // Se for ID, busca o tipo no banco
+    if (mongoose.isValidObjectId(moduleId)) {
+      const config = await AssetModuleConfig.findById(moduleId);
+      if (config) {
+        type = config.type;
+      }
+    }
 
     // Verifica se é um tipo válido no nosso mapa
-    const Model = assetModels[moduleId];
-    if (!Model) {
-      return res.status(404).json({ success: false, message: 'Módulo desconhecido' });
+    const Model = assetModels[type];
+
+    // Se não achou modelo, tenta normalizar string (lowercase)
+    if (!Model && typeof type === 'string') {
+      const normalized = type.toLowerCase();
+      if (assetModels[normalized]) {
+        type = normalized;
+      }
+    }
+
+    const finalModel = assetModels[type];
+
+    if (!finalModel) {
+      return res.status(404).json({ success: false, message: `Módulo desconhecido ou tipo inválido: ${type} (${moduleId})` });
     }
 
     // Contagens
-    const total = await Model.countDocuments();
-    const online = await Model.countDocuments({ status: { $regex: /online/i } });
-    const offline = await Model.countDocuments({ status: { $regex: /offline/i } });
+    const total = await finalModel.countDocuments();
+    const online = await finalModel.countDocuments({ status: { $regex: /online/i } });
+    const offline = await finalModel.countDocuments({ status: { $regex: /offline/i } });
 
     // "Sem Monitorar" ou outros status
     const unknown = total - online - offline;
@@ -212,6 +234,7 @@ exports.getModuleStats = async (req, res) => {
     res.json({
       success: true,
       moduleId,
+      type,
       stats: {
         total,
         online,
@@ -220,6 +243,17 @@ exports.getModuleStats = async (req, res) => {
       }
     });
 
+  } catch (error) {
+    console.error('Erro em getModuleStats:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// GET /api/modules/active
+exports.getActiveModules = async (req, res) => {
+  try {
+    const configs = await AssetModuleConfig.find({ is_active: true });
+    res.json({ success: true, modules: configs });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

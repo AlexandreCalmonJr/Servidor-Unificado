@@ -33,6 +33,22 @@ const AssetModuleConfigSchema = new Schema({
   is_custom: { type: Boolean, default: false },
   custom_fields: { type: Map, of: Schema.Types.Mixed, default: {} },
   settings: { type: Map, of: Schema.Types.Mixed, default: {} },
+
+  // Configurações de UI para Clientes
+  client_config: {
+    icon: { type: String, default: 'box' },
+    color: { type: String, default: '#3b82f6' },
+    show_on_dashboard: { type: Boolean, default: true },
+    tabs: [{ type: String }] // ['info', 'location', 'apps']
+  },
+
+  // Flags de Funcionalidade
+  feature_flags: {
+    allow_remote_control: { type: Boolean, default: false },
+    track_location: { type: Boolean, default: true },
+    require_auth: { type: Boolean, default: true }
+  },
+
   table_columns: [TableColumnConfigSchema]
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
