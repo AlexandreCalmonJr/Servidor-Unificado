@@ -69,9 +69,14 @@ const connectDB = async () => {
             logger.warn('Desconectado do MongoDB');
         });
 
+        const createAdminUser = require('./scripts/createAdminUser');
+
         mongoose.connection.on('reconnected', () => {
             logger.info('Reconectado ao MongoDB');
         });
+
+        // Seed initial data
+        await createAdminUser();
 
     } catch (err) {
         logger.logCriticalError(err, {
