@@ -528,16 +528,20 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
         });
       }
 
-      // Retorna histórico de manutenção
-      const history = asset.maintenance_history || [];
+      // Retorna histórico unificado (localização + manutenção)
+      const locHistory = asset.location_history || [];
+      const maintHistory = asset.maintenance_history || [];
 
+      // Adiciona flag de tipo para o frontend se necessário (opcional, pois 'source' já ajuda)
+      // Mas vamos garantir que tudo tenha timestamp válido
+      const history = [...locHistory, ...maintHistory]
+        .filter(h => h.timestamp)
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       logger.info(`Histórico solicitado: ${asset.asset_name} por ${req.user.username}`);
 
       res.json({
         success: true,
-        history: history.sort((a, b) =>
-          new Date(b.timestamp) - new Date(a.timestamp)
-        ),
+        history,
         asset: {
           id: asset._id,
           name: asset.asset_name,

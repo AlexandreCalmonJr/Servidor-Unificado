@@ -83,6 +83,7 @@
                 <td>${statusBadge(a.status)}</td>
                 <td>${formatDate(a.last_seen || a.updatedAt)}</td>
                 <td>
+                    <button class="btn btn-ghost btn-sm" onclick="DynamicAssetManager.view('${a._id || a.id}')" title="Ver Detalhes">👁️</button>
                     <button class="btn btn-ghost btn-sm" onclick="DynamicAssetManager.edit('${a._id || a.id}')" title="Editar">✏️</button>
                     <button class="btn btn-ghost btn-sm" onclick="DynamicAssetManager.sendCommand('${a._id || a.id}', '${esc(a.asset_name || '')}')" title="Comando">⚡</button>
                     <button class="btn btn-danger btn-sm" onclick="DynamicAssetManager.remove('${a._id || a.id}', '${esc(a.asset_name || '')}')" title="Excluir">🗑</button>
@@ -97,8 +98,8 @@
 
         const total = assets.length;
         const online = assets.filter(a => ['online', 'active'].includes((a.status || '').toLowerCase())).length;
-        const offline = assets.filter(a => ['offline', 'inactive', 'failed'].includes((a.status || '').toLowerCase())).length;
-        const warning = assets.filter(a => ['warning', 'maintenance', 'pending'].includes((a.status || '').toLowerCase())).length;
+        const offline = assets.filter(a => ['offline', 'inactive', 'failed', 'unknown'].includes((a.status || '').toLowerCase())).length;
+        const warning = assets.filter(a => ['warning', 'maintenance', 'pending', 'retired'].includes((a.status || '').toLowerCase())).length;
 
         const stats = [
             { label: 'Total de Ativos', value: total, icon: 'box', color: 'text-blue-400', bg: 'bg-blue-500/10' },
@@ -108,7 +109,7 @@
         ];
 
         container.innerHTML = stats.map(s => `
-            < div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center justify-between" >
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center justify-between">
                 <div>
                     <p class="text-slate-400 text-xs font-medium uppercase tracking-wider">${s.label}</p>
                     <p class="text-2xl font-bold text-white mt-1">${s.value}</p>
@@ -116,7 +117,7 @@
                 <div class="p-3 rounded-lg ${s.bg} ${s.color}">
                     <i data-lucide="${s.icon}" size="20"></i>
                 </div>
-            </div >
+            </div>
             `).join('');
 
         if (window.lucide) window.lucide.createIcons();
@@ -141,7 +142,7 @@
         });
     }
 
-    // ===== MODAL =====
+    // ===== MODAL & TABS =====
     function setupDynamicModal() {
         const modal = document.getElementById('dynamic-asset-modal');
         const addBtn = document.getElementById('dynamic-add-btn');
@@ -149,9 +150,7 @@
         const cancelBtn = document.getElementById('dynamic-asset-modal-cancel');
         const saveBtn = document.getElementById('dynamic-asset-modal-save');
 
-        if (addBtn) {
-            addBtn.onclick = () => openModal();
-        }
+        if (addBtn) addBtn.onclick = () => openModal();
 
         [closeBtn, cancelBtn].forEach(b => {
             if (b) b.onclick = () => modal.classList.remove('active');
@@ -163,14 +162,115 @@
             };
         }
 
-        if (saveBtn) {
-            saveBtn.onclick = handleSave;
+        if (saveBtn) saveBtn.onclick = handleSave;
+
+        // View Modal (Device Detail)
+        const viewModal = document.getElementById('device-modal');
+        const viewClose = document.getElementById('device-modal-close');
+        const viewCloseBtn = document.getElementById('device-modal-close-btn');
+
+        [viewClose, viewCloseBtn].forEach(b => {
+            if (b) b.onclick = () => viewModal.classList.remove('active');
+        });
+
+        if (viewModal) {
+            viewModal.onclick = (e) => {
+                if (e.target === viewModal) viewModal.classList.remove('active');
+            };
+        }
+
+        // TABS - Bind events here to ensure they persist
+        bindTabEvents();
+    }
+
+    function bindTabEvents() {
+        // Edit Modal Tabs
+        const tabDetails = document.getElementById('dynamic-tab-details-btn');
+        const tabHistory = document.getElementById('dynamic-tab-history-btn');
+        if (tabDetails && tabHistory) {
+            tabDetails.onclick = (e) => { e.preventDefault(); switchTab('edit', 'details'); };
+            tabHistory.onclick = (e) => { e.preventDefault(); switchTab('edit', 'history'); };
+        }
+
+        // View Modal Tabs
+        const viewTabOverview = document.getElementById('detail-tab-overview-btn');
+        const viewTabHistory = document.getElementById('detail-tab-history-btn');
+        if (viewTabOverview && viewTabHistory) {
+            viewTabOverview.onclick = (e) => { e.preventDefault(); switchTab('view', 'overview'); };
+            viewTabHistory.onclick = (e) => { e.preventDefault(); switchTab('view', 'history'); };
+        }
+    }
+
+    function switchTab(context, tabName) {
+        let detailsBtn, historyBtn, detailsContent, historyContent, assetId;
+
+        if (context === 'edit') {
+            detailsBtn = document.getElementById('dynamic-tab-details-btn');
+            historyBtn = document.getElementById('dynamic-tab-history-btn');
+            detailsContent = document.getElementById('dynamic-tab-details-content');
+            historyContent = document.getElementById('dynamic-tab-history-content');
+            assetId = document.getElementById('dynamic-asset-id').value;
+        } else { // view
+            detailsBtn = document.getElementById('detail-tab-overview-btn');
+            historyBtn = document.getElementById('detail-tab-history-btn');
+            detailsContent = document.getElementById('detail-tab-overview-content');
+            historyContent = document.getElementById('detail-tab-history-content');
+            // For view modal, we interpret the modal's data-asset-id
+            assetId = document.getElementById('device-modal').dataset.assetId;
+        }
+
+        if (tabName === 'details' || tabName === 'overview') {
+            detailsBtn.classList.add('active');
+            historyBtn.classList.remove('active');
+            detailsContent.style.display = 'block';
+            historyContent.style.display = 'none';
+        } else {
+            detailsBtn.classList.remove('active');
+            historyBtn.classList.add('active');
+            detailsContent.style.display = 'none';
+            historyContent.style.display = 'block';
+            if (assetId) loadHistory(assetId, context);
+        }
+    }
+
+    async function loadHistory(assetId, context) {
+        const tbodyId = context === 'edit' ? 'dynamic-history-body' : 'device-history-body-full';
+        const tbody = document.getElementById(tbodyId);
+        if (!tbody) return;
+
+        tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Carregando...</td></tr>';
+
+        try {
+            const data = await API.get(`/modules/${currentModuleId}/assets/${assetId}/history`);
+            const history = data.history || [];
+
+            if (history.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Nenhum histórico registrado.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = history.map(h => `
+                <tr>
+                    <td>${formatDate(h.timestamp)}</td>
+                    <td class="mono">${esc(h.ip || h.ticket || 'N/A')}</td>
+                    <td>${esc(h.unit || '-')} / ${esc(h.sector || '-')} <small>(${esc(h.floor || '-')})</small></td>
+                    <td>
+                        <span class="badge badge-sm">${esc(h.source || (h.status ? 'manutenção' : 'sistema'))}</span>
+                        ${h.maintenance_reason ? `<br><small class="text-muted">${esc(h.maintenance_reason)}</small>` : ''}
+                    </td>
+                </tr>
+            `).join('');
+        } catch (e) {
+            console.error(e);
+            tbody.innerHTML = `<tr><td colspan="4" class="empty-state" style="color:var(--danger)">Erro ao carregar: ${esc(e.message)}</td></tr>`;
         }
     }
 
     function openModal(asset = null) {
         const modal = document.getElementById('dynamic-asset-modal');
         const title = document.getElementById('dynamic-asset-modal-title');
+
+        // Form fields
         const idField = document.getElementById('dynamic-asset-id');
         const nameField = document.getElementById('dynamic-asset-name');
         const identField = document.getElementById('dynamic-asset-identifier');
@@ -178,6 +278,9 @@
         const locField = document.getElementById('dynamic-asset-location');
         const statusField = document.getElementById('dynamic-asset-status');
         const notesField = document.getElementById('dynamic-asset-notes');
+
+        // Reset Tab
+        switchTab('edit', 'details');
 
         if (asset) {
             title.textContent = 'Editar Ativo';
@@ -198,6 +301,72 @@
             statusField.value = 'active';
             notesField.value = '';
         }
+
+        modal.classList.add('active');
+    }
+
+    // View Modal Logic
+    async function openViewModal(assetId) {
+        const modal = document.getElementById('device-modal');
+        const grid = document.getElementById('device-detail-grid');
+        const editBtn = document.getElementById('device-modal-edit-btn');
+
+        // Pre-fetch asset if needed, usually we have it in allAssets but let's be safe
+        let asset = allAssets.find(a => (a._id || a.id) === assetId);
+        if (!asset) {
+            try {
+                const res = await API.get(`/modules/${currentModuleId}/assets/${assetId}`);
+                asset = res.asset || res;
+            } catch (e) {
+                showToast('Erro ao carregar ativo', 'error');
+                return;
+            }
+        }
+
+        modal.dataset.assetId = assetId;
+
+        // Reset Tab
+        switchTab('view', 'overview');
+
+        // Populate Grid
+        // Filter out internal keys and objects
+        const ignore = ['_id', '__v', 'id', 'location_history', 'maintenance_history', 'custom_data', 'updated_at', 'created_at', 'enrolled_at', 'last_seen'];
+
+        let html = '';
+
+        // Primary Fields first
+        const primary = [
+            { k: 'Nome', v: asset.asset_name },
+            { k: 'Serial', v: asset.serial_number },
+            { k: 'IP', v: asset.ip_address },
+            { k: 'MAC', v: asset.mac_address },
+            { k: 'Status', v: statusBadge(asset.status) },
+            { k: 'Localização', v: asset.location || `${asset.unit || ''} - ${asset.sector || ''}` }
+        ];
+
+        primary.forEach(f => {
+            html += `<div class="detail-item"><label>${f.k}</label><span>${f.v || '-'}</span></div>`;
+        });
+
+        // Remaining dynamic fields
+        Object.keys(asset).forEach(key => {
+            if (ignore.includes(key)) return;
+            // Skip if already shown
+            if (['asset_name', 'name', 'serial_number', 'ip_address', 'mac_address', 'status', 'location', 'unit', 'sector', 'floor'].includes(key)) return;
+
+            let val = asset[key];
+            if (typeof val === 'object') return; // Skip nested objects for now
+
+            html += `<div class="detail-item"><label>${key.replace(/_/g, ' ')}</label><span>${esc(val)}</span></div>`;
+        });
+
+        grid.innerHTML = html;
+
+        // Setup Edit Button in View Modal
+        editBtn.onclick = () => {
+            modal.classList.remove('active');
+            openModal(asset);
+        };
 
         modal.classList.add('active');
     }
@@ -262,6 +431,7 @@
                     <span class="nav-icon">${icon}</span>
                     <span class="nav-label">${esc(m.name)}</span>
                     <span class="nav-badge">${m.asset_count || 0}</span>
+                    <div class="active-indicator"></div>
                 </button>`;
             }).join('');
 
@@ -313,6 +483,9 @@
                     showToast('Erro ao carregar ativo.', 'error');
                 }
             }
+        },
+        view: (assetId) => {
+            openViewModal(assetId);
         },
         remove: async (assetId, assetName) => {
             if (!await confirmAction(`Excluir o ativo "${assetName}"?`, { danger: true, okText: 'Excluir' })) return;

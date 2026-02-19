@@ -808,38 +808,68 @@
                 <button class="modal-close" id="dynamic-asset-modal-close">×</button>
             </div>
             <div class="modal-body">
-                <input type="hidden" id="dynamic-asset-id">
-                <div class="form-group">
-                    <label for="dynamic-asset-name">Nome do Ativo</label>
-                    <input type="text" id="dynamic-asset-name" required placeholder="ex: Desktop-RH-01">
+                <!-- Tabs -->
+                <div class="tab-bar" style="margin-bottom: 16px;">
+                    <button class="tab-btn active" id="dynamic-tab-details-btn">Detalhes</button>
+                    <button class="tab-btn" id="dynamic-tab-history-btn">Histórico de Localização</button>
                 </div>
-                <div class="form-row">
+
+                <!-- Details Tab -->
+                <div id="dynamic-tab-details-content">
+                    <input type="hidden" id="dynamic-asset-id">
                     <div class="form-group">
-                        <label for="dynamic-asset-identifier">Serial / Identificador</label>
-                        <input type="text" id="dynamic-asset-identifier" placeholder="SN12345">
+                        <label for="dynamic-asset-name">Nome do Ativo</label>
+                        <input type="text" id="dynamic-asset-name" required placeholder="ex: Desktop-RH-01">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="dynamic-asset-identifier">Serial / Identificador</label>
+                            <input type="text" id="dynamic-asset-identifier" placeholder="SN12345">
+                        </div>
+                        <div class="form-group">
+                            <label for="dynamic-asset-ip">Endereço IP</label>
+                            <input type="text" id="dynamic-asset-ip" placeholder="10.0.0.50">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="dynamic-asset-location">Localização</label>
+                            <input type="text" id="dynamic-asset-location" placeholder="Sala 301">
+                        </div>
+                        <div class="form-group">
+                            <label for="dynamic-asset-status">Status</label>
+                            <select id="dynamic-asset-status">
+                                <option value="active">Ativo</option>
+                                <option value="inactive">Inativo</option>
+                                <option value="maintenance">Manutenção</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="form-group">
-                        <label for="dynamic-asset-ip">Endereço IP</label>
-                        <input type="text" id="dynamic-asset-ip" placeholder="10.0.0.50">
+                        <label for="dynamic-asset-notes">Observações</label>
+                        <textarea id="dynamic-asset-notes" rows="3" placeholder="Informações adicionais..."></textarea>
                     </div>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="dynamic-asset-location">Localização</label>
-                        <input type="text" id="dynamic-asset-location" placeholder="Sala 301">
+
+                <!-- History Tab -->
+                <div id="dynamic-tab-history-content" style="display: none;">
+                    <div class="table-container" style="max-height: 300px; overflow-y: auto;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Endereço IP</th>
+                                    <th>Unidade / Setor</th>
+                                    <th>Origem</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dynamic-history-body">
+                                <tr>
+                                    <td colspan="4" class="empty-state">Carregando...</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
-                    <div class="form-group">
-                        <label for="dynamic-asset-status">Status</label>
-                        <select id="dynamic-asset-status">
-                            <option value="active">Ativo</option>
-                            <option value="inactive">Inativo</option>
-                            <option value="maintenance">Manutenção</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="dynamic-asset-notes">Observações</label>
-                    <textarea id="dynamic-asset-notes" rows="3" placeholder="Informações adicionais..."></textarea>
                 </div>
             </div>
             <div class="modal-footer">
@@ -893,31 +923,38 @@
 
     <!-- ===== DEVICE DETAIL MODAL ===== -->
     <div class="modal-overlay" id="device-modal">
-        <div class="modal-box" style="max-width: 640px;">
+        <div class="modal-box" style="max-width: 700px;">
             <div class="modal-header">
                 <h3 id="device-modal-title">Detalhes do Dispositivo</h3>
                 <button class="modal-close" id="device-modal-close">×</button>
             </div>
             <div class="modal-body">
-                <div class="detail-grid" id="device-detail-grid">
-                    <!-- Filled by JS -->
+                <!-- Tabs -->
+                <div class="tab-bar" style="margin-bottom: 16px;">
+                    <button class="tab-btn active" id="detail-tab-overview-btn">Visão Geral</button>
+                    <button class="tab-btn" id="detail-tab-history-btn">Histórico Completo</button>
                 </div>
 
-                <div class="history-section"
-                    style="margin-top: 24px; border-top: 1px solid var(--border-color); padding-top: 16px;">
-                    <h4 style="margin-bottom: 12px; font-size: 0.95rem; color: var(--text-primary);">Histórico de
-                        Localização</h4>
-                    <div class="table-container" style="max-height: 200px; overflow-y: auto;">
+                <!-- Overview Tab -->
+                <div id="detail-tab-overview-content">
+                    <div class="detail-grid" id="device-detail-grid">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+
+                <!-- History Tab -->
+                <div id="detail-tab-history-content" style="display: none;">
+                    <div class="table-container" style="max-height: 400px; overflow-y: auto;">
                         <table class="data-table" style="font-size: 0.85rem;">
                             <thead>
                                 <tr>
                                     <th>Data</th>
-                                    <th>BSSID</th>
-                                    <th>Setor</th>
-                                    <th>Andar</th>
+                                    <th>IP / Rede</th>
+                                    <th>Local / Setor</th>
+                                    <th>Evento</th>
                                 </tr>
                             </thead>
-                            <tbody id="device-history-body">
+                            <tbody id="device-history-body-full">
                                 <tr>
                                     <td colspan="4" class="text-center text-muted">Carregando...</td>
                                 </tr>
@@ -928,7 +965,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-ghost" id="device-modal-close-btn">Fechar</button>
-                <button class="btn btn-primary" id="device-modal-edit-btn">Editar</button>
+                <button class="btn btn-primary" id="device-modal-edit-btn">✏️ Editar Dados</button>
             </div>
         </div>
     </div>
@@ -1310,21 +1347,21 @@
     <div class="toast-container" id="toast-container"></div>
 
     <!-- Scripts -->
-    <script src="js/api.js"></script>
-    <script src="js/app.js"></script>
-    <script src="js/dashboard.js"></script>
-    <script src="js/devices.js"></script>
-    <script src="js/totems.js"></script>
-    <script src="js/modules.js"></script>
-    <script src="js/commands.js"></script>
-    <script src="js/provisioning.js"></script>
-    <script src="js/profiles.js"></script>
-    <script src="js/mappings.js"></script>
-    <script src="js/diagnostics.js"></script>
-    <script src="js/users.js"></script>
-    <script src="js/server.js"></script>
-    <script src="js/reports.js"></script>
-    <script src="js/dynamic-assets.js"></script>
+    <script src="js/api.js?v=2"></script>
+    <script src="js/app.js?v=2"></script>
+    <script src="js/dashboard.js?v=2"></script>
+    <script src="js/devices.js?v=2"></script>
+    <script src="js/totems.js?v=2"></script>
+    <script src="js/modules.js?v=2"></script>
+    <script src="js/commands.js?v=2"></script>
+    <script src="js/provisioning.js?v=2"></script>
+    <script src="js/profiles.js?v=2"></script>
+    <script src="js/mappings.js?v=2"></script>
+    <script src="js/diagnostics.js?v=2"></script>
+    <script src="js/users.js?v=2"></script>
+    <script src="js/server.js?v=2"></script>
+    <script src="js/reports.js?v=2"></script>
+    <script src="js/dynamic-assets.js?v=3"></script>
 </body>
 
 </html>
