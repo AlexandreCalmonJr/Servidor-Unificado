@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Provisionamento de Dispositivo - <%= organization %>
+    </title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            background-color: #f3f4f6;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .qr-container {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+
+<body class="flex items-center justify-center min-h-screen bg-slate-900 text-slate-100">
+
+    <div class="w-full max-w-md p-6 bg-slate-800 rounded-xl shadow-2xl border border-slate-700">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-2xl font-bold text-white mb-2">
+                <%= organization %>
+            </h1>
+            <p class="text-slate-400">Provisionamento de Dispositivo</p>
+        </div>
+
+        <!-- Status & Timer -->
+        <div class="flex justify-between items-center mb-6 bg-slate-700/50 p-3 rounded-lg border border-slate-600">
+            <div class="text-center w-1/2 border-r border-slate-600">
+                <span class="block text-xs uppercase tracking-wider text-slate-400">Usos Restantes</span>
+                <span id="uses-count" class="text-xl font-bold text-white">Carregando...</span>
+            </div>
+            <div class="text-center w-1/2">
+                <span class="block text-xs uppercase tracking-wider text-slate-400">Expira em</span>
+                <span id="timer" class="text-xl font-bold text-white">--:--</span>
+            </div>
+        </div>
+
+        <!-- QR Code -->
+        <div class="flex justify-center mb-8">
+            <div id="qrcode" class="bg-white p-4 rounded-xl shadow-inner"></div>
+        </div>
+
+        <!-- Status Badge -->
+        <div id="status-container" class="text-center mb-6">
+            <span id="status-badge"
+                class="px-4 py-2 rounded-full text-sm font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                Ativo e Aguardando
+            </span>
+        </div>
+
+        <!-- Instructions -->
+        <div class="space-y-4">
+            <div class="flex items-start gap-3">
+                <div class="bg-blue-500/10 p-2 rounded-lg text-blue-400 border border-blue-500/20">
+                    <i data-lucide="smartphone" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h3 class="font-medium text-white">1. Abra o App MDM</h3>
+                    <p class="text-sm text-slate-400">Inicie o aplicativo de provisionamento no dispositivo.</p>
+                </div>
+            </div>
+            <div class="flex items-start gap-3">
+                <div class="bg-purple-500/10 p-2 rounded-lg text-purple-400 border border-purple-500/20">
+                    <i data-lucide="scan-line" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h3 class="font-medium text-white">2. Escaneie o QR Code</h3>
+                    <p class="text-sm text-slate-400">Use a câmera para ler o código acima.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="mt-8 text-center text-xs text-slate-500 border-t border-slate-700 pt-4">
+            Token: <span class="font-mono text-slate-400">
+                <%= token %>
+            </span>
+        </div>
+
+        <!-- Download Desktop Section -->
+        <div class="mt-4 pt-4 border-t border-slate-700">
+            <h3 class="text-white font-medium mb-3">Instalação Desktop (Windows)</h3>
+            <a href="/api/provisioning/download/desktop/<%= token %>"
+                class="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors shadow-lg">
+                <i data-lucide="download" class="w-5 h-5"></i>
+                Baixar Cliente Pré-configurado
+            </a>
+            <p class="text-xs text-slate-400 mt-2 text-center">
+                Baixe e execute. O agente se configurará automaticamente.
+            </p>
+        </div>
+    </div>
+
+    <!-- Hidden Data for JS -->
+    <input type="hidden" id="token-val" value="<%= token %>">
+    <input type="hidden" id="server-url" value="<%= server_url %>">
+    <input type="hidden" id="provisioning-json"
+        value='{"provisioning_token": "<%= token %>", "url": "<%= server_url %>/api/provisioning/enroll"}'>
+
+    <script>
+        lucide.createIcons();
+
+        const token = document.getElementById('token-val').value;
+        const provisioningJson = document.getElementById('provisioning-json').value;
+
+        // Generate QR Code
+        new QRCode(document.getElementById("qrcode"), {
+            text: provisioningJson,
+            width: 250,
+            height: 250,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+        });
+
+        // Metrics Update Logic
+        async function updateStatus() {
+            try {
+                const res = await fetch(`/api/provisioning/tokens/${token}/status`);
+                const data = await res.json();
+
+                if (!res.ok || !data.valid) {
+                    handleInvalid(data);
+                    return;
+                }
+
+                document.getElementById('uses-count').innerText = data.uses_remaining;
+
+                const minutes = data.minutes_remaining;
+                const hours = Math.floor(minutes / 60);
+                const mins = minutes % 60;
+                document.getElementById('timer').innerText = `${hours}h ${mins}m`;
+
+                if (data.uses_remaining === 0) {
+                    handleInvalid({ message: 'Token Esgotado' });
+                }
+
+            } catch (err) {
+                console.error('Erro ao buscar status', err);
+            }
+        }
+
+        function handleInvalid(data) {
+            const badge = document.getElementById('status-badge');
+            badge.className = "px-4 py-2 rounded-full text-sm font-semibold bg-red-500/10 text-red-400 border border-red-500/20";
+            badge.innerText = data.message || "Inválido";
+
+            document.getElementById('qrcode').style.opacity = '0.1';
+            clearInterval(refreshInterval);
+        }
+
+        // Initial fetch and Poll
+        updateStatus();
+        const refreshInterval = setInterval(updateStatus, 30000);
+
+    </script>
+</body>
+
+</html>

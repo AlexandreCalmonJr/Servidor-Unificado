@@ -106,16 +106,61 @@
                 organization, config_profile, max_uses, expires_in_hours,
             });
             showToast('Token gerado com sucesso!', 'success');
-            document.getElementById('provision-modal').classList.remove('active');
-            loadTokens();
 
-            // Show the URL in a toast
-            if (result.provisioning_url) {
-                showToast(`URL: ${result.provisioning_url}`, 'info');
-            }
+            // Hide Form, Show Result
+            document.getElementById('provision-form-content').classList.add('hidden');
+            document.getElementById('provision-result-content').classList.remove('hidden');
+
+            // Generate QR
+            const qrContainer = document.getElementById('modal-qrcode');
+            qrContainer.innerHTML = '';
+
+            // Use current host for the URL logic if result.provisioning_url is not absolute or needs adjustment
+            // But usually result.provisioning_url should be fine. 
+            // We can also construct a specific JSON for the app if needed, but let's stick to the URL or a JSON payload.
+            // The previous plan used a JSON payload.
+            const provisioningPayload = JSON.stringify({
+                provisioning_token: result.token,
+                url: `${window.location.protocol}//${window.location.host}/api/provisioning/enroll`
+            });
+
+            new QRCode(qrContainer, {
+                text: provisioningPayload,
+                width: 200,
+                height: 200
+            });
+
+            // Update Text Fields
+            document.getElementById('modal-token-url').value = result.provisioning_url;
+            document.getElementById('modal-token-code').innerText = result.token;
+
+            // Setup Result Actions
+            setupResultActions(result.provisioning_url);
+
+            loadTokens();
         } catch (err) {
             showToast(`Erro: ${err.message}`, 'error');
         }
+    }
+
+    function setupResultActions(url) {
+        document.getElementById('btn-copy-url').onclick = (e) => {
+            e.preventDefault();
+            navigator.clipboard.writeText(url);
+            showToast('URL copiada!', 'success');
+        };
+
+        document.getElementById('btn-close-result').onclick = (e) => {
+            e.preventDefault();
+            document.getElementById('provision-modal').classList.remove('active');
+            // Reset modal state after transition
+            setTimeout(() => {
+                document.getElementById('provision-form-content').classList.remove('hidden');
+                document.getElementById('provision-result-content').classList.add('hidden');
+                // Optional: reset form
+                document.getElementById('form-provision-org').value = '';
+            }, 300);
+        };
     }
 
     // ===== HELPERS =====

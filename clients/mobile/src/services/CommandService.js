@@ -24,7 +24,7 @@ const DEFAULT_INTERVAL_MS = 1 * 60 * 1000; // 1 minuto em ms
 
 class CommandService {
     constructor() {
-        this._timer       = null;
+        this._timer = null;
         this._isProcessing = false;
     }
 
@@ -58,12 +58,12 @@ class CommandService {
 
         try {
             const serialNumber = await SecureStore.getItemAsync('serial_number');
-            const token        = await SecureStore.getItemAsync('auth_token');
+            const token = await SecureStore.getItemAsync('auth_token');
 
             if (!serialNumber || !token) return;
 
-            // GET /api/devices/commands?serial_number=... (main.dart → checkForCommands)
-            const response = await api.get('/devices/commands', {
+            // GET /api/modules/mobile/assets/commands/pending?serial_number=...
+            const response = await api.get('/modules/mobile/assets/commands/pending', {
                 params: { serial_number: serialNumber },
             });
 
@@ -87,15 +87,15 @@ class CommandService {
     // _executeCommand() — DeviceService._executeCommand() (main.dart)
     // Tipos: lock_device, wipe_data, install_app / install_apk, restrict_settings, restart_app
     async _executeCommand(command) {
-        const commandId  = command.id || command._id;
-        const type       = command.command_type || command.commandType;
-        const params     = command.parameters   || {};
+        const commandId = command.id || command._id;
+        const type = command.command || command.command_type || command.commandType;
+        const params = command.parameters || {};
         const serialNumber = await SecureStore.getItemAsync('serial_number');
 
         console.log(`[CommandService] ⚙️ Executando: ${type}`);
 
-        let success      = false;
-        let result       = '';
+        let success = false;
+        let result = '';
         let errorMessage = '';
 
         try {
@@ -105,7 +105,7 @@ class CommandService {
                 case 'lock_device':
                     Alert.alert('🔒 MDM', 'Dispositivo bloqueado remotamente pelo administrador.');
                     success = true;
-                    result  = 'Bloqueio solicitado';
+                    result = 'Bloqueio solicitado';
                     break;
 
                 // main.dart → case 'wipe_data'
@@ -115,12 +115,14 @@ class CommandService {
                         'O administrador solicitou a limpeza de dados. Por favor, confirme.',
                         [
                             { text: 'Cancelar', style: 'cancel' },
-                            { text: 'Confirmar', style: 'destructive',
-                              onPress: () => console.warn('[CommandService] Wipe confirmado pelo usuário') },
+                            {
+                                text: 'Confirmar', style: 'destructive',
+                                onPress: () => console.warn('[CommandService] Wipe confirmado pelo usuário')
+                            },
                         ]
                     );
                     success = true;
-                    result  = 'Wipe solicitado (requer confirmação do usuário)';
+                    result = 'Wipe solicitado (requer confirmação do usuário)';
                     break;
 
                 // main.dart → case 'install_app' / CommandService original: 'install_apk'
@@ -130,7 +132,7 @@ class CommandService {
                     if (!apkUrl) throw new Error('URL do APK ausente nos parâmetros');
                     await this._installApk(apkUrl);
                     success = true;
-                    result  = 'APK instalado com sucesso';
+                    result = 'APK instalado com sucesso';
                     break;
                 }
 
@@ -142,7 +144,7 @@ class CommandService {
                         `O administrador ${restrict ? 'restringiu' : 'liberou'} as configurações do dispositivo.`
                     );
                     success = true;
-                    result  = `Configurações ${restrict ? 'restringidas' : 'liberadas'}`;
+                    result = `Configurações ${restrict ? 'restringidas' : 'liberadas'}`;
                     break;
                 }
 
@@ -151,7 +153,7 @@ class CommandService {
                 case 'reboot':
                     await this._restartApp();
                     success = true;
-                    result  = 'App reiniciado';
+                    result = 'App reiniciado';
                     break;
 
                 // ── KIOSK / LAUNCHER ──────────────────────────────────
@@ -161,7 +163,7 @@ class CommandService {
                 case 'start_kiosk': {
                     const ok = await startKioskMode();
                     success = ok;
-                    result  = ok ? 'Modo kiosk ativado' : 'Falha ao ativar kiosk';
+                    result = ok ? 'Modo kiosk ativado' : 'Falha ao ativar kiosk';
                     break;
                 }
 
@@ -170,7 +172,7 @@ class CommandService {
                 case 'stop_kiosk': {
                     const ok = await stopKioskMode();
                     success = ok;
-                    result  = ok ? 'Modo kiosk desativado' : 'Falha ao desativar kiosk';
+                    result = ok ? 'Modo kiosk desativado' : 'Falha ao desativar kiosk';
                     break;
                 }
 
@@ -178,7 +180,7 @@ class CommandService {
                 case 'set_default_launcher': {
                     const ok = await setAsDefaultLauncher();
                     success = ok;
-                    result  = 'Launcher configurado';
+                    result = 'Launcher configurado';
                     break;
                 }
 
@@ -191,7 +193,7 @@ class CommandService {
                     }
                     await saveAllowedApps(packages);
                     success = true;
-                    result  = `${packages.length} app(s) permitido(s) atualizado(s)`;
+                    result = `${packages.length} app(s) permitido(s) atualizado(s)`;
                     console.log('[CommandService] 📱 Apps permitidos atualizados:', packages);
                     break;
                 }
@@ -202,7 +204,7 @@ class CommandService {
                     const msg = params.message || params.text || 'Mensagem do administrador';
                     Alert.alert('📨 Mensagem MDM', msg);
                     success = true;
-                    result  = 'Mensagem exibida';
+                    result = 'Mensagem exibida';
                     break;
                 }
 
@@ -220,12 +222,12 @@ class CommandService {
         // Reportar resultado ao servidor (POST /api/devices/command-result)
         try {
             await api.post('/devices/command-result', {
-                command_id:    commandId,
+                command_id: commandId,
                 serial_number: serialNumber,
                 success,
-                result:        result  || undefined,
+                result: result || undefined,
                 error_message: errorMessage || undefined,
-                executed_at:   new Date().toISOString(),
+                executed_at: new Date().toISOString(),
             });
             console.log(`[CommandService] ✅ Resultado reportado: ${success ? 'sucesso' : 'falha'}`);
         } catch (e) {
@@ -235,8 +237,8 @@ class CommandService {
 
     // _installApk() — CommandService original (preservado + melhorias)
     async _installApk(url) {
-        const filename  = url.split('/').pop() || 'update.apk';
-        const fileUri   = (FileSystem.cacheDirectory || '') + filename;
+        const filename = url.split('/').pop() || 'update.apk';
+        const fileUri = (FileSystem.cacheDirectory || '') + filename;
 
         const downloadRes = await FileSystem.downloadAsync(url, fileUri);
         if (downloadRes.status !== 200) throw new Error(`Download falhou: HTTP ${downloadRes.status}`);
@@ -244,9 +246,9 @@ class CommandService {
         const contentUri = await FileSystem.getContentUriAsync(downloadRes.uri);
 
         await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-            data:  contentUri,
+            data: contentUri,
             flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
-            type:  'application/vnd.android.package-archive',
+            type: 'application/vnd.android.package-archive',
         });
     }
 

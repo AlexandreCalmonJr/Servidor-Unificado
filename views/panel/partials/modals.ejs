@@ -419,31 +419,65 @@
             <button class="modal-close" id="provision-modal-close">×</button>
         </div>
         <div class="modal-body">
-            <div class="form-group">
-                <label for="form-provision-org">Organização</label>
-                <input type="text" id="form-provision-org" required placeholder="Ex: Empresa ABC">
-            </div>
-            <div class="form-group">
-                <label for="form-provision-profile">Perfil de Configuração</label>
-                <select id="form-provision-profile" required class="filter-select" style="width: 100%;">
-                    <option value="" disabled selected>Selecione um perfil...</option>
-                </select>
-            </div>
-            <div style="display:flex;gap:16px;">
-                <div class="form-group" style="flex:1;">
-                    <label for="form-provision-uses">Usos Máximos</label>
-                    <input type="number" id="form-provision-uses" value="1" min="1" max="100">
+            <!-- FORM SECTION -->
+            <div id="provision-form-content">
+                <div class="form-group">
+                    <label for="form-provision-org">Organização</label>
+                    <input type="text" id="form-provision-org" required placeholder="Ex: Empresa ABC">
                 </div>
-                <div class="form-group" style="flex:1;">
-                    <label for="form-provision-hours">Expiração (horas)</label>
-                    <input type="number" id="form-provision-hours" value="24" min="1" max="720">
+                <div class="form-group">
+                    <label for="form-provision-profile">Perfil de Configuração</label>
+                    <select id="form-provision-profile" required class="filter-select" style="width: 100%;">
+                        <option value="" disabled selected>Selecione um perfil...</option>
+                    </select>
+                </div>
+                <div style="display:flex;gap:16px;">
+                    <div class="form-group" style="flex:1;">
+                        <label for="form-provision-uses">Usos Máximos</label>
+                        <input type="number" id="form-provision-uses" value="1" min="1" max="100">
+                    </div>
+                    <div class="form-group" style="flex:1;">
+                        <label for="form-provision-hours">Expiração (horas)</label>
+                        <input type="number" id="form-provision-hours" value="24" min="1" max="720">
+                    </div>
+                </div>
+                <div class="modal-footer"
+                    style="padding: 20px 0 0 0; margin-top: 20px; border-top: 1px solid var(--border-color);">
+                    <button class="btn btn-ghost" id="provision-modal-cancel">Cancelar</button>
+                    <button class="btn btn-primary" id="provision-modal-save">🔑 Gerar Token</button>
+                </div>
+            </div>
+
+            <!-- RESULT SECTION (Hidden by default) -->
+            <div id="provision-result-content" class="hidden text-center">
+                <div
+                    style="display:flex; justify-content:center; margin-bottom: 20px; background: white; padding: 15px; border-radius: 10px; width: fit-content; margin-left: auto; margin-right: auto;">
+                    <div id="modal-qrcode"></div>
+                </div>
+
+                <div class="form-group">
+                    <label
+                        style="display:block; text-align:left; font-size: 0.8rem; text-transform:uppercase; color:var(--text-muted); margin-bottom: 5px;">URL
+                        de Provisionamento</label>
+                    <div style="display:flex; gap:8px;">
+                        <input type="text" id="modal-token-url" readonly
+                            style="flex:1; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-primary); padding:8px; border-radius:4px;">
+                        <button id="btn-copy-url" class="btn btn-secondary" style="padding: 0 12px;">📋</button>
+                    </div>
+                </div>
+
+                <div style="margin-top:15px; text-align:center;">
+                    <p style="font-size:0.9rem; color:var(--text-muted);">Token: <strong id="modal-token-code"
+                            style="color:var(--text-primary); font-family:monospace; font-size:1.1rem;">--</strong></p>
+                </div>
+
+                <div class="modal-footer"
+                    style="padding: 20px 0 0 0; margin-top: 20px; border-top: 1px solid var(--border-color);">
+                    <button class="btn btn-primary" id="btn-close-result" style="width:100%;">Fechar</button>
                 </div>
             </div>
         </div>
-        <div class="modal-footer">
-            <button class="btn btn-ghost" id="provision-modal-cancel">Cancelar</button>
-            <button class="btn btn-primary" id="provision-modal-save">🔑 Gerar Token</button>
-        </div>
+        <!-- Footer removed from here as it is moved inside the sections -->
     </div>
 </div>
 

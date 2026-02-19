@@ -54,6 +54,18 @@ const DeviceSchema = new mongoose.Schema({
   enrolled_at: { type: Date, default: Date.now },
   updated_by: { type: String }, // Usuário/Agente que atualizou
 
+  // Histórico de Localização
+  location_history: [{
+    timestamp: { type: Date, default: Date.now },
+    ip: String,
+    ssid: String,
+    bssid: String,
+    unit: String,
+    sector: String,
+    floor: String,
+    source: String // 'ip', 'bssid', 'gps', etc.
+  }],
+
   // Configurações Flexíveis
   custom_data: { type: Map, of: mongoose.Schema.Types.Mixed, default: {} }
 
@@ -82,7 +94,8 @@ const Mobile = Device.discriminator('mobile', new mongoose.Schema({
   app_version: { type: String },
   model: { type: String },
   manufacturer: { type: String },
-  os_version: { type: String }
+  os_version: { type: String },
+  allowed_apps: [{ type: String }] // Lista de pacotes permitidos
 }));
 
 // --- 2. DESKTOP & NOTEBOOK (Computadores) ---

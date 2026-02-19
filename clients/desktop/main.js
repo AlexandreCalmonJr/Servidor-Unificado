@@ -12,6 +12,25 @@ const os = require('os');
 const logger = require('./src/services/Logger'); // Integrated Logger
 
 const store = new Store();
+
+// --- AUTO-PROVISIONAMENTO (EXTRAÇÃO DE TOKEN DO NOME DO ARQUIVO) ---
+// Formato esperado: "UnifiedDesktop-<TOKEN>.exe"
+const fileName = path.basename(process.execPath);
+logger.info(`Starting execution from: ${fileName}`);
+const tokenMatch = fileName.match(/UnifiedDesktop-([a-fA-F0-9]{64})\.exe/); // Token has 64 hex chars
+
+if (tokenMatch && tokenMatch[1]) {
+    const extractedToken = tokenMatch[1];
+    const currentToken = store.get('settings.token');
+
+    if (currentToken !== extractedToken) {
+        logger.info(`Token detected in filename. Auto-provisioning: ${extractedToken.substring(0, 10)}...`);
+        store.set('settings.token', extractedToken);
+        // Force sync logic will pick this up on initialization
+    }
+}
+// -------------------------------------------------------------------
+
 let tray = null;
 let win = null;
 let isQuitting = false;

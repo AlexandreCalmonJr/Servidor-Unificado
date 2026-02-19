@@ -24,17 +24,17 @@ import CommandService from '../services/CommandService';
 export default function HomeScreen({ navigation }) {
     const { deviceInfo, refreshDeviceInfo, serverUrl } = useContext(AuthContext);
 
-    const [isSyncing,    setIsSyncing]    = useState(false);
-    const [syncStatus,   setSyncStatus]   = useState('Online');
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [syncStatus, setSyncStatus] = useState('Online');
     const [lastDataSync, setLastDataSync] = useState(null);
     const [lastHeartbeat, setLastHeartbeat] = useState(null);
     const [batteryLevel, setBatteryLevel] = useState(0);
-    const [ipAddress,    setIpAddress]    = useState('...');
+    const [ipAddress, setIpAddress] = useState('...');
     const [serialNumber, setSerialNumber] = useState('...');
-    const [liveInfo,     setLiveInfo]     = useState({});
+    const [liveInfo, setLiveInfo] = useState({});
 
     const rotateAnim = useRef(new Animated.Value(0)).current;
-    const syncTimerRef     = useRef(null);
+    const syncTimerRef = useRef(null);
     const heartbeatTimerRef = useRef(null);
 
     useEffect(() => {
@@ -65,12 +65,12 @@ export default function HomeScreen({ navigation }) {
         try {
             const level = await Battery.getBatteryLevelAsync();
             setBatteryLevel(Math.round(level * 100));
-        } catch (_) {}
+        } catch (_) { }
 
         try {
             const ip = await Network.getIpAddressAsync();
             setIpAddress(ip || 'N/A');
-        } catch (_) {}
+        } catch (_) { }
 
         const info = await refreshDeviceInfo();
         setLiveInfo(info || {});
@@ -78,7 +78,7 @@ export default function HomeScreen({ navigation }) {
 
     // _startCycles — background_service onStart (main.dart)
     const _startCycles = async () => {
-        const dataIntervalMin    = parseInt(await SecureStore.getItemAsync('data_interval'))    || 10;
+        const dataIntervalMin = parseInt(await SecureStore.getItemAsync('data_interval')) || 10;
         const heartbeatIntervalMin = parseInt(await SecureStore.getItemAsync('heartbeat_interval')) || 3;
 
         // Ciclo de envio de dados (main.dart: data_interval)
@@ -128,13 +128,13 @@ export default function HomeScreen({ navigation }) {
                 const level = await Battery.getBatteryLevelAsync();
                 setBatteryLevel(Math.round(level * 100));
                 info.battery = Math.round(level * 100);
-            } catch (_) {}
+            } catch (_) { }
 
             try {
                 const ip = await Network.getIpAddressAsync();
                 setIpAddress(ip || 'N/A');
                 info.ip_address = ip || 'N/A';
-            } catch (_) {}
+            } catch (_) { }
 
             const token = await SecureStore.getItemAsync('auth_token');
             if (!token) {
@@ -142,21 +142,39 @@ export default function HomeScreen({ navigation }) {
                 return;
             }
 
-            // POST /api/devices/data  (DeviceService.sendDeviceData em main.dart)
-            const response = await api.post('/devices/data', {
-                ...info,
-                last_seen:  new Date().toISOString(),
-                status:     'online',
-                is_mobile:  true,
-            });
+            // POST /api/modules/mobile/assets  (Migração Unified Schema)
+            const payload = {
+                asset_name: deviceInfo.device_name || 'Agente Mobile',
+                model: deviceInfo.model || 'Unknown',
+                serial_number: serialNumber,
+                // imei: assumindo que já foi enviado no registro ou está no contexto, senão N/A.
+                // O Contexto deviceInfo pode não ter todos os campos se não foi recarregado.
+                // Vamos usar os dados liveInfo onde possível.
+                battery_level: Math.round(level * 100),
+                ip_address: ipAddress,
+                mac_address: liveInfo.mac_address || 'N/A',
+                sector: liveInfo.sector || 'N/A',
+                floor: liveInfo.floor || 'N/A',
+                last_seen: new Date().toISOString(),
+                android_id: Application.androidId || serialNumber,
+                os_version: Device.osVersion || 'N/A',
+                manufacturer: Device.manufacturer || 'N/A',
+                status: 'online',
+                custom_data: {
+                    network: 'N/A', // Não temos acesso direto ao SSID no Expo Managed sem config extra
+                    operating_system: `${Platform.OS} ${Device.osVersion || ''}`.trim()
+                }
+            };
 
-            if (response.status === 200 || response.data?.success) {
+            const response = await api.post('/modules/mobile/assets', payload);
+
+            if (response.status === 200 || response.status === 201 || response.data?.success) {
                 const now = new Date();
                 setLastDataSync(now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
                 setSyncStatus('Online');
                 // Salva last_sync (main.dart → prefs.setString('last_sync'))
                 await SecureStore.setItemAsync('last_sync', now.toISOString());
-                console.log('[HomeScreen] ✅ Dados enviados');
+                console.log('[HomeScreen] ✅ Dados enviados (Module API)');
             } else {
                 setSyncStatus('Erro no envio');
             }
@@ -173,7 +191,7 @@ export default function HomeScreen({ navigation }) {
     // _sendHeartbeat → DeviceService.sendHeartbeat() (main.dart)
     const _sendHeartbeat = async () => {
         try {
-            const token    = await SecureStore.getItemAsync('auth_token');
+            const token = await SecureStore.getItemAsync('auth_token');
             const deviceId = await SecureStore.getItemAsync('serial_number');
             if (!token || !deviceId) return;
 
@@ -181,7 +199,7 @@ export default function HomeScreen({ navigation }) {
             const response = await api.post('/devices/heartbeat', {
                 device_id: deviceId,
                 serial_number: deviceId,
-                battery:   batteryLevel,
+                battery: batteryLevel,
                 last_seen: new Date().toISOString(),
             });
 
@@ -254,15 +272,15 @@ export default function HomeScreen({ navigation }) {
                 <View style={styles.infoCard}>
                     <Text style={styles.infoTitle}>📱 Informações do Dispositivo</Text>
 
-                    <InfoRow label="Modelo"          value={Device.modelName || 'N/A'} />
-                    <InfoRow label="OS"              value={`${Platform.OS} ${Device.osVersion || ''}`.trim()} />
-                    <InfoRow label="Fabricante"      value={Device.manufacturer || 'N/A'} />
-                    <InfoRow label="Serial"          value={serialNumber} />
-                    <InfoRow label="IP"              value={ipAddress} />
-                    <InfoRow label="BSSID/MAC"       value={liveInfo.mac_address_radio || 'N/A'} />
-                    <InfoRow label="Setor"           value={liveInfo.sector || 'N/A'} />
-                    <InfoRow label="Andar"           value={liveInfo.floor  || 'N/A'} />
-                    <InfoRow label="Último Envio"    value={lastDataSync  || 'Nunca'} />
+                    <InfoRow label="Modelo" value={Device.modelName || 'N/A'} />
+                    <InfoRow label="OS" value={`${Platform.OS} ${Device.osVersion || ''}`.trim()} />
+                    <InfoRow label="Fabricante" value={Device.manufacturer || 'N/A'} />
+                    <InfoRow label="Serial" value={serialNumber} />
+                    <InfoRow label="IP" value={ipAddress} />
+                    <InfoRow label="BSSID/MAC" value={liveInfo.mac_address_radio || 'N/A'} />
+                    <InfoRow label="Setor" value={liveInfo.sector || 'N/A'} />
+                    <InfoRow label="Andar" value={liveInfo.floor || 'N/A'} />
+                    <InfoRow label="Último Envio" value={lastDataSync || 'Nunca'} />
                     <InfoRow label="Último Heartbeat" value={lastHeartbeat || 'Nunca'} />
                 </View>
 
@@ -270,8 +288,8 @@ export default function HomeScreen({ navigation }) {
                 <View style={styles.quickActions}>
                     <Text style={styles.infoTitle}>⚡ Ações Rápidas</Text>
                     <View style={styles.actionsRow}>
-                        <ActionBtn label="Sincronizar"  icon="🔄" color="#06b6d4" onPress={handleSync} />
-                        <ActionBtn label="Heartbeat"    icon="💓" color="#10b981" onPress={_sendHeartbeat} />
+                        <ActionBtn label="Sincronizar" icon="🔄" color="#06b6d4" onPress={handleSync} />
+                        <ActionBtn label="Heartbeat" icon="💓" color="#10b981" onPress={_sendHeartbeat} />
                         <ActionBtn label="Configurações" icon="⚙️" color="#8b5cf6"
                             onPress={() => navigation.navigate('Settings')} />
                     </View>
@@ -303,45 +321,45 @@ function ActionBtn({ label, icon, color, onPress }) {
 }
 
 const styles = StyleSheet.create({
-    container:     { flex: 1, backgroundColor: '#0f172a' },
-    header:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 40 },
-    headerTitle:   { fontSize: 22, fontWeight: 'bold', color: '#fff' },
+    container: { flex: 1, backgroundColor: '#0f172a' },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 40 },
+    headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#fff' },
     headerSubtitle: { fontSize: 13, color: '#94a3b8' },
-    statusBadge:   { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-    statusText:    { fontWeight: 'bold', fontSize: 12 },
-    content:       { padding: 20, paddingBottom: 40 },
+    statusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
+    statusText: { fontWeight: 'bold', fontSize: 12 },
+    content: { padding: 20, paddingBottom: 40 },
     syncContainer: { alignItems: 'center', marginVertical: 24 },
-    syncButton:    { width: 140, height: 140, borderRadius: 70, elevation: 10, shadowColor: '#06b6d4', shadowOpacity: 0.5, shadowRadius: 20 },
-    syncGradient:  { flex: 1, borderRadius: 70, justifyContent: 'center', alignItems: 'center' },
-    syncIcon:      { fontSize: 36, color: '#fff', marginBottom: 8 },
-    syncText:      { color: '#fff', fontSize: 14, fontWeight: '600' },
-    grid:          { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+    syncButton: { width: 140, height: 140, borderRadius: 70, elevation: 10, shadowColor: '#06b6d4', shadowOpacity: 0.5, shadowRadius: 20 },
+    syncGradient: { flex: 1, borderRadius: 70, justifyContent: 'center', alignItems: 'center' },
+    syncIcon: { fontSize: 36, color: '#fff', marginBottom: 8 },
+    syncText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+    grid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
     card: {
         backgroundColor: 'rgba(30,41,59,0.8)', width: '48%',
         padding: 18, borderRadius: 14,
         borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
     },
-    cardLabel:     { color: '#94a3b8', fontSize: 12, marginBottom: 6 },
-    cardValue:     { color: '#fff', fontSize: 22, fontWeight: 'bold' },
-    cardSub:       { color: '#64748b', fontSize: 11, marginTop: 2 },
-    batteryBar:    { height: 4, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 2, marginTop: 8, overflow: 'hidden' },
-    batteryFill:   { height: '100%', borderRadius: 2 },
+    cardLabel: { color: '#94a3b8', fontSize: 12, marginBottom: 6 },
+    cardValue: { color: '#fff', fontSize: 22, fontWeight: 'bold' },
+    cardSub: { color: '#64748b', fontSize: 11, marginTop: 2 },
+    batteryBar: { height: 4, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 2, marginTop: 8, overflow: 'hidden' },
+    batteryFill: { height: '100%', borderRadius: 2 },
     infoCard: {
         backgroundColor: 'rgba(30,41,59,0.8)', padding: 20,
         borderRadius: 14, borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.07)', marginBottom: 20,
     },
-    infoTitle:     { color: '#fff', fontSize: 15, fontWeight: 'bold', marginBottom: 16 },
-    row:           { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-    rowLabel:      { color: '#94a3b8', fontSize: 13, flex: 1 },
-    rowValue:      { color: '#fff', fontWeight: '500', fontSize: 13, flex: 2, textAlign: 'right' },
+    infoTitle: { color: '#fff', fontSize: 15, fontWeight: 'bold', marginBottom: 16 },
+    row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+    rowLabel: { color: '#94a3b8', fontSize: 13, flex: 1 },
+    rowValue: { color: '#fff', fontWeight: '500', fontSize: 13, flex: 2, textAlign: 'right' },
     quickActions: {
         backgroundColor: 'rgba(30,41,59,0.8)', padding: 20,
         borderRadius: 14, borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.07)',
     },
-    actionsRow:    { flexDirection: 'row', justifyContent: 'space-around', marginTop: 4 },
-    actionBtn:     { alignItems: 'center' },
-    actionIcon:    { width: 52, height: 52, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-    actionLabel:   { color: '#94a3b8', fontSize: 11, fontWeight: '500' },
+    actionsRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 4 },
+    actionBtn: { alignItems: 'center' },
+    actionIcon: { width: 52, height: 52, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+    actionLabel: { color: '#94a3b8', fontSize: 11, fontWeight: '500' },
 });

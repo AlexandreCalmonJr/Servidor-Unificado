@@ -22,15 +22,15 @@ import { AuthContext } from '../context/AuthContext';
 export default function DeviceRegisterScreen({ navigation }) {
     const { finishRegistration } = useContext(AuthContext);
 
-    const [deviceName,  setDeviceName]  = useState('');
-    const [model,       setModel]       = useState('');
+    const [deviceName, setDeviceName] = useState('');
+    const [model, setModel] = useState('');
     const [serialNumber, setSerialNumber] = useState('');
-    const [imei,        setImei]        = useState('');
-    const [sector,      setSector]      = useState('');
-    const [floor,       setFloor]       = useState('');
-    const [ipAddress,   setIpAddress]   = useState('0.0.0.0');
+    const [imei, setImei] = useState('');
+    const [sector, setSector] = useState('');
+    const [floor, setFloor] = useState('');
+    const [ipAddress, setIpAddress] = useState('0.0.0.0');
     const [batteryLevel, setBatteryLevel] = useState(0);
-    const [loading,     setLoading]     = useState(false);
+    const [loading, setLoading] = useState(false);
     const [registering, setRegistering] = useState(false);
 
     useEffect(() => {
@@ -57,7 +57,7 @@ export default function DeviceRegisterScreen({ navigation }) {
                 } else {
                     serial = Application.applicationId || 'UNKNOWN';
                 }
-            } catch (_) {}
+            } catch (_) { }
             setSerialNumber(serial);
 
             // IMEI salvo ou Android ID (main.dart → prefs.getString('imei'))
@@ -66,7 +66,7 @@ export default function DeviceRegisterScreen({ navigation }) {
 
             // Setor e andar das configurações salvas
             const savedSector = await SecureStore.getItemAsync('sector') || '';
-            const savedFloor  = await SecureStore.getItemAsync('floor')  || '';
+            const savedFloor = await SecureStore.getItemAsync('floor') || '';
             setSector(savedSector);
             setFloor(savedFloor);
 
@@ -74,13 +74,13 @@ export default function DeviceRegisterScreen({ navigation }) {
             try {
                 const ip = await Network.getIpAddressAsync();
                 if (ip) setIpAddress(ip);
-            } catch (_) {}
+            } catch (_) { }
 
             // Bateria (main.dart → battery.batteryLevel)
             try {
                 const level = await Battery.getBatteryLevelAsync();
                 setBatteryLevel(Math.round(level * 100));
-            } catch (_) {}
+            } catch (_) { }
 
         } catch (e) {
             console.error('[DeviceRegister] Erro ao carregar info:', e);
@@ -99,38 +99,45 @@ export default function DeviceRegisterScreen({ navigation }) {
         setRegistering(true);
         try {
             // Persiste os campos de localização para uso futuro
-            await SecureStore.setItemAsync('sector',        sector);
-            await SecureStore.setItemAsync('floor',         floor);
+            await SecureStore.setItemAsync('sector', sector);
+            await SecureStore.setItemAsync('floor', floor);
             await SecureStore.setItemAsync('serial_number', serialNumber);
-            await SecureStore.setItemAsync('imei',          imei);
+            await SecureStore.setItemAsync('imei', imei);
 
-            // Payload idêntico ao _deviceInfo do Flutter (main.dart → _updateDeviceStatus)
+            // Payload adaptado para Unified Schema (Mobile)
+            // Endpoint: POST /api/modules/mobile/assets
             const payload = {
-                device_name:       deviceName,
-                device_model:      model,
-                serial_number:     serialNumber,
-                imei:              imei || 'N/A',
-                device_id:         Device.osInternalBuildId || serialNumber,
-                battery:           batteryLevel,
-                ip_address:        ipAddress,
-                mac_address_radio: 'N/A',  // BSSID — sem acesso direto no Expo
-                network:           'N/A',
-                host:              deviceName,
-                sector:            sector || 'N/A',
-                floor:             floor  || 'N/A',
-                last_seen:         new Date().toISOString(),
-                secure_android_id: Application.androidId || serialNumber,
-                operating_system:  `${Platform.OS} ${Device.osVersion || ''}`.trim(),
-                os_version:        Device.osVersion   || 'N/A',
-                manufacturer:      Device.manufacturer || 'N/A',
-                status:            'online',
-                is_mobile:         true,
+                asset_name: deviceName,     // antes: device_name
+                model: model,          // antes: device_model
+                serial_number: serialNumber,
+                imei: imei || 'N/A',
+                // device_id: removido (redundante com serial)
+                battery_level: batteryLevel,   // antes: battery
+                ip_address: ipAddress,
+                mac_address: 'N/A',          // antes: mac_address_radio
+                // network movido para custom_data ou ignorado se não essencial
+                // host: removido (redundante com asset_name)
+                sector: sector || 'N/A',
+                floor: floor || 'N/A',
+                last_seen: new Date().toISOString(),
+                android_id: Application.androidId || serialNumber, // antes: secure_android_id
+                // operating_system: composto, mas o schema Mobile tem campo 'os_version'
+                os_version: Device.osVersion || 'N/A',
+                manufacturer: Device.manufacturer || 'N/A',
+                status: 'online',
+                // is_mobile: removido (implícito pelo endpoint)
+
+                custom_data: {
+                    network: 'N/A',
+                    operating_system: `${Platform.OS} ${Device.osVersion || ''}`.trim()
+                }
             };
 
-            const response = await api.post('/devices/data', payload);
+            const response = await api.post('/modules/mobile/assets', payload);
 
-            if (response.data?.success || response.status === 200) {
-                const deviceId = response.data?.deviceId || response.data?.device?.id || serialNumber;
+            if (response.data?.success || response.status === 200 || response.status === 201) {
+                // Unified API retorna { success: true, asset: { id: ... } }
+                const deviceId = response.data?.asset?.id || response.data?.asset?._id || serialNumber;
                 await finishRegistration(deviceId);
                 Alert.alert('✅ Sucesso', 'Dispositivo registrado com sucesso!', [
                     { text: 'OK', onPress: () => navigation.replace('Login') }
@@ -262,13 +269,13 @@ export default function DeviceRegisterScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-    container:     { flex: 1, backgroundColor: '#0f172a' },
-    background:    { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
-    content:       { padding: 30, paddingTop: 60 },
-    title:         { fontSize: 24, fontWeight: 'bold', color: '#fff', textAlign: 'center', marginBottom: 8 },
-    subtitle:      { fontSize: 15, color: '#94a3b8', textAlign: 'center', marginBottom: 32 },
-    inputGroup:    { marginBottom: 18 },
-    label:         { color: '#cbd5e1', marginBottom: 8, fontSize: 13, fontWeight: '500' },
+    container: { flex: 1, backgroundColor: '#0f172a' },
+    background: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
+    content: { padding: 30, paddingTop: 60 },
+    title: { fontSize: 24, fontWeight: 'bold', color: '#fff', textAlign: 'center', marginBottom: 8 },
+    subtitle: { fontSize: 15, color: '#94a3b8', textAlign: 'center', marginBottom: 32 },
+    inputGroup: { marginBottom: 18 },
+    label: { color: '#cbd5e1', marginBottom: 8, fontSize: 13, fontWeight: '500' },
     input: {
         backgroundColor: 'rgba(255,255,255,0.07)',
         borderRadius: 12,
@@ -279,7 +286,7 @@ const styles = StyleSheet.create({
         fontSize: 15,
     },
     disabledInput: { backgroundColor: 'rgba(255,255,255,0.03)', color: '#64748b' },
-    hint:          { color: '#64748b', fontSize: 11, marginTop: 5, fontStyle: 'italic' },
+    hint: { color: '#64748b', fontSize: 11, marginTop: 5, fontStyle: 'italic' },
     infoBox: {
         backgroundColor: 'rgba(6,182,212,0.08)',
         borderRadius: 12,
@@ -288,8 +295,8 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(6,182,212,0.2)',
     },
-    infoTitle:     { color: '#06b6d4', fontWeight: 'bold', marginBottom: 10, fontSize: 14 },
-    infoItem:      { color: '#94a3b8', fontSize: 13, marginBottom: 4 },
+    infoTitle: { color: '#06b6d4', fontWeight: 'bold', marginBottom: 10, fontSize: 14 },
+    infoItem: { color: '#94a3b8', fontSize: 13, marginBottom: 4 },
     button: {
         backgroundColor: '#06b6d4',
         padding: 18,
@@ -298,5 +305,5 @@ const styles = StyleSheet.create({
         marginTop: 8,
         elevation: 4,
     },
-    buttonText:    { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+    buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
 });

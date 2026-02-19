@@ -501,7 +501,7 @@ async function collectAndSendData() {
 
 async function fetchPendingCommands(serverUrl, moduleId, serialNumber, token) {
     try {
-        const uri = `${serverUrl}/api/modules/${moduleId}/assets/commands/pending?serialNumber=${encodeURIComponent(serialNumber)}`;
+        const uri = `${serverUrl}/api/modules/${moduleId}/assets/commands/pending?serial_number=${encodeURIComponent(serialNumber)}`;
         const response = await axios.get(uri, {
             headers: getHeaders(token),
             timeout: 15000,

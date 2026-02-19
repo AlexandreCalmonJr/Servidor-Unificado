@@ -79,29 +79,43 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
       device_name: reqBody.device_name,
     });
 
+    // Mapeamento de campos legados para o Schema Unificado
     const deviceData = {
-      device_name: reqBody.device_name || 'unknown',
-      device_model: reqBody.device_model || reqBody.deviceModel || 'N/A',
-      device_id: reqBody.device_id || 'unknown',
+      // Identificação
+      asset_name: reqBody.device_name || reqBody.name || 'unknown',
       serial_number: reqBody.serial_number || 'N/A',
+      device_type: 'mobile', // Assume mobile para este endpoint legado
+
+      // Conectividade
+      ip_address: reqBody.ip_address || reqBody.ipAddress || 'N/A',
+      mac_address: reqBody.mac_address_radio || reqBody.macAddressRadio || 'N/A',
+
+      // Hardware / Software (Mobile Discriminator)
+      model: reqBody.device_model || reqBody.deviceModel || 'N/A',
+      manufacturer: reqBody.manufacturer || 'N/A',
+      android_id: reqBody.secure_android_id || reqBody.secureAndroidId || 'N/A',
+      battery_level: reqBody.battery != null ? reqBody.battery : null,
       imei: reqBody.imei || 'N/A',
-      battery: reqBody.battery != null ? reqBody.battery : null,
-      network: reqBody.network || 'N/A',
-      host: reqBody.host || 'N/A',
+      os_version: reqBody.os_version || reqBody.osVersion || 'N/A',
+
+      // Status e Monitoramento
+      status: 'online',
+      last_seen: reqBody.last_seen || reqBody.lastSeen || new Date(),
+
+      // Localização
       unit: location.unit,
       sector: location.sector,
       floor: location.floor,
-      mac_address_radio: reqBody.mac_address_radio || reqBody.macAddressRadio || 'N/A',
-      last_sync: reqBody.last_sync || reqBody.lastSync || new Date().toISOString(),
-      secure_android_id: reqBody.secure_android_id || reqBody.secureAndroidId || 'N/A',
-      ip_address: reqBody.ip_address || reqBody.ipAddress || 'N/A',
-      wifi_ipv6: reqBody.wifi_ipv6 || reqBody.wifiIpv6 || 'N/A',
-      wifi_gateway_ip: reqBody.wifi_gateway_ip || reqBody.wifiGatewayIp || 'N/A',
-      wifi_broadcast: reqBody.wifi_broadcast || reqBody.wifiBroadcast || 'N/A',
-      wifi_submask: reqBody.wifi_submask || reqBody.wifiSubmask || 'N/A',
-      last_seen: reqBody.last_seen || reqBody.lastSeen || new Date().toISOString(),
-      status: 'online',
-      is_online: true
+
+      // Campos legados mantidos em custom_data para compatibilidade
+      custom_data: {
+        network: reqBody.network || 'N/A',
+        wifi_ipv6: reqBody.wifi_ipv6 || reqBody.wifiIpv6 || 'N/A',
+        wifi_gateway_ip: reqBody.wifi_gateway_ip || reqBody.wifiGatewayIp || 'N/A',
+        wifi_broadcast: reqBody.wifi_broadcast || reqBody.wifiBroadcast || 'N/A',
+        wifi_submask: reqBody.wifi_submask || reqBody.wifiSubmask || 'N/A',
+        last_sync: reqBody.last_sync || reqBody.lastSync || new Date().toISOString()
+      }
     };
 
     const existingDevice = await Device.findOne({ serial_number: deviceData.serial_number }).lean();
@@ -262,6 +276,19 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
     res.status(200).json({
       success: true,
       commands: allCommands
+    });
+  }));
+
+  // Buscar Apps Permitidos (Kiosk Mode)
+  router.get('/:serial_number/allowed-apps', deviceAuth, getApiLimiter, asyncHandler(async (req, res) => {
+    const { serial_number } = req.params;
+    const device = await Device.findOne({ serial_number }).lean();
+    if (!device) throw new NotFoundError(`Dispositivo não encontrado: ${serial_number}`);
+
+    // Retorna lista vazia se não houver apps definidos
+    res.json({
+      success: true,
+      allowed_apps: device.allowed_apps || []
     });
   }));
 

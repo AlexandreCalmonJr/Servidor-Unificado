@@ -221,6 +221,16 @@ const TYPE_SPECIFIC_VALIDATIONS = {
     body('is_color').optional().isBoolean(),
     body('total_page_count').optional().isInt({ min: 0 }),
   ],
+
+  mobile: [
+    body('model').optional().trim(),
+    body('manufacturer').optional().trim(),
+    body('android_id').optional().trim(),
+    body('battery_level').optional().toInt(),
+    body('os_version').optional().trim(),
+    body('app_version').optional().trim(),
+    body('is_kiosk_mode').optional().isBoolean(),
+  ],
 };
 
 /**
@@ -421,18 +431,38 @@ function transformAssetForOutput(asset) {
  * @param {Object} data 
  * @returns {Promise<Document>}
  */
+/**
+ * Cria um novo ativo com validação e sanitização e histórico inicial
+ * @param {string} moduleType 
+ * @param {Object} data 
+ * @returns {Promise<Document>}
+ */
 async function createAsset(moduleType, data) {
   const Model = getModelByType(moduleType);
-  const sanitized = await sanitizeAssetData(data, moduleType); // Agora async por causa do locationService
+  const sanitized = await sanitizeAssetData(data, moduleType);
 
   const asset = new Model(sanitized);
+
+  // Registro inicial de histórico de localização se houver dados
+  if ((asset.unit && asset.unit !== 'N/A') || (asset.sector && asset.sector !== 'Desconhecido')) {
+    if (!asset.location_history) asset.location_history = [];
+    asset.location_history.push({
+      timestamp: new Date(),
+      ip: asset.ip_address,
+      unit: asset.unit,
+      sector: asset.sector,
+      floor: asset.floor,
+      source: 'enrollment'
+    });
+  }
+
   await asset.save();
 
   return transformAssetForOutput(asset);
 }
 
 /**
- * Atualiza um ativo existente
+ * Atualiza um ativo existente com tracking de histórico de localização
  * @param {string} moduleType 
  * @param {string} assetId 
  * @param {Object} data 
@@ -440,17 +470,39 @@ async function createAsset(moduleType, data) {
  */
 async function updateAsset(moduleType, assetId, data) {
   const Model = getModelByType(moduleType);
-  const sanitized = await sanitizeAssetData(data, moduleType); // Agora async
+  const sanitized = await sanitizeAssetData(data, moduleType);
 
-  const asset = await Model.findByIdAndUpdate(
-    assetId,
-    { $set: sanitized },
-    { new: true, runValidators: true }
-  );
-
+  const asset = await Model.findById(assetId);
   if (!asset) {
     throw new Error('Ativo não encontrado');
   }
+
+  // Detecta mudança de localização para histórico BEFORE update
+  const oldLoc = { u: asset.unit, s: asset.sector, f: asset.floor };
+
+  // Aplica atualizações
+  Object.assign(asset, sanitized);
+
+  // Validação manual ou via save()
+  // Mongoose apply changes
+
+  const newLoc = { u: asset.unit, s: asset.sector, f: asset.floor };
+
+  // Se mudou algo relevante na localização
+  if (oldLoc.u !== newLoc.u || oldLoc.s !== newLoc.s || oldLoc.f !== newLoc.f) {
+    if (!asset.location_history) asset.location_history = [];
+    asset.location_history.push({
+      timestamp: new Date(),
+      ip: asset.ip_address, // IP atualizado
+      unit: asset.unit,
+      sector: asset.sector,
+      floor: asset.floor,
+      source: 'update_tracking'
+    });
+  }
+
+  asset.updated_at = new Date();
+  await asset.save(); // Validações rodarão aqui
 
   return transformAssetForOutput(asset);
 }

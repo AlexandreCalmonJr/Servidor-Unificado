@@ -3,6 +3,12 @@ const mongoose = require('mongoose');
 const ConfigProfileSchema = new mongoose.Schema({
   name: { type: String, required: true, unique: true, trim: true },
   description: { type: String, trim: true },
+  module_type: {
+    type: String,
+    required: true,
+    default: 'desktop',
+    enum: ['desktop', 'notebook', 'totem', 'panel', 'printer', 'mobile', 'scanner', 'custom']
+  },
   settings: {
     wifi_configs: [{
       ssid: String,

@@ -222,10 +222,10 @@
 
         try {
             if (id) {
-                await API.put(`/ modules / ${currentModuleId} /assets/${id} `, body);
+                await API.put(`/modules/${currentModuleId}/assets/${id}`, body);
                 showToast('Ativo atualizado.', 'success');
             } else {
-                await API.post(`/ modules / ${currentModuleId}/assets`, body);
+                await API.post(`/modules/${currentModuleId}/assets`, body);
                 showToast('Ativo criado com sucesso.', 'success');
             }
 
