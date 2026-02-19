@@ -1,70 +1,105 @@
 <!-- ===== SIDEBAR ===== -->
-<aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-        <div class="logo-icon">M</div>
-        <span class="logo-text">MDM Server</span>
+<aside class="w-72 bg-slate-900 border-r border-slate-900 flex flex-col relative shrink-0 h-screen" id="sidebar">
+    <div class="p-6 border-b border-slate-800">
+        <h1 class="text-xl font-bold text-white flex items-center gap-2">
+            <i data-lucide="server" class="text-indigo-500"></i>
+            Nexus<span class="text-indigo-400">Lab</span>
+        </h1>
     </div>
 
-    <nav class="sidebar-nav">
-        <div class="nav-section-label">Principal</div>
-        <button class="nav-item active" data-page="dashboard">
-            <span class="nav-icon">📊</span>
-            <span class="nav-label">Dashboard</span>
+    <nav class="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
+        <!-- Principal -->
+        <button
+            class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-slate-400 hover:text-white hover:bg-slate-800"
+            data-page="dashboard">
+            <i data-lucide="layout-dashboard" size="18"></i>
+            <span class="flex-1 text-left text-sm font-medium">Visão Geral</span>
         </button>
-        <button class="nav-item" data-page="devices">
-            <span class="nav-icon">📱</span>
-            <span class="nav-label">Dispositivos</span>
+        <button
+            class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-slate-400 hover:text-white hover:bg-slate-800"
+            data-page="devices">
+            <i data-lucide="server" size="18"></i>
+            <span class="flex-1 text-left text-sm font-medium">Dispositivos</span>
         </button>
-        <button class="nav-item" data-page="totems">
-            <span class="nav-icon">🖥️</span>
-            <span class="nav-label">Totems</span>
-        </button>
-        <button class="nav-item" data-page="modules">
-            <span class="nav-icon">📦</span>
-            <span class="nav-label">Módulos</span>
-        </button>
-        <button class="nav-item" data-page="commands">
-            <span class="nav-icon">⌨️</span>
-            <span class="nav-label">Comandos</span>
+        <button
+            class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-slate-400 hover:text-white hover:bg-slate-800"
+            data-page="totems">
+            <i data-lucide="monitor" size="18"></i>
+            <span class="flex-1 text-left text-sm font-medium">Totems</span>
         </button>
 
-        <div class="nav-section-label">Administração</div>
-        <button class="nav-item" data-page="provisioning">
-            <span class="nav-icon">🔑</span>
-            <span class="nav-label">Provisionamento</span>
+        <!-- Gerenciamento -->
+        <div class="pt-4 pb-2 text-xs font-bold text-slate-500 uppercase">Gerenciamento</div>
+        <button
+            class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-slate-400 hover:text-white hover:bg-slate-800"
+            data-page="modules">
+            <i data-lucide="layers" size="18"></i>
+            <span class="flex-1 text-left text-sm font-medium">Módulos</span>
         </button>
-        <button class="nav-item" data-page="profiles">
-            <span class="nav-icon">📄</span>
-            <span class="nav-label">Perfis</span>
+        <button
+            class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-slate-400 hover:text-white hover:bg-slate-800"
+            data-page="commands">
+            <i data-lucide="command" size="18"></i>
+            <span class="flex-1 text-left text-sm font-medium">Comandos</span>
         </button>
-        <button class="nav-item" data-page="mappings">
-            <span class="nav-icon">🗺️</span>
-            <span class="nav-label">Mapeamentos</span>
+        <button
+            class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-slate-400 hover:text-white hover:bg-slate-800"
+            data-page="provisioning">
+            <i data-lucide="link" size="18"></i>
+            <span class="flex-1 text-left text-sm font-medium">Provisionamento</span>
         </button>
-        <button class="nav-item" data-page="diagnostics">
-            <span class="nav-icon">🔍</span>
-            <span class="nav-label">Diagnósticos</span>
+
+        <!-- Administração -->
+        <div class="pt-4 pb-2 text-xs font-bold text-slate-500 uppercase">Administração</div>
+        <button
+            class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-slate-400 hover:text-white hover:bg-slate-800"
+            data-page="profiles">
+            <i data-lucide="file-text" size="18"></i>
+            <span class="flex-1 text-left text-sm font-medium">Perfis</span>
         </button>
-        <button class="nav-item" data-page="users">
-            <span class="nav-icon">👤</span>
-            <span class="nav-label">Usuários</span>
+        <button
+            class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-slate-400 hover:text-white hover:bg-slate-800"
+            data-page="mappings">
+            <i data-lucide="map" size="18"></i>
+            <span class="flex-1 text-left text-sm font-medium">Mapeamentos</span>
         </button>
-        <button class="nav-item" data-page="server">
-            <span class="nav-icon">⚙️</span>
-            <span class="nav-label">Servidor & APKs</span>
+        <button
+            class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-slate-400 hover:text-white hover:bg-slate-800"
+            data-page="users">
+            <i data-lucide="users" size="18"></i>
+            <span class="flex-1 text-left text-sm font-medium">Usuários</span>
         </button>
-        <button class="nav-item" data-page="reports">
-            <span class="nav-icon">📋</span>
-            <span class="nav-label">Relatórios</span>
+
+        <!-- Sistema -->
+        <div class="pt-4 pb-2 text-xs font-bold text-slate-500 uppercase">Sistema</div>
+        <button
+            class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-slate-400 hover:text-white hover:bg-slate-800"
+            data-page="server">
+            <i data-lucide="settings" size="18"></i>
+            <span class="flex-1 text-left text-sm font-medium">Configurações</span>
         </button>
-        <div class="nav-section-label">Módulos</div>
+        <button
+            class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-slate-400 hover:text-white hover:bg-slate-800"
+            data-page="diagnostics">
+            <i data-lucide="activity" size="18"></i>
+            <span class="flex-1 text-left text-sm font-medium">Diagnósticos</span>
+        </button>
+
         <div id="sidebar-dynamic-modules"></div>
     </nav>
 
-    <div class="sidebar-footer">
-        <button class="sidebar-toggle" id="sidebar-toggle">
-            <span class="toggle-icon">◀</span>
-            <span class="toggle-label">Recolher</span>
-        </button>
+    <div class="p-4 border-t border-slate-900 z-10 bg-slate-950/50">
+        <div
+            class="bg-slate-900/50 rounded-xl p-3 flex items-center gap-3 border border-slate-800 hover:border-slate-700 transition-colors cursor-pointer group">
+            <div class="w-9 h-9 rounded-full bg-indigo-900/50 flex items-center justify-center text-indigo-300 font-bold border border-indigo-500/20"
+                id="user-avatar">U</div>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-white truncate" id="user-display-name">Usuário</p>
+            </div>
+            <button id="logout-btn"
+                class="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all">
+                <i data-lucide="log-out" size="16"></i>
+            </button>
+        </div>
     </div>
 </aside>

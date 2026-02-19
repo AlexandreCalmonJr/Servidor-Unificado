@@ -25,7 +25,7 @@
             // Init paginator
             initPaginator(allDevices);
         } catch (err) {
-            tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><p>Erro ao carregar dispositivos.</p></td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="p-8 text-center text-red-400"><p>Erro ao carregar dispositivos.</p></td></tr>';
             console.error('Erro ao carregar dispositivos:', err);
         }
     }
@@ -43,38 +43,57 @@
         const tbody = document.getElementById('devices-table-body');
         if (!tbody) return;
 
-        // Add Actions header if not present
-        const thead = document.querySelector('#page-devices thead tr');
-        if (thead && !thead.querySelector('th.actions-col')) {
-            const th = document.createElement('th');
-            th.className = 'actions-col';
-            th.textContent = 'Ações';
-            thead.appendChild(th);
-        }
+        // Add Actions header if not present (handled in EJS now, but safe to keep check or remove logic if strictly adhering to EJS)
+        // Ignoring the header injection since EJS now has it fixed.
 
         if (devices.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><div class="empty-icon">📱</div><p>Nenhum dispositivo encontrado.</p></td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="p-8 text-center text-slate-500"><div class="flex flex-col items-center gap-2"><i data-lucide="smartphone" size="32" class="opacity-50"></i><p>Nenhum dispositivo encontrado.</p></div></td></tr>';
+            if (window.lucide) window.lucide.createIcons();
             return;
         }
 
-        tbody.innerHTML = devices.map(d => `
-      <tr data-device-id="${d._id || d.id}">
-        <td>${esc(d.device_name || d.name || 'N/A')}</td>
-        <td class="mono">${esc(d.serial_number || d.serialNumber || 'N/A')}</td>
-        <td>${esc(d.model || d.device_model || 'N/A')}</td>
-        <td>${d.battery_level != null ? d.battery_level + '%' : (d.battery != null ? d.battery + '%' : 'N/A')}</td>
-        <td class="mono">${esc(d.ip_address || d.ip || 'N/A')}</td>
-        <td>${esc(d.sector || d.location || 'N/A')}</td>
-        <td>${statusBadge(d.provisioning_status || d.status)}</td>
-        <td>
-          <button class="btn btn-ghost btn-sm" data-action="view" data-id="${esc(d._id || d.id || d.serial_number)}" title="Detalhes">👁</button>
-          <button class="btn btn-ghost btn-sm" data-action="edit" data-serial="${esc(d.serial_number || d.serialNumber)}" title="Editar">✏️</button>
-          <button class="btn btn-ghost btn-sm" data-action="install_apk" data-serial="${esc(d.serial_number || d.serialNumber)}" title="Instalar APK">📥</button>
-          <button class="btn btn-ghost btn-sm" data-action="restart" data-serial="${esc(d.serial_number || d.serialNumber)}" title="Reiniciar App">🔄</button>
-          <button class="btn btn-danger btn-sm" data-action="delete" data-serial="${esc(d.serial_number || d.serialNumber)}" title="Excluir">🗑</button>
-        </td>
-      </tr>
-    `).join('');
+        tbody.innerHTML = devices.map(d => {
+            let statusColor = 'bg-slate-500/10 text-slate-400';
+            const st = (d.provisioning_status || d.status || 'unknown').toLowerCase();
+            if (['online', 'active', 'completed'].includes(st)) statusColor = 'bg-emerald-500/10 text-emerald-400';
+            else if (['offline', 'failed', 'error'].includes(st)) statusColor = 'bg-red-500/10 text-red-400';
+            else if (['pending', 'in_progress', 'warning'].includes(st)) statusColor = 'bg-amber-500/10 text-amber-400';
+            else if (['maintenance'].includes(st)) statusColor = 'bg-purple-500/10 text-purple-400';
+
+            return `
+            <tr class="hover:bg-slate-800/50 transition-colors group" data-device-id="${d._id || d.id}">
+                <td class="p-4 border-b border-slate-800">
+                    <div class="font-medium text-white">${esc(d.device_name || d.name || d.model || d.device_model || d.serial_number || d.serialNumber || 'Dispositivo sem nome')}</div>
+                </td>
+                <td class="p-4 border-b border-slate-800 font-mono text-xs text-slate-400">${esc(d.serial_number || d.serialNumber || 'N/A')}</td>
+                <td class="p-4 border-b border-slate-800">${esc(d.model || d.device_model || 'N/A')}</td>
+                <td class="p-4 border-b border-slate-800">
+                    <div class="flex items-center gap-1">
+                        <i data-lucide="battery" size="14" class="${(d.battery_level < 20 ? 'text-red-400' : 'text-slate-500')}"></i>
+                        <span>${d.battery_level != null ? d.battery_level + '%' : (d.battery != null ? d.battery + '%' : 'N/A')}</span>
+                    </div>
+                </td>
+                <td class="p-4 border-b border-slate-800 font-mono text-xs">${esc(d.ip_address || d.ip || 'N/A')}</td>
+                <td class="p-4 border-b border-slate-800">${esc(d.sector || d.location || 'N/A')}</td>
+                <td class="p-4 border-b border-slate-800">
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor}">
+                        ${st}
+                    </span>
+                </td>
+                <td class="p-4 border-b border-slate-800 text-right">
+                    <div class="flex items-center justify-end gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-lg transition-colors" data-action="view" data-id="${esc(d._id || d.id || d.serial_number)}" title="Detalhes"><i data-lucide="eye" size="16"></i></button>
+                        <button class="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors" data-action="edit" data-serial="${esc(d.serial_number || d.serialNumber)}" title="Editar"><i data-lucide="edit-2" size="16"></i></button>
+                        <button class="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors" data-action="install_apk" data-serial="${esc(d.serial_number || d.serialNumber)}" title="Instalar APK"><i data-lucide="download" size="16"></i></button>
+                        <button class="p-1.5 text-slate-400 hover:text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors" data-action="restart" data-serial="${esc(d.serial_number || d.serialNumber)}" title="Reiniciar App"><i data-lucide="rotate-cw" size="16"></i></button>
+                        <button class="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors" data-action="delete" data-serial="${esc(d.serial_number || d.serialNumber)}" title="Excluir"><i data-lucide="trash-2" size="16"></i></button>
+                    </div>
+                </td>
+            </tr>
+            `;
+        }).join('');
+
+        if (window.lucide) window.lucide.createIcons();
     }
 
     function setupSearch() {

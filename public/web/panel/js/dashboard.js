@@ -160,15 +160,29 @@
                 return;
             }
 
-            tbody.innerHTML = recent.map(d => `
-        <tr data-device-id="${d._id || d.id}">
-          <td>${esc(d.device_name || d.name || 'N/A')}</td>
-          <td class="mono">${esc(d.serial_number || d.serialNumber || 'N/A')}</td>
-          <td>${formatDate(d.last_seen || d.lastSeen || d.updatedAt)}</td>
-          <td>${esc(d.sector || d.location || 'N/A')}</td>
-          <td><span class="status-badge ${d.provisioning_status || d.status}">${d.provisioning_status || d.status}</span></td>
-        </tr>
-      `).join('');
+            tbody.innerHTML = recent.map(d => {
+                let statusColor = 'bg-slate-500/10 text-slate-400';
+                const st = (d.provisioning_status || d.status || 'unknown').toLowerCase();
+
+                if (['online', 'active', 'completed'].includes(st)) statusColor = 'bg-emerald-500/10 text-emerald-400';
+                else if (['offline', 'failed', 'error'].includes(st)) statusColor = 'bg-red-500/10 text-red-400';
+                else if (['pending', 'in_progress', 'warning'].includes(st)) statusColor = 'bg-amber-500/10 text-amber-400';
+                else if (['maintenance'].includes(st)) statusColor = 'bg-purple-500/10 text-purple-400';
+
+                return `
+                <tr class="hover:bg-slate-800/50 transition-colors" data-device-id="${d._id || d.id}">
+                    <td class="p-4 border-b border-slate-800 text-white font-medium">${esc(d.device_name || d.name || 'N/A')}</td>
+                    <td class="p-4 border-b border-slate-800 font-mono text-xs">${esc(d.serial_number || d.serialNumber || 'N/A')}</td>
+                    <td class="p-4 border-b border-slate-800">${formatDate(d.last_seen || d.lastSeen || d.updatedAt)}</td>
+                    <td class="p-4 border-b border-slate-800">${esc(d.sector || d.location || 'N/A')}</td>
+                    <td class="p-4 border-b border-slate-800">
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor}">
+                            ${st}
+                        </span>
+                    </td>
+                </tr>
+                `;
+            }).join('');
         } catch (err) {
             tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><p>Erro ao carregar dispositivos.</p></td></tr>';
             console.error('Erro ao carregar dispositivos recentes:', err);
@@ -212,22 +226,36 @@
             // 3. Render cards
             grid.innerHTML = results.map(item => {
                 const s = item.stats || { total: 0, online: 0, offline: 0 };
-                const icon = getModuleIcon(item.type);
+                // Map legacy types to Lucide icon names
+                const iconMap = {
+                    mobile: 'smartphone', totem: 'monitor', desktop: 'monitor', notebook: 'laptop',
+                    panel: 'tv', printer: 'printer', scanner: 'scan', custom: 'settings'
+                };
+                const iconName = iconMap[item.type] || 'box';
 
                 return `
-                <div class="metric-card" style="border-left: 4px solid var(--primary);">
-                    <div class="metric-header">
-                        <span class="metric-label" style="font-weight:600;">${esc(item.name)}</span>
-                        <span class="metric-icon">${icon}</span>
+                <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl hover:border-slate-700 transition-colors group">
+                    <div class="flex justify-between items-start mb-3">
+                        <span class="text-slate-400 text-sm font-medium uppercase tracking-wider">${esc(item.name)}</span>
+                        <div class="p-2 rounded-lg bg-slate-800 text-slate-400 group-hover:text-white transition-colors">
+                            <i data-lucide="${iconName}" size="18"></i>
+                        </div>
                     </div>
-                    <div class="metric-value" style="font-size: 2rem;">${s.total}</div>
-                    <div class="metric-sub" style="display:flex; gap:10px; margin-top:4px;">
-                        <span style="color:var(--success)">● ${s.online} Online</span>
-                        <span style="color:var(--danger)">● ${s.offline} Offline</span>
+                    <div class="text-3xl font-bold text-white mb-3">${s.total}</div>
+                    <div class="flex items-center gap-3 text-xs font-medium">
+                        <span class="flex items-center gap-1 text-emerald-400">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> ${s.online}
+                        </span>
+                        <span class="flex items-center gap-1 text-red-400">
+                            <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span> ${s.offline}
+                        </span>
                     </div>
                 </div>
                 `;
             }).join('');
+
+            // Re-initialize icons for new content
+            if (window.lucide) window.lucide.createIcons();
 
         } catch (err) {
             console.error('Erro ao carregar stats dos módulos:', err);

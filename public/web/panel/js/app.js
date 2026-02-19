@@ -31,6 +31,9 @@ const App = (() => {
         setupChangePassword();
         loadUserInfo();
 
+        // Initialize Icons
+        if (window.lucide) window.lucide.createIcons();
+
         // Trigger initial page load
         if (pageLoaders.dashboard) pageLoaders.dashboard();
     }

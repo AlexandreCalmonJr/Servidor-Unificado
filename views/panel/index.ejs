@@ -1,46 +1,38 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
+<div class="flex h-screen bg-slate-950 text-slate-200 font-sans overflow-hidden">
+    <!-- Mobile overlay -->
+    <div class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" id="mobile-overlay"></div>
 
-<head>
-    <%- include('partials/head') %>
-</head>
+    <%- include('partials/sidebar') %>
 
-<body>
-    <div class="app-layout">
-        <!-- Mobile overlay -->
-        <div class="mobile-overlay" id="mobile-overlay"></div>
+        <!-- ===== MAIN ===== -->
+        <main class="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-950 relative">
+            <%- include('partials/topbar') %>
 
-        <%- include('partials/sidebar') %>
+                <!-- Content Area -->
+                <div class="flex-1 overflow-auto p-6 space-y-6 custom-scrollbar" id="content-area">
+                    <%- include('pages/dashboard') %>
+                        <%- include('pages/devices') %>
+                            <%- include('pages/totems') %>
+                                <%- include('pages/users') %>
+                                    <%- include('pages/server') %>
+                                        <%- include('pages/modules') %>
+                                            <%- include('pages/mappings') %>
+                                                <%- include('pages/reports') %>
+                                                    <%- include('pages/commands') %>
+                                                        <%- include('pages/provisioning') %>
+                                                            <%- include('pages/profiles') %>
+                                                                <%- include('pages/diagnostics') %>
+                                                                    <%- include('pages/dynamic-module') %>
+                </div>
+        </main>
+</div>
 
-            <!-- ===== MAIN ===== -->
-            <div class="main-content">
-                <%- include('partials/topbar') %>
+<%- include('partials/modals') %>
 
-                    <!-- Content Area -->
-                    <div class="content-area">
-                        <%- include('pages/dashboard') %>
-                            <%- include('pages/devices') %>
-                                <%- include('pages/totems') %>
-                                    <%- include('pages/users') %>
-                                        <%- include('pages/server') %>
-                                            <%- include('pages/modules') %>
-                                                <%- include('pages/mappings') %>
-                                                    <%- include('pages/reports') %>
-                                                        <%- include('pages/commands') %>
-                                                            <%- include('pages/provisioning') %>
-                                                                <%- include('pages/profiles') %>
-                                                                    <%- include('pages/diagnostics') %>
-                                                                        <%- include('pages/dynamic-module') %>
-                    </div>
-            </div>
-    </div>
+    <!-- Toast container -->
+    <div class="toast-container" id="toast-container"></div>
 
-    <%- include('partials/modals') %>
+    <%- include('partials/scripts') %>
+        </body>
 
-        <!-- Toast container -->
-        <div class="toast-container" id="toast-container"></div>
-
-        <%- include('partials/scripts') %>
-</body>
-
-</html>
+        </html>

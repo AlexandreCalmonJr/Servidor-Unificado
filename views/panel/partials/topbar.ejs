@@ -1,28 +1,38 @@
 <!-- Topbar -->
-<header class="topbar">
-    <div class="topbar-left">
-        <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
-        <span class="page-title" id="page-title">Dashboard</span>
+<header class="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0" id="topbar">
+    <div class="flex items-center gap-4">
+        <button class="md:hidden text-slate-400 hover:text-white" id="mobile-menu-btn">
+            <i data-lucide="menu" size="24"></i>
+        </button>
+        <h2 class="text-lg font-bold text-white capitalize" id="page-title">Dashboard</h2>
     </div>
-    <div class="topbar-right">
-        <div class="global-search">
-            <input type="text" class="search-input" id="global-search-input"
-                placeholder="🔍 Buscar dispositivo, módulo..." style="min-width:220px;">
-            <div class="search-results" id="global-search-results" style="display:none;"></div>
-        </div>
-        <div class="server-status">
-            <span class="status-dot" id="server-status-dot"></span>
-            <span id="server-uptime">--</span>
-            <span class="status-dot" id="ws-status-dot" title="WebSocket" style="margin-left:8px;"></span>
-        </div>
-        <div class="topbar-user" id="topbar-user">
-            <div class="user-avatar" id="user-avatar">--</div>
-            <div>
-                <div class="user-name" id="user-display-name">Carregando...</div>
-                <div class="user-role" id="user-display-role"></div>
+
+    <div class="flex items-center gap-4">
+        <div class="relative hidden md:block">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <i data-lucide="search" size="16" class="text-slate-500"></i>
+            </div>
+            <input type="text" id="global-search-input"
+                class="bg-slate-950 border border-slate-700 text-slate-200 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 p-2.5 placeholder-slate-500"
+                placeholder="Buscar...">
+            <div id="global-search-results"
+                class="absolute z-50 bg-slate-800 border border-slate-700 mt-1 rounded-md w-full hidden shadow-lg">
             </div>
         </div>
-        <button class="btn btn-ghost btn-sm" id="change-password-btn" title="Alterar Senha">🔒 Senha</button>
-        <button class="btn btn-ghost btn-sm" id="logout-btn" title="Sair">⏻ Sair</button>
+
+        <button class="p-2 text-slate-400 hover:text-white transition-colors" title="Atualizar"
+            onclick="window.location.reload()">
+            <i data-lucide="refresh-cw" size="20"></i>
+        </button>
+
+        <button class="p-2 text-slate-400 hover:text-white transition-colors relative" title="Notificações">
+            <i data-lucide="bell" size="20"></i>
+            <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+        </button>
+
+        <div class="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm select-none"
+            id="topbar-avatar" title="Perfil">
+            AD
+        </div>
     </div>
 </header>

@@ -50,6 +50,7 @@
             allAssets = data.assets || [];
 
             initPaginator(allAssets);
+            renderModuleStats(allAssets);
         } catch (err) {
             tbody.innerHTML = `<tr><td colspan="7" class="empty-state"><p style="color:var(--danger);">Erro: ${esc(err.message)}</p></td></tr>`;
         }
@@ -88,6 +89,37 @@
                 </td>
             </tr>
         `).join('');
+    }
+
+    function renderModuleStats(assets) {
+        const container = document.getElementById('module-stats-grid');
+        if (!container) return;
+
+        const total = assets.length;
+        const online = assets.filter(a => ['online', 'active'].includes((a.status || '').toLowerCase())).length;
+        const offline = assets.filter(a => ['offline', 'inactive', 'failed'].includes((a.status || '').toLowerCase())).length;
+        const warning = assets.filter(a => ['warning', 'maintenance', 'pending'].includes((a.status || '').toLowerCase())).length;
+
+        const stats = [
+            { label: 'Total de Ativos', value: total, icon: 'box', color: 'text-blue-400', bg: 'bg-blue-500/10' },
+            { label: 'Online', value: online, icon: 'wifi', color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+            { label: 'Offline', value: offline, icon: 'wifi-off', color: 'text-red-400', bg: 'bg-red-500/10' },
+            { label: 'Atenção/Manut.', value: warning, icon: 'alert-triangle', color: 'text-amber-400', bg: 'bg-amber-500/10' }
+        ];
+
+        container.innerHTML = stats.map(s => `
+            < div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center justify-between" >
+                <div>
+                    <p class="text-slate-400 text-xs font-medium uppercase tracking-wider">${s.label}</p>
+                    <p class="text-2xl font-bold text-white mt-1">${s.value}</p>
+                </div>
+                <div class="p-3 rounded-lg ${s.bg} ${s.color}">
+                    <i data-lucide="${s.icon}" size="20"></i>
+                </div>
+            </div >
+            `).join('');
+
+        if (window.lucide) window.lucide.createIcons();
     }
 
     // ===== SEARCH =====
@@ -190,10 +222,10 @@
 
         try {
             if (id) {
-                await API.put(`/modules/${currentModuleId}/assets/${id}`, body);
+                await API.put(`/ modules / ${currentModuleId} /assets/${id} `, body);
                 showToast('Ativo atualizado.', 'success');
             } else {
-                await API.post(`/modules/${currentModuleId}/assets`, body);
+                await API.post(`/ modules / ${currentModuleId}/assets`, body);
                 showToast('Ativo criado com sucesso.', 'success');
             }
 
