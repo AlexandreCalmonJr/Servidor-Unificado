@@ -328,37 +328,91 @@
         // Reset Tab
         switchTab('view', 'overview');
 
-        // Populate Grid
-        // Filter out internal keys and objects
-        const ignore = ['_id', '__v', 'id', 'location_history', 'maintenance_history', 'custom_data', 'updated_at', 'created_at', 'enrolled_at', 'last_seen'];
+        // HELPER: Create Section
+        const createSection = (title, icon, items) => {
+            // Filter out null/undefined items
+            const validItems = items.filter(i => i.value !== null && i.value !== undefined && i.value !== '');
+            if (validItems.length === 0) return '';
 
-        let html = '';
+            const gridItems = validItems.map(i => `
+                <div class="detail-item-group">
+                    <label>${i.label}</label>
+                    <span>${i.isHtml ? i.value : esc(i.value)}</span>
+                </div>
+            `).join('');
 
-        // Primary Fields first
-        const primary = [
-            { k: 'Nome', v: asset.asset_name },
-            { k: 'Serial', v: asset.serial_number },
-            { k: 'IP', v: asset.ip_address },
-            { k: 'MAC', v: asset.mac_address },
-            { k: 'Status', v: statusBadge(asset.status) },
-            { k: 'Localização', v: asset.location || `${asset.unit || ''} - ${asset.sector || ''}` }
+            return `
+                <div class="detail-section">
+                    <div class="detail-section-header">
+                        <div class="icon">${icon}</div>
+                        <h4>${title}</h4>
+                    </div>
+                    <div class="detail-grid-cols">
+                        ${gridItems}
+                    </div>
+                </div>
+            `;
+        };
+
+        // 1. IDENTITY
+        const identityItems = [
+            { label: 'Nome do Ativo', value: asset.asset_name },
+            { label: 'Número de Série', value: asset.serial_number },
+            { label: 'Status', value: statusBadge(asset.status), isHtml: true },
+            { label: 'Fabricante', value: asset.manufacturer },
+            { label: 'Modelo', value: asset.model },
+            { label: 'Tipo', value: asset.device_type || asset.type },
         ];
 
-        primary.forEach(f => {
-            html += `<div class="detail-item"><label>${f.k}</label><span>${f.v || '-'}</span></div>`;
-        });
+        // 2. NETWORK
+        const networkItems = [
+            { label: 'Endereço IP', value: asset.ip_address },
+            { label: 'Endereço MAC', value: asset.mac_address },
+            { label: 'Visto por último', value: formatDate(asset.last_seen) },
+            { label: 'WLAN IP', value: asset.wlan_ip }, // Scanner specific
+            { label: 'SSID Conectado', value: asset.ssid }, // If available
+        ];
 
-        // Remaining dynamic fields
-        Object.keys(asset).forEach(key => {
-            if (ignore.includes(key)) return;
-            // Skip if already shown
-            if (['asset_name', 'name', 'serial_number', 'ip_address', 'mac_address', 'status', 'location', 'unit', 'sector', 'floor'].includes(key)) return;
+        // 3. LOCATION
+        const locationItems = [
+            { label: 'Localização Completa', value: asset.location },
+            { label: 'Unidade', value: asset.unit },
+            { label: 'Setor', value: asset.sector },
+            { label: 'Andar', value: asset.floor },
+        ];
 
-            let val = asset[key];
-            if (typeof val === 'object') return; // Skip nested objects for now
+        // 4. HARDWARE & SYSTEM
+        const hardwareItems = [
+            { label: 'Sistema Operacional', value: asset.operating_system },
+            { label: 'Versão do SO', value: asset.os_version },
+            { label: 'Processador', value: asset.processor },
+            { label: 'Memória RAM', value: asset.ram },
+            { label: 'Armazenamento', value: asset.storage },
+            { label: 'Bateria', value: asset.battery_level !== undefined ? `${asset.battery_level}%` : null },
+            { label: 'Saúde Bateria', value: asset.battery_health },
+            { label: 'Monitores', value: asset.monitor_count },
+            { label: 'Antivírus', value: asset.antivirus_version ? `${asset.antivirus_version} (${asset.antivirus_status ? 'Ativo' : 'Inativo'})` : null },
+        ];
 
-            html += `<div class="detail-item"><label>${key.replace(/_/g, ' ')}</label><span>${esc(val)}</span></div>`;
-        });
+        // 5. CUSTOM & EXTRAS (Catch-all)
+        const ignoredKeys = [
+            '_id', 'id', '__v', 'asset_name', 'name', 'serial_number', 'status', 'manufacturer', 'model',
+            'device_type', 'type', 'ip_address', 'mac_address', 'last_seen', 'location', 'unit', 'sector',
+            'floor', 'operating_system', 'os_version', 'processor', 'ram', 'storage', 'battery_level',
+            'battery_health', 'monitor_count', 'antivirus_version', 'antivirus_status', 'location_history',
+            'maintenance_history', 'created_at', 'updated_at', 'enrolled_at', 'custom_data'
+        ];
+
+        const extraItems = Object.keys(asset)
+            .filter(k => !ignoredKeys.includes(k) && typeof asset[k] !== 'object')
+            .map(k => ({ label: k.replace(/_/g, ' '), value: asset[k] }));
+
+        let html = '';
+        html += createSection('Identificação', '🆔', identityItems);
+        html += createSection('Rede & Conectividade', '📡', networkItems);
+        html += createSection('Localização', '📍', locationItems);
+        html += createSection('Hardware & Sistema', '⚙️', hardwareItems);
+        html += createSection('Outros Detalhes', '📋', extraItems);
 
         grid.innerHTML = html;
 
