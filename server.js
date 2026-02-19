@@ -306,7 +306,7 @@ app.get('/panel', (req, res) => {
 app.get('/dashboard', auth, serverRoutes.renderDashboard(logger));
 app.use(express.static(path.join(__dirname, 'public', 'web')));
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'web', 'index.html'));
+    res.redirect('/panel');
 });
 
 // ===== ROTA 404 =====
