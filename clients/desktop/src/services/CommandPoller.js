@@ -1,792 +1,403 @@
-// clients/desktop/src/services/CommandPoller.js
-// Espelho exato de:
-//   - command_executor_service.dart  → polling de comandos
-//   - monitoring_service.dart        → coleta + envio (módulos e legado)
-//   - legacy_totem_service.dart      → payload /api/monitor
-//   - payload_validator.dart         → validação de serial/assetName
-//   - background_service.dart        → ciclos e inicialização
+/**
+ * Servidor Unificado - Desktop Client
+ * Command and Data Polling Service (Refatorado)
+ * 
+ * Orquestrador de sincronização de dados e processamento de comandos
+ * Delega funcionalidades para módulos especializados:
+ * - DataCollector: Coleta de informações do sistema
+ * - PayloadBuilder: Construção de payloads com validação
+ * - APIClient: Comunicação HTTP com o servidor
+ * - CommandExecutor: Execução de comandos pendentes
+ */
 
-const axios = require('axios');
-const { exec, execSync } = require('child_process');
-const Store = require('electron-store');
-const os = require('os');
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const Store = require('electron-store');
+
+// Importa novos módulos de serviço
+const DataCollector = require('./DataCollector');
+const PayloadBuilder = require('./PayloadBuilder');
+const APIClient = require('./APIClient');
+const CommandExecutor = require('./CommandExecutor');
+
+// Configuração
+const CONFIG_FILE = path.join(os.homedir(), '.servidor_unificado', 'client_config.json');
+const AUTH_TOKEN_FILE = path.join(os.homedir(), '.servidor_unificado', 'auth.json');
+const POLL_INTERVAL = 30000; // 30 segundos
+const REQUEST_TIMEOUT = 15000; // 15 segundos
 
 const store = new Store();
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// PAYLOAD VALIDATOR  (payload_validator.dart)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let isPolling = false;
+let lastPollTime = null;
+let pollingTimer = null;
 
-function hasValidValue(value) {
-    if (value == null || value === undefined) return false;
-    const str = String(value).trim();
-    if (!str || str === 'N/A' || str.toLowerCase() === 'null') return false;
-    if (/^(0+|0+:0+:0+.*)$/.test(str)) return false;
-    return true;
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFIG MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════
 
-function validatePayload(payload, moduleType) {
-    const errors = [];
-    const warnings = [];
-
-    if (!hasValidValue(payload.serial_number)) errors.push('Serial number inválido ou ausente');
-    if (!hasValidValue(payload.asset_name)) errors.push('Asset name inválido ou ausente');
-    if (!hasValidValue(payload.hostname)) {
-        warnings.push('Hostname ausente - usando fallback');
-        payload.hostname = payload.asset_name || 'UNKNOWN';
-    }
-
-    const type = (moduleType || '').toLowerCase();
-    if (type === 'notebook') {
-        if (!hasValidValue(payload.battery_level)) warnings.push('Nível de bateria não detectado');
-        if (!hasValidValue(payload.mac_address_radio)) warnings.push('BSSID não detectado - localização WiFi indisponível');
-    }
-    if (type === 'desktop') {
-        if (!hasValidValue(payload.biometric_reader)) warnings.push('Status do leitor biométrico não detectado');
-    }
-    if (type === 'printer') {
-        if (!hasValidValue(payload.printer_status)) errors.push('Status da impressora obrigatório');
-    }
-
-    return { isValid: errors.length === 0, errors, warnings };
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// AUTH HEADERS  (auth_service.dart → getHeaders / getLegacyHeaders)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-function getHeaders(token) {
-    if (!token) return { 'Content-Type': 'application/json' };
-    return {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        'AUTH_TOKEN': token,
-    };
-}
-
-function getLegacyHeaders(token) {
-    return {
-        'Content-Type': 'application/json',
-        'AUTH_TOKEN': token || '',
-    };
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SYSTEM INFO  (monitoring_service.dart → _getCoreSystemInfo via PS1)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-const si = require('systeminformation');
-
-function _getSerialNumberSync() {
-    const isBadSerial = (s) => !s || /^0+$/.test(s) || s.toLowerCase().includes('default') || s.toLowerCase().includes('o.e.m.');
+/**
+ * Carrega configuração do arquivo
+ */
+function loadConfig() {
     try {
-        let out = '';
-        try {
-            out = execSync('wmic bios get serialnumber', { timeout: 5000 }).toString();
-        } catch (_) {
-            out = execSync('powershell -Command "(Get-WmiObject win32_bios).SerialNumber"', { timeout: 5000 }).toString();
+        if (!fs.existsSync(CONFIG_FILE)) {
+            return null;
         }
+        const config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+        return config;
+    } catch (err) {
+        console.error('[CommandPoller] Erro ao carregar configuração:', err.message);
+        return null;
+    }
+}
 
-        const serial = out.split('\n')
-            .filter(l => l.trim() && !l.includes('SerialNumber'))
-            .map(l => l.trim())[0];
+/**
+ * Valida e retorna configuração ativa
+ */
+function getActiveConfig() {
+    const config = loadConfig();
+    if (!config || !config.server_url) {
+        console.warn('[CommandPoller] Configuração não encontrada ou inválida');
+        return null;
+    }
+    return config;
+}
 
-        if (!isBadSerial(serial)) return serial;
-    } catch (_) { }
+/**
+ * Obtém token JWT salvo
+ */
+function getStoredToken() {
+    try {
+        if (fs.existsSync(AUTH_TOKEN_FILE)) {
+            const auth = JSON.parse(fs.readFileSync(AUTH_TOKEN_FILE, 'utf8'));
+            return auth.jwt_token || null;
+        }
+    } catch (err) {
+        console.error('[CommandPoller] Erro ao ler token:', err.message);
+    }
     return null;
 }
 
-async function _getBssidManually() {
-    return new Promise(resolve => {
-        exec(
-            `powershell -Command "(Get-NetAdapter | Where-Object {$_.Status -eq 'Up' -and $_.PhysicalMediaType -like '*802.11*'} | Select-Object -First 1).MacAddress"`,
-            { timeout: 8000 },
-            (err, stdout) => {
-                const bssid = (stdout || '').trim().replace(/-/g, ':').toUpperCase();
-                resolve(bssid && bssid !== 'N/A' ? bssid : 'N/A');
-            }
-        );
-    });
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// DATA SYNCHRONIZATION
+// ═══════════════════════════════════════════════════════════════════════════
 
-function _fallbackCoreInfo() {
-    return {
-        serial_number: _getSerialNumberSync(),
-        hostname: os.hostname(),
-        model: 'N/A', manufacturer: 'N/A', processor: 'N/A',
-        ram: 'N/A', storage: 'N/A', storage_type: 'N/A',
-        operating_system: os.type(), os_version: os.release(),
-        ip_address: '0.0.0.0', mac_address: 'N/A',
-        mac_address_radio: 'N/A', wifi_ssid: 'N/A',
-        wifi_signal: 'N/A', connection_type: 'N/A',
-        gpu: 'N/A', current_user: os.userInfo().username || 'N/A',
-        antivirus_status: false, antivirus_version: 'N/A',
-        is_notebook: false, battery_level: null, battery_health: null,
-        biometric_reader: 'N/A', connected_printer: 'N/A',
-        installed_software: [], java_version: 'N/A',
-        browser_version: 'N/A', is_encrypted: false,
-        uptime: 'N/A',
-    };
-}
-
-async function getCoreSystemInfo() {
-    try {
-        const [cpu, osInfo, mem, disk, network, wifi, battery, graphics, uuid] = await Promise.all([
-            si.cpu(),
-            si.osInfo(),
-            si.mem(),
-            si.diskLayout(),
-            si.networkInterfaces(),
-            si.wifiNetworks(),
-            si.battery(),
-            si.graphics(),
-            si.uuid()
-        ]);
-
-        const totalRamGB = Math.round(mem.total / (1024 * 1024 * 1024));
-        const activeInterface = (Array.isArray(network) ? network : []).find(n => n.ip4 !== '127.0.0.1' && n.ip4) || {};
-        const ipAddress = activeInterface.ip4 || '0.0.0.0';
-        const macAddress = activeInterface.mac || 'N/A';
-
-        let wifiInterface = (Array.isArray(network) ? network : []).find(n => n.type === 'wireless' || (n.iface && n.iface.toLowerCase().includes('wi-fi')));
-        const connectionType = wifiInterface && activeInterface.mac === wifiInterface.mac ? 'WiFi' : 'Ethernet';
-
-        // try to get BSSID manually if wifi
-        let macAddressRadio = wifiInterface ? wifiInterface.mac : 'N/A';
-        if (!macAddressRadio || macAddressRadio === 'N/A') {
-            macAddressRadio = await _getBssidManually();
-        }
-
-        const activeWifi = (Array.isArray(wifi) ? wifi : []).find(w => w.ssid) || {};
-        const ssid = activeWifi.ssid || 'N/A';
-        const signal = activeWifi.signalLevel ? activeWifi.signalLevel.toString() : 'N/A';
-
-        const serial = _getSerialNumberSync() || uuid.os || uuid.macs[0];
-
-        const primaryDisk = (Array.isArray(disk) && disk.length > 0) ? disk[0] : {};
-        const diskGB = primaryDisk.size ? Math.round(primaryDisk.size / (1024 * 1024 * 1024)) : 0;
-        const hdType = (primaryDisk.type || '').toUpperCase().includes('NVME') || (primaryDisk.type || '').toUpperCase().includes('SSD') ? 'SSD' : 'HDD';
-
-        const gpu = (graphics && graphics.controllers && graphics.controllers.length > 0) ? graphics.controllers[0].model : 'N/A';
-
-        const isNotebook = battery.hasBattery;
-        const batteryLevel = isNotebook ? battery.percent : null;
-        const batteryHealth = isNotebook ? (battery.isCharging ? 'Carregando' : 'Detectada') : null;
-
-        const uptimeSecs = os.uptime();
-        const uptimeString = Math.floor(uptimeSecs / 86400) + "d " + Math.floor((uptimeSecs % 86400) / 3600) + "h " + Math.floor((uptimeSecs % 3600) / 60) + "m";
-
-        return {
-            serial_number: serial,
-            hostname: os.hostname(),
-            model: uuid.hardware || 'N/A',
-            manufacturer: cpu.vendor || 'N/A',
-            processor: cpu.brand || 'N/A',
-            ram: totalRamGB + "GB",
-            storage: diskGB + "GB",
-            storage_type: hdType,
-            operating_system: osInfo.distro || os.type(),
-            os_version: osInfo.release || os.release(),
-            ip_address: ipAddress,
-            mac_address: macAddress,
-            mac_address_radio: macAddressRadio,
-            wifi_ssid: ssid,
-            wifi_signal: signal,
-            connection_type: connectionType,
-            gpu: gpu,
-            current_user: os.userInfo().username || 'N/A',
-            antivirus_status: false,
-            antivirus_version: 'N/A',
-            is_notebook: isNotebook,
-            battery_level: batteryLevel,
-            battery_health: batteryHealth,
-            biometric_reader: 'N/A',
-            connected_printer: 'N/A',
-            installed_software: [],
-            java_version: 'N/A',
-        };
-    } catch (e) {
-        console.error('[CommandPoller] Erro ao obter informações do sistema via si:', e.message);
-        return _fallbackCoreInfo();
-    }
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// LEGACY TOTEM SERVICE  (legacy_totem_service.dart)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-function _inferTotemType(biometric, zebra, bematech) {
-    const notDetected = v => !v || v === 'N/A' || v === 'Não detectado';
-    const hasBiometric = !notDetected(biometric);
-    const hasPrinter = !notDetected(zebra) || !notDetected(bematech);
-    if (hasBiometric && hasPrinter) return 'Totem Completo';
-    if (hasBiometric) return 'Totem com Biometria';
-    if (hasPrinter) return 'Totem com Impressora';
-    return 'Desktop/Workstation';
-}
-
-function buildLegacyPayload(coreInfo, sector, floor) {
-    const peripherals = (coreInfo.connected_printer || 'N/A / N/A').split('/');
-    const zebraStatus = (peripherals[0] || 'N/A').trim();
-    const bematechStatus = (peripherals[1] || 'N/A').trim();
-
-    return {
-        hostname: coreInfo.hostname || 'Unknown',
-        serialNumber: coreInfo.serial_number || 'Unknown',
-        model: coreInfo.model || 'N/A',
-        serviceTag: coreInfo.serial_number || 'N/A',
-        ip: coreInfo.ip_address || 'N/A',
-        macAddress: coreInfo.mac_address || 'N/A',
-        mac_address_radio: coreInfo.mac_address_radio || 'N/A',
-        installedPrograms: coreInfo.installed_software || [],
-        biometricReaderStatus: coreInfo.biometric_reader || 'Não detectado',
-        zebraStatus,
-        bematechStatus,
-        totemType: _inferTotemType(coreInfo.biometric_reader, zebraStatus, bematechStatus),
-        ram: coreInfo.ram || 'N/A',
-        hdType: coreInfo.storage_type || 'N/A',
-        hdStorage: coreInfo.storage || 'N/A',
-        sector: sector || 'N/A',
-        floor: floor || 'N/A',
-        printerStatus: coreInfo.connected_printer || 'N/A',
-    };
-}
-
-async function sendToLegacy(coreInfo, serverUrl, token, sector, floor) {
-    const payload = buildLegacyPayload(coreInfo, sector, floor);
-    console.log('[CommandPoller] 📤 Enviando dados para sistema legado de Totem...');
-    console.log(`[CommandPoller]    S / N: ${payload.serialNumber} | Hostname: ${payload.hostname} `);
-
-    const response = await axios.post(`${serverUrl}/api/monitor`, payload, {
-        headers: getLegacyHeaders(token),
-        timeout: 30000,
-    });
-
-    const location = response.data?.location || 'Desconhecida';
-    console.log(`[CommandPoller] ✅ Dados enviados ao sistema legado com sucesso! Localização: ${location} `);
-    return true;
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MODULE SYSTEM  (monitoring_service.dart → _sendToNewSystem + _sendPayload)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-async function fetchModuleStructure(serverUrl, moduleId, token) {
-    const response = await axios.get(`${serverUrl}/api/modules/${moduleId}`, {
-        headers: getHeaders(token),
-        timeout: 10000,
-    });
-    return response.data?.module || null;
-}
-
-async function _sendPayload(payload, serverUrl, moduleId, moduleType, token) {
-    // Sanitização (monitoring_service.dart → _sendPayload)
-    let serial = String(payload.serial_number || '').trim();
-    let assetName = String(payload.asset_name || '').trim();
-    const hostname = String(payload.hostname || '').trim();
-
-    if (!serial || serial === 'N/A' || serial.toLowerCase() === 'null' || /^0+$/.test(serial)) {
-        console.warn(`[CommandPoller] ⚠️ Serial inválido: "${serial}". Usando hostname...`);
-        serial = hostname || `UNKNOWN-${Date.now()}`;
-    }
-    if (!assetName || assetName === 'N/A' || assetName.toLowerCase() === 'null') {
-        assetName = hostname || serial;
-    }
-
-    payload.serial_number = serial;
-    payload.asset_name = assetName;
-    if (hostname && hostname !== 'N/A') payload.hostname = hostname;
-
-    // Validação (payload_validator.dart)
-    const validation = validatePayload(payload, moduleType);
-    if (!validation.isValid) {
-        console.error('[CommandPoller] ❌ Payload inválido:', validation.errors.join(', '));
-        throw new Error(`Payload inválido: ${validation.errors.join(', ')}`);
-    }
-    if (validation.warnings.length > 0) {
-        console.warn('[CommandPoller] ⚠️ Avisos:', validation.warnings.join(', '));
-    }
-
-    console.log(`[CommandPoller] 📤 Enviando ativo: Nome = "${assetName}" | S / N="${serial}"`);
-
-    const response = await axios.post(
-        `${serverUrl}/api/modules/${moduleId}/assets`,
-        payload,
-        { headers: getHeaders(token), timeout: 30000, proxy: false }
-    );
-
-    const wasUpdated = response.data?.updated === true;
-    console.log(wasUpdated
-        ? `[CommandPoller] ✅ Ativo "${assetName}" atualizado com sucesso!`
-        : `[CommandPoller] ✅ Novo ativo "${assetName}" criado com sucesso!`
-    );
-}
-
-async function sendToModuleSystem(coreInfo, serverUrl, moduleId, token, sector, floor, assetName) {
-    console.log(`[CommandPoller] 📡 Enviando para sistema de módulos...`);
-    console.log(`[CommandPoller] 📋 Módulo: ${moduleId}`);
-
-    const structure = await fetchModuleStructure(serverUrl, moduleId, token);
-    if (!structure) throw new Error('Não foi possível obter a estrutura do módulo');
-
-    const moduleType = (structure.type || '').toLowerCase();
-    console.log(`[CommandPoller] 📦 Tipo do módulo: ${moduleType}`);
-
-    const payload = {
-        ...coreInfo,
-        custom_data: { sector: sector || '', floor: floor || '' },
-    };
-
-    if (assetName && assetName.trim()) {
-        console.log(`[CommandPoller] Usando Nome do Ativo manual: ${assetName}`);
-        payload.asset_name = assetName.trim();
-    }
-
-    // Ajustes por tipo (monitoring_service.dart → switch(moduleType))
-    switch (moduleType) {
-        case 'desktop':
-            console.log('[CommandPoller] 💻 Preparando dados de Desktop...');
-            delete payload.battery_level;
-            delete payload.battery_health;
-            break;
-
-        case 'notebook':
-            console.log('[CommandPoller] 💼 Preparando dados de Notebook...');
-            delete payload.biometric_reader;
-            delete payload.connected_printer;
-            // ✅ Valor default 0 (igual ao Flutter — mudado de -1 para 0)
-            if (payload.battery_level == null) {
-                console.warn('[CommandPoller] ⚠️ Nível de bateria nulo. Usando 0.');
-                payload.battery_level = 0;
-                payload.battery_health = payload.battery_health || 'Não detectada';
-            }
-            break;
-
-        case 'panel':
-            console.log('[CommandPoller] 📺 Preparando dados de Painel...');
-            delete payload.battery_level;
-            delete payload.battery_health;
-            delete payload.biometric_reader;
-            payload.screen_size = payload.screen_size || 'N/A';
-            payload.resolution = payload.resolution || '1920x1080';
-            payload.brightness = 100;
-            payload.volume = 50;
-            payload.hdmi_input = 'HDMI 1';
-            payload.firmware_version = payload.os_version || 'N/A';
-            payload.is_online = true;
-            payload.current_content = 'Default Playlist';
-            payload.content_last_updated = new Date().toISOString();
-            payload.connected_devices = [];
-            break;
-    }
-
-    await _sendPayload(payload, serverUrl, moduleId, moduleType, token);
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// AUTO-DETECÇÃO DE MÓDULO  (module_detection_service.dart → selectModuleForDeviceType)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-async function autoSelectModule(serverUrl, token, deviceType) {
-    try {
-        const response = await axios.get(`${serverUrl}/api/modules`, {
-            headers: getHeaders(token),
-            timeout: 10000,
-            proxy: false,
-        });
-        const modules = response.data?.modules || [];
-
-        // Procura módulo do tipo exato
-        for (const m of modules) {
-            if ((m.type || '').toLowerCase() === deviceType.toLowerCase()) {
-                const id = m._id || m.id;
-                console.log(`[CommandPoller] 🎯 Módulo selecionado: ${m.name} para tipo ${deviceType}`);
-                return id;
-            }
-        }
-
-        // Fallback: procura compatíveis
-        for (const m of modules) {
-            const t = (m.type || '').toLowerCase();
-            if (['desktop', 'notebook', 'panel'].includes(t)) {
-                const id = m._id || m.id;
-                console.warn(`[CommandPoller] ⚠️ Nenhum módulo de tipo "${deviceType}" — usando: ${m.name}`);
-                return id;
-            }
-        }
-
-        // Último recurso: primeiro da lista
-        if (modules.length > 0) {
-            return modules[0]._id || modules[0].id;
-        }
-
-        return null;
-    } catch (e) {
-        console.error('[CommandPoller] Erro na auto-detecção de módulo:', e.message);
-        return null;
-    }
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// COLLECT AND SEND  (monitoring_service.dart → collectAndSendData)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+/**
+ * Coleta dados do sistema e envia para o servidor
+ * 
+ * Fluxo:
+ * 1. DataCollector coleta informações do sistema
+ * 2. PayloadBuilder constrói e valida payload
+ * 3. APIClient envia para /api/modules/{moduleId}/assets ou /api/monitor (legacy)
+ */
 async function collectAndSendData() {
-    const settings = store.get('settings', {});
-    const { ip, port, token, moduleId, sector, floor, assetName, forceLegacyMode } = settings;
-
-    if (!ip || !port || !token) {
-        console.warn('[CommandPoller] ⚠️ Configurações incompletas. Abortando envio.');
+    const config = getActiveConfig();
+    if (!config) {
+        console.warn('[CommandPoller] Configuração não disponível');
         return false;
     }
 
-    const serverUrl = `http://${ip}:${port}`;
-    console.log('[CommandPoller] 🔄 INICIANDO CICLO DE MONITORAMENTO');
-
     try {
-        console.log('[CommandPoller] Coletando dados do host...');
-        const coreInfo = await getCoreSystemInfo();
+        console.log('[CommandPoller] Iniciando sincronização de dados...');
+        const startTime = Date.now();
 
-        if (!coreInfo?.serial_number) {
-            throw new Error('Não foi possível obter informações do sistema');
+        // ─────────────────────────────────────────────────────────────────
+        // ETAPA 1: Coletar dados do sistema
+        // ─────────────────────────────────────────────────────────────────
+        console.log('[CommandPoller] [1/4] Coletando informações do sistema...');
+        const coreInfo = await DataCollector.getCoreSystemInfo();
+
+        if (!coreInfo) {
+            console.error('[CommandPoller] Falha ao coletar informações do sistema');
+            return false;
         }
 
-        const isNotebook = coreInfo.is_notebook === true;
-        const deviceType = isNotebook ? 'notebook' : 'desktop';
-        console.log(`[CommandPoller] Tipo de dispositivo detectado: ${deviceType}`);
+        console.log('[CommandPoller] ✓ Sistema:', {
+            serial: coreInfo.serial_number,
+            hostname: coreInfo.hostname,
+            ip: coreInfo.ip_address
+        });
 
-        // ── LÓGICA DE DECISÃO BINÁRIA (sem híbrido) — idêntica ao Flutter ──
-        if (forceLegacyMode === true && !isNotebook) {
-            console.log('[CommandPoller] 🔧 Modo legado forçado (Desktop/Totem). Enviando para /api/monitor.');
-            await sendToLegacy(coreInfo, serverUrl, token, sector, floor);
-            console.log('[CommandPoller] ✅ CICLO (LEGADO) CONCLUÍDO\n');
-            return true;
+        // ─────────────────────────────────────────────────────────────────
+        // ETAPA 2: Determinar tipo de asset e obter configuração do módulo
+        // ─────────────────────────────────────────────────────────────────
+        console.log('[CommandPoller] [2/4] Determinando tipo de asset...');
+        const assetType = coreInfo.is_notebook ? 'notebook' : 'desktop';
+        const assetName = config.asset_name || coreInfo.hostname;
+        const sector = config.sector || 'Padrão';
+        const floor = config.floor || 0;
+
+        let moduleId = null;
+        let shouldUseLegacy = false;
+
+        // Se tem módulo configurado, tenta usar novo sistema
+        if (config.module_id) {
+            moduleId = config.module_id;
+            console.log('[CommandPoller] ✓ Usando módulo:', moduleId);
+        } else if (assetType === 'notebook' || config.use_legacy_totem) {
+            // Fallback para legacy /api/monitor (totem)
+            shouldUseLegacy = true;
+            console.log('[CommandPoller] ✓ Usando endpoint legacy: /api/monitor');
         }
 
-        console.log('[CommandPoller] Executando envio para Sistema de Módulos...');
-        let effectiveModuleId = moduleId;
+        // ─────────────────────────────────────────────────────────────────
+        // ETAPA 3: Construir e validar payload
+        // ─────────────────────────────────────────────────────────────────
+        console.log('[CommandPoller] [3/4] Construindo payload...');
+        
+        let payload;
+        let validation;
 
-        if (!effectiveModuleId) {
-            console.warn('[CommandPoller] ⚠️ Nenhum módulo configurado. Tentando auto-detecção...');
-            effectiveModuleId = await autoSelectModule(serverUrl, token, deviceType);
-            if (!effectiveModuleId) {
-                throw new Error('Nenhum módulo configurado ou auto-detectado.');
-            }
+        if (!shouldUseLegacy) {
+            // Novo sistema: payload modular
+            payload = PayloadBuilder.buildModulePayload(
+                coreInfo,
+                assetType,
+                sector,
+                floor,
+                assetName
+            );
+            validation = PayloadBuilder.validatePayload(payload, assetType);
         } else {
-            console.log(`[CommandPoller] ✅ Usando módulo configurado: ${effectiveModuleId}`);
+            // Legacy: payload totem
+            payload = PayloadBuilder.buildLegacyPayload(coreInfo, assetName);
+            validation = PayloadBuilder.validatePayload(payload, 'totem');
         }
 
-        await sendToModuleSystem(coreInfo, serverUrl, effectiveModuleId, token, sector, floor, assetName);
-        console.log('[CommandPoller] ✅ CICLO (MÓDULOS) CONCLUÍDO\n');
+        if (!validation.isValid) {
+            console.error('[CommandPoller] Payload inválido:', validation.errors);
+            return false;
+        }
+
+        if (validation.warnings.length > 0) {
+            console.warn('[CommandPoller] Avisos de validação:', validation.warnings);
+        }
+
+        console.log('[CommandPoller] ✓ Payload construído e validado');
+
+        // ─────────────────────────────────────────────────────────────────
+        // ETAPA 4: Enviar para o servidor
+        // ─────────────────────────────────────────────────────────────────
+        console.log('[CommandPoller] [4/4] Enviando para servidor...');
+        const token = getStoredToken();
+
+        let result;
+        if (!shouldUseLegacy && moduleId) {
+            // Novo sistema
+            result = await APIClient.sendAssetToModule(
+                config.server_url,
+                moduleId,
+                payload,
+                token
+            );
+        } else {
+            // Legacy
+            result = await APIClient.sendLegacyData(
+                config.server_url,
+                payload,
+                token
+            );
+        }
+
+        if (!result.success) {
+            console.error('[CommandPoller] Falha ao enviar dados:', result.error);
+            return false;
+        }
+
+        const elapsed = Date.now() - startTime;
+        console.log(`[CommandPoller] ✓ Sincronização concluída em ${elapsed}ms`, {
+            endpoint: !shouldUseLegacy ? `/api/modules/${moduleId}/assets` : '/api/monitor',
+            status: result.status,
+            updated: result.updated
+        });
+
         return true;
-
-    } catch (e) {
-        console.error('[CommandPoller] ❌ ERRO no ciclo de monitoramento:', e.message);
+    } catch (err) {
+        console.error('[CommandPoller] Erro durante sincronização:', err.message);
         return false;
     }
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// COMMAND EXECUTOR  (command_executor_service.dart)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-async function fetchPendingCommands(serverUrl, moduleId, serialNumber, token) {
-    try {
-        const uri = `${serverUrl}/api/modules/${moduleId}/assets/commands/pending?serial_number=${encodeURIComponent(serialNumber)}`;
-        const response = await axios.get(uri, {
-            headers: getHeaders(token),
-            timeout: 15000,
-            proxy: false,
-        });
-        return response.data?.commands || [];
-    } catch (e) {
-        console.warn('[CommandPoller] ⚠️ Erro ao buscar comandos:', e.message);
-        return [];
+/**
+ * Processa comandos pendentes
+ * 
+ * Fluxo:
+ * 1. Obtém serial e configuração
+ * 2. CommandExecutor busca comandos pendentes no servidor
+ * 3. CommandExecutor executa cada comando
+ * 4. CommandExecutor reporta resultados
+ */
+async function processPendingCommands() {
+    const config = getActiveConfig();
+    if (!config || !config.module_id) {
+        // Sem módulo configurado, não processa comandos
+        return;
     }
-}
-
-async function reportCommandResult(serverUrl, moduleId, commandId, token, { success, stdout, stderr, exitCode, executionTime }) {
-    try {
-        const body = {
-            success,
-            stdout: stdout.length > 5000 ? stdout.substring(0, 5000) : stdout,
-            stderr: stderr.length > 2000 ? stderr.substring(0, 2000) : stderr,
-            exitCode,
-            executionTime,
-        };
-
-        const response = await axios.post(
-            `${serverUrl}/api/modules/${moduleId}/assets/commands/${commandId}/result`,
-            body,
-            { headers: getHeaders(token), timeout: 15000, proxy: false }
-        );
-
-        if (response.status === 200) {
-            console.log('[CommandPoller] ✅ Resultado reportado ao servidor');
-        } else {
-            console.warn(`[CommandPoller] ⚠️ Falha ao reportar resultado: ${response.status}`);
-        }
-    } catch (e) {
-        console.error('[CommandPoller] ❌ Erro ao reportar resultado:', e.message);
-    }
-}
-
-async function _runCommand(command, options = {}) {
-    const timeout = options.timeout || 60000;
-    const requiresElevation = options.requiresElevation || false;
-
-    if (requiresElevation) {
-        // Cria script .bat temporário e executa com RunAs (idêntico ao Flutter)
-        const tmpBat = path.join(os.tmpdir(), `temp_command_${Date.now()}.bat`);
-        return new Promise(resolve => {
-            try {
-                fs.writeFileSync(tmpBat, `@echo off\n${command}\n`);
-                exec(
-                    `powershell -Command "Start-Process -FilePath '${tmpBat}' -Verb RunAs -Wait"`,
-                    { timeout },
-                    (err, stdout, stderr) => {
-                        try { fs.unlinkSync(tmpBat); } catch (_) { }
-                        resolve({
-                            stdout: (stdout || '').trim(),
-                            stderr: (err?.message || stderr || '').trim(),
-                            exitCode: err?.code ?? 0,
-                        });
-                    }
-                );
-            } catch (e) {
-                resolve({ stdout: '', stderr: e.message, exitCode: -1 });
-            }
-        });
-    }
-
-    return new Promise(resolve => {
-        exec(`cmd /c ${command}`, { timeout }, (err, stdout, stderr) => {
-            resolve({
-                stdout: (stdout || '').trim(),
-                stderr: (err?.message || stderr || '').trim(),
-                exitCode: err?.code ?? (err ? 1 : 0),
-            });
-        });
-    });
-}
-
-async function executeCommand(serverUrl, moduleId, command, token) {
-    const commandId = command.id;
-    const commandType = (command.commandType || '').toUpperCase(); // Normalize
-    const commandText = command.command;
-    const requiresElevation = command.requiresElevation || false;
-    const timeout = command.timeout || 60000;
-
-    logger.info(`⚙️ Executing command: ${commandType} (ID: ${commandId})`, { requiresElevation, timeout });
-
-    const startTime = Date.now();
-    let stdout = '', stderr = '', exitCode = 0, success = true;
 
     try {
-        // ─────────────────────────────────────────────────────────────────
-        // INTERNAL COMMANDS
-        // ─────────────────────────────────────────────────────────────────
-        if (commandType === 'INTERNAL' || commandType === 'SYSTEM') {
-            const cmd = commandText.toLowerCase();
-
-            if (cmd === 'force_sync' || cmd === 'sync') {
-                logger.info('Running Force Sync via Command');
-                const syncSuccess = await module.exports.syncDeviceData();
-                if (!syncSuccess) throw new Error('Sync cycle failed');
-                stdout = 'Synchronization completed successfully';
-
-            } else if (cmd.startsWith('set_interval')) {
-                // Usage: set_interval 600
-                const parts = cmd.split(' ');
-                const seconds = parseInt(parts[1], 10);
-                if (isNaN(seconds) || seconds < 60) throw new Error('Invalid interval (min 60s)');
-
-                await module.exports.updateSettings({ interval: seconds });
-                stdout = `Interval updated to ${seconds} seconds`;
-
-            } else if (cmd === 'restart_service') {
-                await module.exports.initialize();
-                stdout = 'Service restarted';
-
-            } else {
-                throw new Error(`Unknown internal command: ${cmd}`);
-            }
-
-        } else {
-            // ─────────────────────────────────────────────────────────────────
-            // SHELL COMMANDS
-            // ─────────────────────────────────────────────────────────────────
-            const result = await _runCommand(commandText, { requiresElevation, timeout });
-            stdout = result.stdout;
-            stderr = result.stderr;
-            exitCode = result.exitCode;
-            success = exitCode === 0;
-        }
-
-        logger.info(success ? '✅ Command executed successfully' : '❌ Command failed');
-        if (stderr) logger.warn(`STDERR: ${stderr}`);
-
-    } catch (e) {
-        success = false;
-        exitCode = -1;
-        stderr = `Execution Exception: ${e.message}`;
-        logger.error('❌ Exception executing command:', e.message);
-    }
-
-    await reportCommandResult(serverUrl, moduleId, commandId, token, {
-        success, stdout, stderr, exitCode,
-        executionTime: Date.now() - startTime,
-    });
-}
-
-async function checkAndExecuteCommands(serverUrl, moduleId, serialNumber, token) {
-    const commands = await fetchPendingCommands(serverUrl, moduleId, serialNumber, token);
-    if (commands.length === 0) return;
-
-    console.log(`[CommandPoller] 📥 ${commands.length} comando(s) recebido(s)`);
-    for (const command of commands) {
-        await executeCommand(serverUrl, moduleId, command, token);
-    }
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// BACKGROUND SERVICE  (background_service.dart)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-class CommandPoller {
-    constructor() {
-        this._syncTimer = null;
-        this._commandTimer = null;
-        this._isRunning = false;
-        this._isExecuting = false;
-        this._consecutiveErrors = 0;
-        this._maxConsecutiveErrors = 3;
-        this.lastRunStatus = 'Aguardando';
-        this.lastRunTime = null;
-        this.nextRunTime = null;
-        this.syncCount = 0;
-        this.errorCount = 0;
-        this.startTime = null;
-    }
-
-    get isRunning() { return this._isRunning; }
-
-    // initialize() — background_service.dart
-    async initialize() {
-        const s = store.get('settings', {});
-        if (s.ip && s.port && s.token) {
-            await this.start();
-        } else {
-            this.lastRunStatus = 'Aguardando Configuração';
-            console.warn('[CommandPoller] ⚠️ Background Service: Aguardando configuração inicial');
-        }
-        this._startCommandPolling();
-    }
-
-    async start() {
-        if (this._isRunning) {
-            console.warn('[CommandPoller] ⚠️ Já está rodando');
+        console.log('[CommandPoller] Processando comandos pendentes...');
+        
+        const serialNumber = await DataCollector.getSerialNumber();
+        if (!serialNumber) {
+            console.warn('[CommandPoller] Serial number não disponível');
             return;
         }
-        this._isRunning = true;
-        this.startTime = new Date();
-        console.log('[CommandPoller] ✅ Background Service: Iniciado');
-        await this.runCycle();
-        this._scheduleNextRun();
-        this._startCommandPolling();
+
+        const token = getStoredToken();
+
+        // CommandExecutor gerencia todo o ciclo: busca, executa, reporta
+        const count = await CommandExecutor.executePendingCommands(
+            config.server_url,
+            config.module_id,
+            serialNumber,
+            token
+        );
+
+        console.log(`[CommandPoller] Processados ${count} comandos`);
+    } catch (err) {
+        console.error('[CommandPoller] Erro ao processar comandos:', err.message);
+    }
+}
+
+/**
+ * Ciclo completo: coleta dados + processa comandos
+ */
+async function syncDeviceData() {
+    try {
+        // Evita múltiplas sincronizações simultâneas
+        if (isPolling) {
+            console.warn('[CommandPoller] Sincronização já em andamento');
+            return false;
+        }
+
+        isPolling = true;
+        const dataSuccess = await collectAndSendData();
+        await processPendingCommands();
+
+        lastPollTime = new Date();
+        return dataSuccess;
+    } catch (err) {
+        console.error('[CommandPoller] Erro no ciclo de sincronização:', err.message);
+        return false;
+    } finally {
+        isPolling = false;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POLLING MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Inicia polling periódico
+ */
+function startPolling(interval = POLL_INTERVAL) {
+    if (pollingTimer) {
+        console.warn('[CommandPoller] Polling já está ativo');
+        return;
     }
 
+    console.log(`[CommandPoller] Iniciando polling (intervalo: ${interval}ms)`);
+
+    // Sincroniza imediatamente
+    syncDeviceData();
+
+    // Configura polling periódico
+    pollingTimer = setInterval(async () => {
+        await syncDeviceData();
+    }, interval);
+}
+
+/**
+ * Para polling periódico
+ */
+function stopPolling() {
+    if (pollingTimer) {
+        console.log('[CommandPoller] Parando polling');
+        clearInterval(pollingTimer);
+        pollingTimer = null;
+    }
+}
+
+/**
+ * Verifica se está em polling
+ */
+function isActive() {
+    return pollingTimer !== null;
+}
+
+/**
+ * Retorna timestamp do último poll
+ */
+function getLastPollTime() {
+    return lastPollTime;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INITIALIZATION & EXPORTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+class CommandPollerManager {
+    constructor() {
+        this.isRunning = false;
+        this.lastRunTime = null;
+    }
+
+    /**
+     * Inicializa o serviço
+     */
+    async init() {
+        console.log('[CommandPoller] Inicializando serviço...');
+        const config = getActiveConfig();
+        
+        if (!config) {
+            console.error('[CommandPoller] Configuração não disponível - não iniciando polling');
+            return false;
+        }
+
+        this.isRunning = true;
+        startPolling();
+        return true;
+    }
+
+    /**
+     * Para o serviço
+     */
     stop() {
-        clearTimeout(this._syncTimer);
-        clearInterval(this._commandTimer);
-        this._syncTimer = null;
-        this._commandTimer = null;
-        this._isRunning = false;
-        this.lastRunStatus = 'Parado';
-        console.log('[CommandPoller] 🛑 Background Service: Parado');
+        console.log('[CommandPoller] Parando serviço');
+        stopPolling();
+        this.isRunning = false;
     }
 
-    // runCycle() — background_service.dart
-    async runCycle() {
-        this.lastRunStatus = 'Sincronizando...';
-        console.log('[CommandPoller] 🔄 EXECUTANDO CICLO DE MONITORAMENTO');
-
-        const success = await collectAndSendData();
-
-        if (success) {
-            this.lastRunStatus = 'Sucesso';
-            this.syncCount++;
-            this._consecutiveErrors = 0;
-            console.log('[CommandPoller] ✅ CICLO CONCLUÍDO COM SUCESSO');
-            this._startCommandPolling(); // AUTO-HEALING
-        } else {
-            this.lastRunStatus = 'Erro';
-            this.errorCount++;
-            this._consecutiveErrors++;
-            if (this._consecutiveErrors >= this._maxConsecutiveErrors) {
-                console.error(`[CommandPoller] ❌ CRÍTICO: ${this._consecutiveErrors} erros consecutivos!`);
-            }
-        }
-
-        this.lastRunTime = new Date();
+    /**
+     * Força sincronização agora
+     */
+    async forceSync() {
+        console.log('[CommandPoller] Sincronização forçada');
+        return await syncDeviceData();
     }
 
-    _scheduleNextRun() {
-        const s = store.get('settings', {});
-        const intervalSeconds = s.interval || 300;
-        this.nextRunTime = new Date(Date.now() + intervalSeconds * 1000);
-        console.log(`[CommandPoller]    Agendando próximo ciclo em ${intervalSeconds}s (para: ${this.nextRunTime.toISOString()})`);
-
-        clearTimeout(this._syncTimer);
-        this._syncTimer = setTimeout(async () => {
-            if (!this._isRunning) return;
-            await this.runCycle();
-            this._scheduleNextRun();
-        }, intervalSeconds * 1000);
+    /**
+     * Retorna status
+     */
+    getStatus() {
+        return {
+            isRunning: this.isRunning,
+            isPolling,
+            lastPollTime,
+            isActive: isActive()
+        };
     }
 
-    // _startCommandPolling() — background_service.dart (interval: 5s)
-    _startCommandPolling() {
-        const s = store.get('settings', {});
-        const { ip, port, token, moduleId } = s;
-
-        if (!ip || !token || !moduleId) return;
-
-        const serverUrl = `http://${ip}:${port}`;
-        const serialNumber = _getSerialNumberSync();
-
-        clearInterval(this._commandTimer);
-        // 5 segundos — igual ao Flutter (background_service.dart: Duration(seconds: 5))
-        this._commandTimer = setInterval(async () => {
-            if (!this._isExecuting) {
-                this._isExecuting = true;
-                try {
-                    await checkAndExecuteCommands(serverUrl, moduleId, serialNumber, token);
-                } catch (_) { }
-                this._isExecuting = false;
-            }
-        }, 5000);
-
-        console.log(`[CommandPoller] ✅ Polling de comandos ativado (ciclo: 5s) para S/N: ${serialNumber}`);
+    /**
+     * Gerencia configuração
+     */
+    getConfig() {
+        return getActiveConfig();
     }
 
-    // updateSettings() — background_service.dart
-    async updateSettings(newSettings) {
-        console.log('[CommandPoller] 🔄 Background Service: Atualizando configurações');
-        if (newSettings) {
-            const current = store.get('settings', {});
-            store.set('settings', { ...current, ...newSettings });
-        }
-
-        clearTimeout(this._syncTimer);
-        await this.runCycle();
-        this._startCommandPolling();
-        this._scheduleNextRun();
-    }
-
-    // Força sincronização imediata (botão na UI)
     async syncDeviceData() {
         const success = await collectAndSendData();
         this.lastRunTime = new Date();
@@ -794,4 +405,4 @@ class CommandPoller {
     }
 }
 
-module.exports = new CommandPoller();
+module.exports = new CommandPollerManager();

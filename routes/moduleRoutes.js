@@ -12,6 +12,8 @@ const {
   createAsset,
   updateAsset,
 } = require('../utils/assetFactory');
+// Tipos suportados dinâmicos (inclui totem, mobile, etc)
+const { getSupportedTypes } = require('../utils/assetFactory');
 
 const { getModuleStats, getActiveModules } = require('../controllers/assetModuleController');
 
@@ -118,7 +120,8 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
     modifyApiLimiter,
     [
       require('express-validator').body('name').trim().notEmpty(),
-      require('express-validator').body('type').isIn(['desktop', 'notebook', 'panel', 'printer', 'custom']),
+      // Usar lista dinâmica de tipos suportados pelo ManagedAsset
+      require('express-validator').body('type').isIn(getSupportedTypes()),
     ],
     async (req, res) => {
       if (req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Acesso negado' });
