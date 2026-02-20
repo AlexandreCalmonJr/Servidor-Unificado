@@ -16,15 +16,17 @@
         if (!tbody) return;
 
         try {
-            // Try the totems-specific endpoint first, then monitoring fallback
+            // ✅ CONSOLIDADO: Usar /api/modules/totem/assets em vez de /api/totems
             let data;
             try {
-                data = await API.get('/totems/totems');
+                data = await API.get('/modules/totem/assets');
+                allTotems = data.assets || data.data || [];
             } catch {
+                // Fallback para monitoramento
                 data = await API.get('/monitoring/totems');
+                allTotems = Array.isArray(data) ? data : (data.totems || data.data || []);
             }
 
-            allTotems = Array.isArray(data) ? data : (data.totems || data.data || []);
             initPaginator(allTotems);
         } catch (err) {
             tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><p>Erro ao carregar totems.</p></td></tr>';
@@ -151,7 +153,8 @@
 
     async function openTotemModal(serial) {
         try {
-            const totem = await API.get(`/totems/totems/${serial}`);
+            // ✅ CONSOLIDADO: Usar /modules/totem/assets/{id}
+            const totem = await API.get(`/modules/totem/assets/${serial}`);
             if (!totem) throw new Error('Totem não encontrado');
 
             document.getElementById('edit-totem-serial').value = serial;
@@ -177,7 +180,8 @@
         }
 
         try {
-            await API.put(`/totems/totems/${serial}`, {
+            // ✅ CONSOLIDADO: Usar /modules/totem/assets/{id}
+            await API.put(`/modules/totem/assets/${serial}`, {
                 hostname,
                 notes
             });
@@ -192,7 +196,8 @@
     async function removeTotem(serial) {
         if (!await confirmAction(`Tem certeza que deseja remover o totem ${serial}?`, { danger: true, okText: 'Remover' })) return;
         try {
-            await API.delete(`/totems/totems/${serial}`);
+            // ✅ CONSOLIDADO: Usar /modules/totem/assets/{id}
+            await API.delete(`/modules/totem/assets/${serial}`);
             showToast('Totem removido com sucesso', 'success');
             fetchTotems();
         } catch (e) {

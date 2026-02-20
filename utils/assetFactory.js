@@ -33,20 +33,14 @@ const ASSET_TYPES = {
     description: 'Impressoras e multifuncionais',
   },
   mobile: {
-    model: Mobile, // Mobile agora é um Discriminator do Device
     displayName: 'Dispositivo Móvel',
     icon: 'smartphone',
     description: 'Smartphones e tablets',
   },
   totem: {
-    model: Totem,
     displayName: 'Totem',
     icon: 'touch_app',
     description: 'Totems de autoatendimento',
-  },
-  scanner: {
-    model: Scanner,
-    displayName: 'Coletor',
   },
   scanner: {
     displayName: 'Scanner',
@@ -102,7 +96,7 @@ function getModuleInfo(moduleType) {
  * @returns {boolean}
  */
 function isSupported(moduleType) {
-  return MODEL_REGISTRY.hasOwnProperty(moduleType.toLowerCase().trim());
+  return ASSET_TYPES.hasOwnProperty(moduleType.toLowerCase().trim());
 }
 
 /**
@@ -110,7 +104,7 @@ function isSupported(moduleType) {
  * @returns {string[]}
  */
 function getSupportedTypes() {
-  return Object.keys(MODEL_REGISTRY);
+  return Object.keys(ASSET_TYPES);
 }
 
 // ===================================================================
@@ -515,7 +509,4 @@ module.exports = {
   // Utilitários de alto nível
   createAsset,
   updateAsset,
-
-  // Registry (para testes/debug)
-  MODEL_REGISTRY,
 };

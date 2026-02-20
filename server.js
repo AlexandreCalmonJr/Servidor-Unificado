@@ -303,6 +303,15 @@ app.get('/panel/index.html', (req, res) => {
     res.render('panel/index');
 });
 app.use('/panel', express.static(path.join(__dirname, 'public', 'web', 'panel')));
+app.get('/panel/', (req, res) => {
+    // Se tiver token, serve o index, senão serve login
+    const token = req.headers.authorization?.substring(7) || req.query.token || req.headers.auth_token;
+    if (token) {
+        res.sendFile(path.join(__dirname, 'public', 'web', 'panel', 'index.html'));
+    } else {
+        res.sendFile(path.join(__dirname, 'public', 'web', 'panel', 'login.html'));
+    }
+});
 app.get('/panel', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'web', 'panel', 'login.html'));
 });

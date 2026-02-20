@@ -40,8 +40,12 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
           };
           return next();
         }
-        if (err && (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError')) {
-          return res.status(401).json({ success: false, message: `Token inválido: ${err.message}` });
+        // Se ambas falharem, retornar erro de autenticação
+        if (err && (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError' || err.name === 'NoTokenError')) {
+          return res.status(401).json({ 
+            success: false, 
+            message: `Token inválido ou não fornecido: ${err.message}` 
+          });
         }
         return res.status(401).json({ success: false, message: 'Autenticação falha' });
       });

@@ -51,8 +51,12 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
           return next();
         }
 
-        if (err?.name === 'JsonWebTokenError' || err?.name === 'TokenExpiredError') {
-          return res.status(401).json({ success: false, message: `Token inválido: ${err.message}` });
+        // Se ambas falharem, retornar erro de autenticação
+        if (err?.name === 'JsonWebTokenError' || err?.name === 'TokenExpiredError' || err?.name === 'NoTokenError') {
+          return res.status(401).json({ 
+            success: false, 
+            message: `Token inválido ou não fornecido: ${err?.message}` 
+          });
         }
         return res.status(401).json({ success: false, message: 'Autenticação falhou' });
       });

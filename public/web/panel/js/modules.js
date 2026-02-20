@@ -173,21 +173,33 @@
         const name = document.getElementById('form-module-name').value.trim();
         const type = document.getElementById('form-module-type').value;
         const description = document.getElementById('form-module-desc').value.trim();
-        const is_active = document.getElementById('form-module-active').checked;
+        
+        // Verificar se elementos existem antes de acessá-los
+        const isActiveEl = document.getElementById('form-module-active');
+        const is_active = isActiveEl ? isActiveEl.checked : true;
 
         // Client Config
+        const iconEl = document.getElementById('form-module-icon');
+        const colorEl = document.getElementById('form-module-color');
+        const showDashEl = document.getElementById('form-module-show-dash');
+        const tabsEl = document.getElementById('form-module-tabs');
+        
         const client_config = {
-            icon: document.getElementById('form-module-icon').value.trim() || 'box',
-            color: document.getElementById('form-module-color').value,
-            show_on_dashboard: document.getElementById('form-module-show-dash').checked,
-            tabs: document.getElementById('form-module-tabs').value.split(',').map(t => t.trim()).filter(Boolean)
+            icon: iconEl ? iconEl.value.trim() || 'box' : 'box',
+            color: colorEl ? colorEl.value : '#3b82f6',
+            show_on_dashboard: showDashEl ? showDashEl.checked : true,
+            tabs: tabsEl ? tabsEl.value.split(',').map(t => t.trim()).filter(Boolean) : []
         };
 
         // Feature Flags
+        const remoteCtrlEl = document.getElementById('flag-remote-control');
+        const trackLocEl = document.getElementById('flag-track-location');
+        const requireAuthEl = document.getElementById('flag-require-auth');
+        
         const feature_flags = {
-            allow_remote_control: document.getElementById('flag-remote-control').checked,
-            track_location: document.getElementById('flag-track-location').checked,
-            require_auth: document.getElementById('flag-require-auth').checked
+            allow_remote_control: remoteCtrlEl ? remoteCtrlEl.checked : false,
+            track_location: trackLocEl ? trackLocEl.checked : true,
+            require_auth: requireAuthEl ? requireAuthEl.checked : true
         };
 
         if (!name || !type) {

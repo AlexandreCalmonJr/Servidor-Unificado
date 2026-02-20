@@ -29,7 +29,7 @@
         API.get('/units'),
         API.get('/bssid-mappings'),
         API.get('/auth/users'),
-        API.get('/totems/totems'),
+        API.get('/modules/totem/assets'),  // ✅ CONSOLIDADO
         API.get('/provisioning/tokens'),
       ]);
 

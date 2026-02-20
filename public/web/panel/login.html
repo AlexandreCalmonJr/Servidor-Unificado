@@ -45,7 +45,7 @@
     <script>
         // Redirect if already logged in
         if (localStorage.getItem('mdm_token')) {
-            window.location.href = 'index.html';
+            window.location.href = '/panel/';
         }
 
         const form = document.getElementById('login-form');
@@ -74,7 +74,7 @@
                     if (data.user) {
                         localStorage.setItem('mdm_user', JSON.stringify(data.user));
                     }
-                    window.location.href = 'index.html';
+                    window.location.href = '/panel/';
                 } else {
                     errorEl.textContent = 'Resposta inválida do servidor.';
                 }

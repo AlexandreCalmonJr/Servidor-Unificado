@@ -40,7 +40,7 @@ const App = (() => {
 
     function checkAuth() {
         if (!API.getToken()) {
-            window.location.href = 'login.html';
+            window.location.href = '/panel/login.html';
         }
     }
 
@@ -162,7 +162,7 @@ const App = (() => {
         if (btn) {
             btn.addEventListener('click', () => {
                 API.clearAuth();
-                window.location.href = 'login.html';
+                window.location.href = '/panel/login.html';
             });
         }
     }

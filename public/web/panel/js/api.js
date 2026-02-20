@@ -36,7 +36,7 @@ const API = (() => {
         // Handle 401 — redirect to login
         if (response.status === 401) {
             clearAuth();
-            window.location.href = 'login.html';
+            window.location.href = '/panel/login.html';
             throw new Error('Sessão expirada');
         }
 
