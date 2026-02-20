@@ -61,15 +61,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         const settings = await ipcRenderer.invoke('get-settings');
         const result = await ipcRenderer.invoke('fetch-modules', settings);
 
+        const select = document.getElementById('select-module');
         if (result.success && result.modules.length > 0) {
-            // Basic detection: just pick the first desktop one or first one
-            const match = result.modules.find(m => m.type === 'desktop') || result.modules[0];
-            document.getElementById('input-module').value = match._id || match.id;
-            showToast('Módulo detectado: ' + match.name, 'success');
+            const currentVal = select.value;
+            select.innerHTML = '<option value="">Selecione ou deixe auto-detectar</option>';
+            result.modules.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m._id || m.id;
+                opt.textContent = `${m.name} (${m.type || 'N/A'})`;
+                select.appendChild(opt);
+            });
+            // Tenta restaurar a seleção anterior se ainda existir
+            if (Array.from(select.options).some(o => o.value === currentVal)) {
+                select.value = currentVal;
+            }
+            showToast(result.modules.length + ' módulos carregados.', 'success');
         } else {
             showToast('Nenhum módulo encontrado', 'error');
         }
-        btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Detectar';
+        btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Carregar';
     });
 
     // Navigation
@@ -229,7 +239,16 @@ function switchView(viewName) {
 
 function updateUIWithSettings(settings) {
     // Populate Client Config Fields
-    document.getElementById('input-module').value = settings.moduleId || '';
+    const select = document.getElementById('select-module');
+    if (settings.moduleId && !Array.from(select.options).some(o => o.value === settings.moduleId)) {
+        const opt = document.createElement('option');
+        opt.value = settings.moduleId;
+        opt.textContent = 'Módulo Salvo (' + settings.moduleId.substring(0, 8) + ')';
+        select.appendChild(opt);
+    }
+    select.value = settings.moduleId || '';
+
+    document.getElementById('input-token').value = settings.token || '';
     document.getElementById('input-sector').value = settings.sector || '';
     document.getElementById('input-floor').value = settings.floor || '';
     document.getElementById('check-legacy').checked = settings.forceLegacyMode || false;
@@ -247,7 +266,8 @@ async function saveClientSettings() {
     // Merge new client settings with existing connection settings
     const newSettings = {
         ...current,
-        moduleId: document.getElementById('input-module').value,
+        moduleId: document.getElementById('select-module').value,
+        token: document.getElementById('input-token').value,
         sector: document.getElementById('input-sector').value,
         floor: document.getElementById('input-floor').value,
         forceLegacyMode: document.getElementById('check-legacy').checked,

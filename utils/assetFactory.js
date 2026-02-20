@@ -146,8 +146,7 @@ const baseValidation = [
 
   body('status')
     .optional()
-    .isIn(['online', 'offline', 'maintenance', 'Sem Monitorar'])
-    .withMessage('Status inválido'),
+    .trim(),
 
   body('ip_address')
     .optional()
@@ -177,7 +176,7 @@ const baseValidation = [
 // Validações específicas por tipo
 const TYPE_SPECIFIC_VALIDATIONS = {
   desktop: [
-    body('hostname').trim().notEmpty().withMessage('Hostname é obrigatório'),
+    body('hostname').optional().trim(),
     body('processor').optional().trim(),
     body('ram').optional().trim(),
     body('storage').optional().trim(),
@@ -187,39 +186,40 @@ const TYPE_SPECIFIC_VALIDATIONS = {
   ],
 
   notebook: [
-    body('hostname').trim().notEmpty().withMessage('Hostname é obrigatório'),
+    body('hostname').optional().trim(),
     body('battery_level')
-      .optional()
+      .optional({ checkFalsy: true })
       .isInt({ min: 0, max: 100 })
       .withMessage('Nível de bateria deve estar entre 0 e 100'),
     body('battery_health').optional().trim(),
-    body('is_encrypted').optional().isBoolean(),
+    body('is_encrypted').optional({ checkFalsy: true }).isBoolean(),
   ],
 
   panel: [
-    body('hostname').trim().notEmpty().withMessage('Hostname é obrigatório'),
+    body('hostname').optional().trim(),
     body('screen_size').optional().trim(),
     body('resolution').optional().trim(),
     body('brightness')
-      .optional()
+      .optional({ checkFalsy: true })
       .isInt({ min: 0, max: 100 })
       .withMessage('Brilho deve estar entre 0 e 100'),
     body('volume')
-      .optional()
+      .optional({ checkFalsy: true })
       .isInt({ min: 0, max: 100 })
       .withMessage('Volume deve estar entre 0 e 100'),
     body('hdmi_input').optional().trim(),
   ],
 
   printer: [
-    body('hostname').trim().notEmpty().withMessage('Hostname é obrigatório'),
+    body('hostname').optional().trim(),
     body('connection_type')
+      .optional({ checkFalsy: true })
       .isIn(['network', 'usb', 'bluetooth'])
       .withMessage('Tipo de conexão inválido (network, usb ou bluetooth)'),
     body('printer_status').optional().trim(),
-    body('is_duplex').optional().isBoolean(),
-    body('is_color').optional().isBoolean(),
-    body('total_page_count').optional().isInt({ min: 0 }),
+    body('is_duplex').optional({ checkFalsy: true }).isBoolean(),
+    body('is_color').optional({ checkFalsy: true }).isBoolean(),
+    body('total_page_count').optional({ checkFalsy: true }).isInt({ min: 0 }),
   ],
 
   mobile: [

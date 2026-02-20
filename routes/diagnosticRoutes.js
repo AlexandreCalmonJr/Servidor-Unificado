@@ -4,7 +4,7 @@
 
 const express = require('express');
 const locationService = require('../services/locationService');
-const Device = require('../models/Device');
+const { Device } = require('../models/Device');
 const BssidMapping = require('../models/BssidMapping');
 const UnitMapping = require('../models/UnitMapping');
 
@@ -91,7 +91,7 @@ const diagnosticRoutes = (logger, getApiLimiter, auth) => {
   router.get('/bssid-validation', auth, getApiLimiter, async (req, res) => {
     try {
       const bssids = await BssidMapping.find().lean();
-      
+
       const report = {
         total: bssids.length,
         valid: 0,
@@ -107,7 +107,7 @@ const diagnosticRoutes = (logger, getApiLimiter, auth) => {
       bssids.forEach(b => {
         const normalized = locationService.normalizeMac(b.mac_address_radio);
         const isGeneric = locationService.isGenericMac(b.mac_address_radio);
-        
+
         const item = {
           _id: b._id,
           original: b.mac_address_radio,
@@ -180,10 +180,10 @@ const diagnosticRoutes = (logger, getApiLimiter, auth) => {
           { floor: 'Desconhecido' }
         ]
       })
-      .select('device_name serial_number ip_address mac_address_radio unit sector floor last_seen')
-      .sort({ last_seen: -1 })
-      .limit(50)
-      .lean();
+        .select('device_name serial_number ip_address mac_address_radio unit sector floor last_seen')
+        .sort({ last_seen: -1 })
+        .limit(50)
+        .lean();
 
       const analysis = await Promise.all(
         devices.map(async (device) => {
@@ -243,7 +243,7 @@ const diagnosticRoutes = (logger, getApiLimiter, auth) => {
   router.get('/cache-stats', auth, getApiLimiter, async (req, res) => {
     try {
       const stats = locationService.getCacheStats();
-      
+
       res.json({
         success: true,
         cache: stats
@@ -264,11 +264,11 @@ const diagnosticRoutes = (logger, getApiLimiter, auth) => {
   router.post('/invalidate-cache', auth, async (req, res) => {
     try {
       locationService.invalidateCache();
-      
+
       logger.info('Cache de localização invalidado', {
         username: req.user.username
       });
-      
+
       res.json({
         success: true,
         message: 'Cache invalidado com sucesso. Próxima consulta recarregará os dados.'
@@ -290,19 +290,19 @@ const diagnosticRoutes = (logger, getApiLimiter, auth) => {
     try {
       // Busca dispositivos com BSSID não genérico mas sem mapeamento
       const devices = await Device.find({
-        mac_address_radio: { 
-          $exists: true, 
-          $nin: ['N/A', '02:00:00:00:00:00', '00:00:00:00:00:00'] 
+        mac_address_radio: {
+          $exists: true,
+          $nin: ['N/A', '02:00:00:00:00:00', '00:00:00:00:00:00']
         },
         $or: [
           { sector: 'Desconhecido' },
           { floor: 'Desconhecido' }
         ]
       })
-      .select('device_name serial_number mac_address_radio sector floor')
-      .sort({ last_seen: -1 })
-      .limit(20)
-      .lean();
+        .select('device_name serial_number mac_address_radio sector floor')
+        .sort({ last_seen: -1 })
+        .limit(20)
+        .lean();
 
       const existingBssids = await BssidMapping.find().lean();
       const existingMacs = new Set(
@@ -312,7 +312,7 @@ const diagnosticRoutes = (logger, getApiLimiter, auth) => {
       const suggestions = devices
         .map(d => {
           const normalized = locationService.normalizeMac(d.mac_address_radio);
-          
+
           if (!normalized || existingMacs.has(normalized)) {
             return null;
           }

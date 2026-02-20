@@ -3,7 +3,22 @@ const AssetCommand = require('../models/AssetCommand');
 const Module = require('../models/AssetModuleConfig');
 const mongoose = require('mongoose');
 
-// ... (PREDEFINED_COMMANDS remain unchanged)
+const PREDEFINED_COMMANDS = {
+  restart_computer: { cmd: 'shutdown /r /t 30 /f', requiresElevation: true, timeout: 60000 },
+  flush_dns: { cmd: 'ipconfig /flushdns', requiresElevation: false, timeout: 30000 },
+  restart_print_spooler: { cmd: 'net stop spooler && net start spooler', requiresElevation: true, timeout: 60000 },
+  clear_temp: { cmd: 'del /q/f/s %TEMP%\\*', requiresElevation: true, timeout: 300000 },
+  check_disk: { cmd: 'chkdsk C: /F', requiresElevation: true, timeout: 600000 },
+  network_reset: { cmd: 'netsh winsock reset', requiresElevation: true, timeout: 60000 },
+  restart_automatos: { cmd: 'taskkill /f /im automatos.exe && start automatos.exe', requiresElevation: true, timeout: 60000 },
+  restart_ndd: { cmd: 'taskkill /f /im ndd.exe && start ndd.exe', requiresElevation: true, timeout: 60000 },
+  install_update: { cmd: 'wuauclt /detectnow /updatenow', requiresElevation: true, timeout: 600000 },
+  reboot_device: { cmd: 'INTERNAL_REBOOT', requiresElevation: false, timeout: 60000 },
+  lock_device: { cmd: 'INTERNAL_LOCK', requiresElevation: false, timeout: 60000 },
+  wipe_data: { cmd: 'INTERNAL_WIPE', requiresElevation: false, timeout: 60000 },
+  send_message: { cmd: 'INTERNAL_MESSAGE', requiresElevation: false, timeout: 60000 },
+  install_apk: { cmd: 'INTERNAL_APK_INSTALL', requiresElevation: false, timeout: 60000 }
+};
 
 exports.createCommand = async (req, res) => {
   const logger = req.logger || console;

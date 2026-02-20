@@ -66,7 +66,8 @@
 
         try {
             const devices = await API.get('/devices');
-            const list = Array.isArray(devices) ? devices : (devices.devices || devices.data || []);
+            const listRaw = Array.isArray(devices) ? devices : (devices.devices || devices.data || []);
+            const list = listRaw.filter(d => !['mobile', 'totem'].includes(d.device_type || d.type));
 
             const counts = {};
             list.forEach(d => {
@@ -152,7 +153,8 @@
 
         try {
             const devices = await API.get('/devices');
-            const list = Array.isArray(devices) ? devices : (devices.devices || devices.data || []);
+            const listRaw = Array.isArray(devices) ? devices : (devices.devices || devices.data || []);
+            const list = listRaw.filter(d => !['mobile', 'totem'].includes(d.device_type || d.type));
             const recent = list.slice(0, 5);
 
             if (recent.length === 0) {
@@ -207,7 +209,8 @@
         try {
             // 1. Fetch active modules
             const modulesData = await API.get('/modules');
-            const modules = modulesData.modules || [];
+            // Remove mobile and totems from dashboard summary as requested
+            const modules = (modulesData.modules || []).filter(m => !['mobile', 'totem'].includes(m.type));
 
             if (modules.length === 0) {
                 grid.innerHTML = '<div class="metric-card"><div class="metric-sub">Nenhum módulo ativo</div></div>';

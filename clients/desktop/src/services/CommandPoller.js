@@ -77,76 +77,25 @@ function getLegacyHeaders(token) {
 // SYSTEM INFO  (monitoring_service.dart → _getCoreSystemInfo via PS1)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const CORE_INFO_SCRIPT = `
-$ErrorActionPreference = 'SilentlyContinue'
-$activeAdapter = Get-NetAdapter | Where-Object { $_.Status -eq 'Up' -and !$_.Virtual } | Select-Object -First 1
-$ipInfo = $activeAdapter | Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Select-Object -First 1
-$ipAddress = if ($ipInfo) { $ipInfo.IPAddress } else { '0.0.0.0' }
-$macAddress = if ($activeAdapter) { ($activeAdapter.MacAddress -replace '-', ':').ToUpper() } else { 'N/A' }
-$wifiInterface = Get-NetAdapter | Where-Object { $_.Status -eq 'Up' -and $_.PhysicalMediaType -like '*802.11*' } | Select-Object -First 1
-$wlanOutput = netsh wlan show interfaces 2>$null
-$bssid = 'N/A'; $ssid = 'N/A'; $signal = 'N/A'
-if ($wlanOutput) {
-    $bssidLine = $wlanOutput | Select-String 'BSSID' | Select-Object -First 1
-    if ($bssidLine) { $bssid = ($bssidLine.ToString() -split ':',2)[1].Trim() }
-    $ssidLine  = $wlanOutput | Select-String '^\s+SSID\s+:' | Select-Object -First 1
-    if ($ssidLine)  { $ssid  = ($ssidLine.ToString()  -split ':',2)[1].Trim() }
-    $sigLine   = $wlanOutput | Select-String 'Signal' | Select-Object -First 1
-    if ($sigLine)   { $signal = ($sigLine.ToString()   -split ':',2)[1].Trim() }
-}
-$connectionType  = if ($wifiInterface) { 'WiFi' } else { 'Ethernet' }
-$macAddressRadio = if ($wifiInterface) { ($wifiInterface.MacAddress -replace '-', ':').ToUpper() } else { 'N/A' }
-$uptime = (Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime
-$uptimeString = "$($uptime.Days)d $($uptime.Hours)h $($uptime.Minutes)m"
-$serial = (Get-WmiObject Win32_BIOS).SerialNumber
-if (!$serial -or $serial -eq 'N/A' -or $serial -match '^0+$') { $serial = $env:COMPUTERNAME }
-$cpu = Get-WmiObject Win32_Processor | Select-Object -First 1
-$mem = Get-WmiObject Win32_OperatingSystem
-$totalRamGB = [math]::Round((Get-WmiObject Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
-$osInfo = Get-WmiObject Win32_OperatingSystem
-$disk = Get-WmiObject Win32_DiskDrive | Select-Object -First 1
-$diskGB = if ($disk) { [math]::Round($disk.Size / 1GB) } else { 0 }
-$chassisTypes = (Get-WmiObject Win32_SystemEnclosure).ChassisTypes
-$notebookChassis = @(9,10,14,30,31,32)
-$isNotebook = [bool]($chassisTypes | Where-Object { $_ -in $notebookChassis })
-$battery = Get-WmiObject Win32_Battery | Select-Object -First 1
-$batteryLevel = if ($battery) { $battery.EstimatedChargeRemaining } else { $null }
-$batteryHealth = if ($battery) { 'Detectada' } else { $null }
-$gpu = (Get-WmiObject Win32_VideoController | Select-Object -First 1).Name
-$av = Get-MpComputerStatus 2>$null
-$avEnabled = if ($av) { $av.AntivirusEnabled } else { $false }
-$avVersion = if ($av) { $av.AntivirusSignatureVersion } else { 'N/A' }
-$diskModel = if ($disk) { $disk.Model } else { '' }
-$hdType = if ($diskModel -match 'SSD|NVMe|Solid') { 'SSD' } else { 'HDD' }
-@{
-    serial_number = $serial; hostname = $env:COMPUTERNAME
-    model = (Get-WmiObject Win32_ComputerSystem).Model
-    manufacturer = (Get-WmiObject Win32_ComputerSystem).Manufacturer
-    processor = $cpu.Name; ram = "${totalRamGB}GB"
-    storage = "${diskGB}GB"; storage_type = $hdType
-    operating_system = $osInfo.Caption; os_version = $osInfo.Version
-    ip_address = $ipAddress; mac_address = $macAddress
-    mac_address_radio = $macAddressRadio; wifi_ssid = $ssid
-    wifi_signal = $signal; connection_type = $connectionType
-    gpu = $gpu; current_user = $env:USERNAME
-    antivirus_status = $avEnabled; antivirus_version = $avVersion
-    is_notebook = $isNotebook; battery_level = $batteryLevel
-    battery_health = $batteryHealth; biometric_reader = 'N/A'
-    connected_printer = 'N/A'; installed_software = @()
-    java_version = 'N/A'; browser_version = 'N/A'; is_encrypted = $false
-    uptime = $uptimeString
-} | ConvertTo-Json -Compress
-`;
+const si = require('systeminformation');
 
 function _getSerialNumberSync() {
+    const isBadSerial = (s) => !s || /^0+$/.test(s) || s.toLowerCase().includes('default') || s.toLowerCase().includes('o.e.m.');
     try {
-        const out = execSync('wmic bios get serialnumber', { timeout: 5000 }).toString();
+        let out = '';
+        try {
+            out = execSync('wmic bios get serialnumber', { timeout: 5000 }).toString();
+        } catch (_) {
+            out = execSync('powershell -Command "(Get-WmiObject win32_bios).SerialNumber"', { timeout: 5000 }).toString();
+        }
+
         const serial = out.split('\n')
             .filter(l => l.trim() && !l.includes('SerialNumber'))
             .map(l => l.trim())[0];
-        if (serial && !/^0+$/.test(serial)) return serial;
+
+        if (!isBadSerial(serial)) return serial;
     } catch (_) { }
-    return os.hostname();
+    return null;
 }
 
 async function _getBssidManually() {
@@ -183,42 +132,85 @@ function _fallbackCoreInfo() {
 }
 
 async function getCoreSystemInfo() {
-    const tmpScript = path.join(os.tmpdir(), `core_info_${Date.now()}.ps1`);
     try {
-        fs.writeFileSync(tmpScript, CORE_INFO_SCRIPT, { encoding: 'utf8' });
+        const [cpu, osInfo, mem, disk, network, wifi, battery, graphics, uuid] = await Promise.all([
+            si.cpu(),
+            si.osInfo(),
+            si.mem(),
+            si.diskLayout(),
+            si.networkInterfaces(),
+            si.wifiNetworks(),
+            si.battery(),
+            si.graphics(),
+            si.uuid()
+        ]);
+
+        const totalRamGB = Math.round(mem.total / (1024 * 1024 * 1024));
+        const activeInterface = (Array.isArray(network) ? network : []).find(n => n.ip4 !== '127.0.0.1' && n.ip4) || {};
+        const ipAddress = activeInterface.ip4 || '0.0.0.0';
+        const macAddress = activeInterface.mac || 'N/A';
+
+        let wifiInterface = (Array.isArray(network) ? network : []).find(n => n.type === 'wireless' || (n.iface && n.iface.toLowerCase().includes('wi-fi')));
+        const connectionType = wifiInterface && activeInterface.mac === wifiInterface.mac ? 'WiFi' : 'Ethernet';
+
+        // try to get BSSID manually if wifi
+        let macAddressRadio = wifiInterface ? wifiInterface.mac : 'N/A';
+        if (!macAddressRadio || macAddressRadio === 'N/A') {
+            macAddressRadio = await _getBssidManually();
+        }
+
+        const activeWifi = (Array.isArray(wifi) ? wifi : []).find(w => w.ssid) || {};
+        const ssid = activeWifi.ssid || 'N/A';
+        const signal = activeWifi.signalLevel ? activeWifi.signalLevel.toString() : 'N/A';
+
+        const serial = _getSerialNumberSync() || uuid.os || uuid.macs[0];
+
+        const primaryDisk = (Array.isArray(disk) && disk.length > 0) ? disk[0] : {};
+        const diskGB = primaryDisk.size ? Math.round(primaryDisk.size / (1024 * 1024 * 1024)) : 0;
+        const hdType = (primaryDisk.type || '').toUpperCase().includes('NVME') || (primaryDisk.type || '').toUpperCase().includes('SSD') ? 'SSD' : 'HDD';
+
+        const gpu = (graphics && graphics.controllers && graphics.controllers.length > 0) ? graphics.controllers[0].model : 'N/A';
+
+        const isNotebook = battery.hasBattery;
+        const batteryLevel = isNotebook ? battery.percent : null;
+        const batteryHealth = isNotebook ? (battery.isCharging ? 'Carregando' : 'Detectada') : null;
+
+        const uptimeSecs = os.uptime();
+        const uptimeString = Math.floor(uptimeSecs / 86400) + "d " + Math.floor((uptimeSecs % 86400) / 3600) + "h " + Math.floor((uptimeSecs % 3600) / 60) + "m";
+
+        return {
+            serial_number: serial,
+            hostname: os.hostname(),
+            model: uuid.hardware || 'N/A',
+            manufacturer: cpu.vendor || 'N/A',
+            processor: cpu.brand || 'N/A',
+            ram: totalRamGB + "GB",
+            storage: diskGB + "GB",
+            storage_type: hdType,
+            operating_system: osInfo.distro || os.type(),
+            os_version: osInfo.release || os.release(),
+            ip_address: ipAddress,
+            mac_address: macAddress,
+            mac_address_radio: macAddressRadio,
+            wifi_ssid: ssid,
+            wifi_signal: signal,
+            connection_type: connectionType,
+            gpu: gpu,
+            current_user: os.userInfo().username || 'N/A',
+            antivirus_status: false,
+            antivirus_version: 'N/A',
+            is_notebook: isNotebook,
+            battery_level: batteryLevel,
+            battery_health: batteryHealth,
+            biometric_reader: 'N/A',
+            connected_printer: 'N/A',
+            installed_software: [],
+            java_version: 'N/A',
+        };
     } catch (e) {
-        console.error('[CommandPoller] Falha ao criar script temp:', e.message);
+        console.error('[CommandPoller] Erro ao obter informações do sistema via si:', e.message);
         return _fallbackCoreInfo();
     }
-
-    return new Promise(resolve => {
-        exec(
-            `powershell -ExecutionPolicy Bypass -NoProfile -File "${tmpScript}"`,
-            { timeout: 30000 },
-            async (err, stdout) => {
-                try { fs.unlinkSync(tmpScript); } catch (_) { }
-
-                if (err || !stdout.trim()) {
-                    console.error('[CommandPoller] Erro no script PS1:', err?.message);
-                    resolve(_fallbackCoreInfo());
-                    return;
-                }
-
-                try {
-                    const data = JSON.parse(stdout.trim());
-                    // getBssidManually se BSSID vazio (monitoring_service.dart)
-                    if (!data.mac_address_radio || data.mac_address_radio === 'N/A') {
-                        console.warn('[CommandPoller] ⚠️ BSSID não detectado. Tentando manualmente...');
-                        data.mac_address_radio = await _getBssidManually();
-                    }
-                    resolve(data);
-                } catch (e) {
-                    console.error('[CommandPoller] Erro ao parsear JSON:', e.message);
-                    resolve(_fallbackCoreInfo());
-                }
-            }
-        );
-    });
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -265,7 +257,7 @@ function buildLegacyPayload(coreInfo, sector, floor) {
 async function sendToLegacy(coreInfo, serverUrl, token, sector, floor) {
     const payload = buildLegacyPayload(coreInfo, sector, floor);
     console.log('[CommandPoller] 📤 Enviando dados para sistema legado de Totem...');
-    console.log(`[CommandPoller]    S/N: ${payload.serialNumber} | Hostname: ${payload.hostname}`);
+    console.log(`[CommandPoller]    S / N: ${payload.serialNumber} | Hostname: ${payload.hostname} `);
 
     const response = await axios.post(`${serverUrl}/api/monitor`, payload, {
         headers: getLegacyHeaders(token),
@@ -273,7 +265,7 @@ async function sendToLegacy(coreInfo, serverUrl, token, sector, floor) {
     });
 
     const location = response.data?.location || 'Desconhecida';
-    console.log(`[CommandPoller] ✅ Dados enviados ao sistema legado com sucesso! Localização: ${location}`);
+    console.log(`[CommandPoller] ✅ Dados enviados ao sistema legado com sucesso! Localização: ${location} `);
     return true;
 }
 
@@ -290,16 +282,6 @@ async function fetchModuleStructure(serverUrl, moduleId, token) {
 }
 
 async function _sendPayload(payload, serverUrl, moduleId, moduleType, token) {
-    // Validação (payload_validator.dart)
-    const validation = validatePayload(payload, moduleType);
-    if (!validation.isValid) {
-        console.error('[CommandPoller] ❌ Payload inválido:', validation.errors.join(', '));
-        throw new Error(`Payload inválido: ${validation.errors.join(', ')}`);
-    }
-    if (validation.warnings.length > 0) {
-        console.warn('[CommandPoller] ⚠️ Avisos:', validation.warnings.join(', '));
-    }
-
     // Sanitização (monitoring_service.dart → _sendPayload)
     let serial = String(payload.serial_number || '').trim();
     let assetName = String(payload.asset_name || '').trim();
@@ -317,12 +299,22 @@ async function _sendPayload(payload, serverUrl, moduleId, moduleType, token) {
     payload.asset_name = assetName;
     if (hostname && hostname !== 'N/A') payload.hostname = hostname;
 
-    console.log(`[CommandPoller] 📤 Enviando ativo: Nome="${assetName}" | S/N="${serial}"`);
+    // Validação (payload_validator.dart)
+    const validation = validatePayload(payload, moduleType);
+    if (!validation.isValid) {
+        console.error('[CommandPoller] ❌ Payload inválido:', validation.errors.join(', '));
+        throw new Error(`Payload inválido: ${validation.errors.join(', ')}`);
+    }
+    if (validation.warnings.length > 0) {
+        console.warn('[CommandPoller] ⚠️ Avisos:', validation.warnings.join(', '));
+    }
+
+    console.log(`[CommandPoller] 📤 Enviando ativo: Nome = "${assetName}" | S / N="${serial}"`);
 
     const response = await axios.post(
         `${serverUrl}/api/modules/${moduleId}/assets`,
         payload,
-        { headers: getHeaders(token), timeout: 30000 }
+        { headers: getHeaders(token), timeout: 30000, proxy: false }
     );
 
     const wasUpdated = response.data?.updated === true;
@@ -402,6 +394,7 @@ async function autoSelectModule(serverUrl, token, deviceType) {
         const response = await axios.get(`${serverUrl}/api/modules`, {
             headers: getHeaders(token),
             timeout: 10000,
+            proxy: false,
         });
         const modules = response.data?.modules || [];
 
@@ -505,6 +498,7 @@ async function fetchPendingCommands(serverUrl, moduleId, serialNumber, token) {
         const response = await axios.get(uri, {
             headers: getHeaders(token),
             timeout: 15000,
+            proxy: false,
         });
         return response.data?.commands || [];
     } catch (e) {
@@ -526,7 +520,7 @@ async function reportCommandResult(serverUrl, moduleId, commandId, token, { succ
         const response = await axios.post(
             `${serverUrl}/api/modules/${moduleId}/assets/commands/${commandId}/result`,
             body,
-            { headers: getHeaders(token), timeout: 15000 }
+            { headers: getHeaders(token), timeout: 15000, proxy: false }
         );
 
         if (response.status === 200) {

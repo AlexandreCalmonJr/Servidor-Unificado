@@ -136,33 +136,33 @@
             editId.value = mod._id || mod.id;
 
             // General
-            document.getElementById('form-module-name').value = mod.name || '';
-            document.getElementById('form-module-type').value = mod.type || 'custom';
-            document.getElementById('form-module-desc').value = mod.description || '';
-            document.getElementById('form-module-active').checked = mod.is_active !== false;
+            if (document.getElementById('form-module-name')) document.getElementById('form-module-name').value = mod.name || '';
+            if (document.getElementById('form-module-type')) document.getElementById('form-module-type').value = mod.type || 'custom';
+            if (document.getElementById('form-module-desc')) document.getElementById('form-module-desc').value = mod.description || '';
+            if (document.getElementById('form-module-active')) document.getElementById('form-module-active').checked = mod.is_active !== false;
 
             // Client Config
             const cc = mod.client_config || {};
-            document.getElementById('form-module-icon').value = cc.icon || 'box';
-            document.getElementById('form-module-color').value = cc.color || '#3b82f6';
-            document.getElementById('form-module-show-dash').checked = cc.show_on_dashboard !== false;
-            document.getElementById('form-module-tabs').value = (cc.tabs || []).join(', ');
+            if (document.getElementById('form-module-icon')) document.getElementById('form-module-icon').value = cc.icon || 'box';
+            if (document.getElementById('form-module-color')) document.getElementById('form-module-color').value = cc.color || '#3b82f6';
+            if (document.getElementById('form-module-show-dash')) document.getElementById('form-module-show-dash').checked = cc.show_on_dashboard !== false;
+            if (document.getElementById('form-module-tabs')) document.getElementById('form-module-tabs').value = (cc.tabs || []).join(', ');
 
             // Feature Flags
             const ff = mod.feature_flags || {};
-            document.getElementById('flag-remote-control').checked = !!ff.allow_remote_control;
-            document.getElementById('flag-track-location').checked = ff.track_location !== false;
-            document.getElementById('flag-require-auth').checked = ff.require_auth !== false;
+            if (document.getElementById('flag-remote-control')) document.getElementById('flag-remote-control').checked = !!ff.allow_remote_control;
+            if (document.getElementById('flag-track-location')) document.getElementById('flag-track-location').checked = ff.track_location !== false;
+            if (document.getElementById('flag-require-auth')) document.getElementById('flag-require-auth').checked = ff.require_auth !== false;
 
         } else {
             title.textContent = 'Novo Módulo';
             editId.value = '';
-            document.getElementById('form-module-active').checked = true;
-            document.getElementById('form-module-color').value = '#3b82f6';
-            document.getElementById('form-module-icon').value = 'box';
-            document.getElementById('form-module-show-dash').checked = true;
-            document.getElementById('flag-track-location').checked = true;
-            document.getElementById('flag-require-auth').checked = true;
+            if (document.getElementById('form-module-active')) document.getElementById('form-module-active').checked = true;
+            if (document.getElementById('form-module-color')) document.getElementById('form-module-color').value = '#3b82f6';
+            if (document.getElementById('form-module-icon')) document.getElementById('form-module-icon').value = 'box';
+            if (document.getElementById('form-module-show-dash')) document.getElementById('form-module-show-dash').checked = true;
+            if (document.getElementById('flag-track-location')) document.getElementById('flag-track-location').checked = true;
+            if (document.getElementById('flag-require-auth')) document.getElementById('flag-require-auth').checked = true;
         }
 
         modal.classList.add('active');

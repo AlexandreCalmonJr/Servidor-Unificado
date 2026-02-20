@@ -171,6 +171,7 @@ function createWindow() {
             const response = await axios.get(`${serverUrl}/api/modules`, {
                 headers,
                 timeout: 10000,
+                proxy: false,
             });
 
             return { success: true, modules: response.data?.modules || [] };
@@ -204,6 +205,7 @@ function createWindow() {
             const response = await axios.get(`${serverUrl}/api/auth/validate`, {
                 headers,
                 timeout: 10000,
+                proxy: false,
             });
 
             if (response.status === 401) throw new Error('Token inválido ou expirado.');
