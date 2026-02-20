@@ -7,16 +7,9 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 
-const {
-    Device,
-    Desktop,
-    Notebook,
-    Printer,
-    Totem,
-    Mobile,
-    Panel,
-    Scanner
-} = require('../models/Device');
+// ✅ CONSOLIDADO - Usar apenas ManagedAsset
+const ManagedAsset = require('../models/ManagedAsset');
+const AssetModule = require('../models/AssetModule');
 
 const AssetModuleConfig = require('../models/AssetModuleConfig');
 const UnitMapping = require('../models/UnitMapping');
@@ -51,7 +44,7 @@ async function seed() {
 
         // Limpeza
         console.log('🗑️  Limpando dados...');
-        await Device.deleteMany({});
+        await ManagedAsset.deleteMany({});
         await AssetModuleConfig.deleteMany({});
         await UnitMapping.deleteMany({});
         await BssidMapping.deleteMany({});
@@ -77,57 +70,85 @@ async function seed() {
         await AssetModuleConfig.insertMany(modules);
         console.log(`✅ ${modules.length} Módulos criados.`);
 
-        // 3. Devices (Totems)
-        const totems = [];
+        // ✅ CONSOLIDADO - Criar diversos tipos de ativos em ManagedAsset
+        const assets = [];
+        
+        // Totems
         for (let i = 0; i < COUNTS.totems; i++) {
-            totems.push({
-                serial_number: randSerial('TM'),
+            assets.push({
+                asset_type: 'totem',
                 asset_name: `Totem-${i + 1}`,
-                device_type: 'totem',
+                serial_number: randSerial('TM'),
                 ip_address: randIp(pick(IP_BASES)),
                 unit: pick(UNIT_NAMES),
                 status: pick(['online', 'offline']),
-                printer_status: pick(['OK', 'Paper Low', 'Error']),
-                hostname: `TOTEM-${i + 1}`
+                hostname: `TOTEM-${i + 1}`,
+                model: 'Totem v1'
             });
         }
-        await Totem.create(totems);
-        console.log(`✅ ${totems.length} Totems criados.`);
 
-        // 4. Devices (Desktops)
-        const desktops = [];
+        // Desktops
         for (let i = 0; i < 5; i++) {
-            desktops.push({
-                serial_number: randSerial('DT'),
+            assets.push({
+                asset_type: 'desktop',
                 asset_name: `Desktop-${i + 1}`,
-                device_type: 'desktop',
+                serial_number: randSerial('DT'),
                 ip_address: randIp(pick(IP_BASES)),
                 unit: pick(UNIT_NAMES),
                 sector: pick(SECTORS),
                 status: 'online',
                 model: 'Optiplex 3080',
-                operating_system: 'Windows 10'
+                operating_system: 'Windows 10',
+                hostname: `DESKTOP-${i + 1}`
             });
         }
-        await Desktop.create(desktops);
-        console.log(`✅ ${desktops.length} Desktops criados.`);
 
-        // 5. Devices (Mobiles)
-        const mobiles = [];
+        // Notebooks
         for (let i = 0; i < 5; i++) {
-            mobiles.push({
-                serial_number: randSerial('MB'),
-                asset_name: `Galaxy-A54-${i + 1}`,
-                device_type: 'mobile',
+            assets.push({
+                asset_type: 'notebook',
+                asset_name: `Notebook-${i + 1}`,
+                serial_number: randSerial('NB'),
                 ip_address: randIp(pick(IP_BASES)),
                 unit: pick(UNIT_NAMES),
+                sector: pick(SECTORS),
                 status: pick(['online', 'offline']),
-                battery_level: randInt(20, 100),
-                model: 'Samsung Galaxy A54'
+                model: 'ThinkPad E14',
+                operating_system: 'Windows 11',
+                hostname: `NOTEBOOK-${i + 1}`
             });
         }
-        await Mobile.create(mobiles);
-        console.log(`✅ ${mobiles.length} Mobiles criados.`);
+
+        // Printers
+        for (let i = 0; i < 3; i++) {
+            assets.push({
+                asset_type: 'printer',
+                asset_name: `Impressora-${i + 1}`,
+                serial_number: randSerial('PR'),
+                ip_address: randIp(pick(IP_BASES)),
+                unit: pick(UNIT_NAMES),
+                status: 'online',
+                model: 'HP LaserJet M306',
+                hostname: `PRINTER-${i + 1}`
+            });
+        }
+
+        // Painéis
+        for (let i = 0; i < 2; i++) {
+            assets.push({
+                asset_type: 'panel',
+                asset_name: `Painel-${i + 1}`,
+                serial_number: randSerial('PN'),
+                ip_address: randIp(pick(IP_BASES)),
+                unit: pick(UNIT_NAMES),
+                status: 'online',
+                model: 'LG 55" UHD',
+                hostname: `PANEL-${i + 1}`
+            });
+        }
+
+        await ManagedAsset.insertMany(assets);
+        console.log(`✅ ${assets.length} Ativos criados via ManagedAsset.`);
 
         console.log('\n🎉 Seed completado com sucesso!');
         process.exit(0);

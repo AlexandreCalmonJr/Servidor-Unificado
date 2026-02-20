@@ -3,13 +3,9 @@
 const cron = require('node-cron');
 const logger = require('../utils/logger'); // Ajuste o path se o logger estiver em outro lugar (ex: ./utils/logger)
 
-const models = [
-  require('../models/Desktop'),
-  require('../models/Notebook'),
-  require('../models/Printer'),
-  // Adicione mais modelos aqui, ex:
-  require('../models/Panel'),
-];
+// ✅ CONSOLIDADO - Usar apenas ManagedAsset
+const ManagedAsset = require('../models/ManagedAsset');
+const models = [ManagedAsset];
 
 /**
  * CORREÇÃO (Item 15): A função agora aceita o logger

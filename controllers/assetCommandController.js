@@ -57,15 +57,12 @@ exports.createCommand = async (req, res) => {
     }
 
     if (!AssetModel) {
-      // Fallback: Tenta mobile se nada mais der certo e o ID parecer mobile
-      if (moduleId === 'mobile') AssetModel = require('../models/Device').Mobile;
-
-      if (!AssetModel) {
-        return res.status(400).json({
-          success: false,
-          message: `Tipo de módulo inválido ou não suportado: "${moduleId}"`
-        });
-      }
+      // ✅ CONSOLIDADO - Usar sempre ManagedAsset (asset_type identifica o tipo)
+      // Mobile foi consolidado em ManagedAsset
+      return res.status(400).json({
+        success: false,
+        message: `Tipo de módulo inválido ou não suportado: "${moduleId}"`
+      });
     }
 
     // 3. Buscar o ativo no banco
@@ -261,18 +258,9 @@ exports.getCommandHistory = async (req, res) => {
 };
 
 /**
- * Função auxiliar para mapear tipo/nome para o Model Mongoose
+ * ✅ CONSOLIDADO - Função removida (não mais necessária)
+ * Todos os commands agora usam apenas AssetCommand model
+ * com asset_type field para identificar o tipo de ativo
  */
-function getAssetModel(identifier) {
-  if (!identifier) return null;
-  const id = identifier.toString().toLowerCase();
-
-  // Verifica se o texto contém 'desktop' ou 'notebook'
-  if (id.includes('desktop')) return Desktop;
-  if (id.includes('notebook')) return Notebook;
-  if (id.includes('laptop')) return Notebook;
-
-  return null;
-}
 
 module.exports = exports;

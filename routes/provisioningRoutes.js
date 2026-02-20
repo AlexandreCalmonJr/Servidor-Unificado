@@ -187,46 +187,23 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
       if (device) {
         Object.assign(device, deviceData);
       } else {
-        // DETECT DEVICE TYPE BASED ON CONFIG PROFILE
+        // ✅ CONSOLIDADO - Usar ManagedAsset para todos os tipos de ativos
         const targetType = configProfile.module_type || 'desktop';
         logger.info(`Provisioning: Serial=${serial_number}, Profile=${configProfile.name}, TargetType=${targetType}`);
 
-        let ModelToUse = Device;
-
-        // Dynamic Model Selection
-        switch (targetType) {
-          case 'mobile':
-            const { Mobile } = require('../models/Device');
-            ModelToUse = Mobile;
-            break;
-          case 'totem':
-            const { Totem } = require('../models/Device');
-            ModelToUse = Totem;
-            break;
-          case 'panel':
-            const { Panel } = require('../models/Device');
-            ModelToUse = Panel;
-            break;
-          case 'printer':
-            const { Printer } = require('../models/Device');
-            ModelToUse = Printer;
-            break;
-          case 'notebook':
-            const { Notebook } = require('../models/Device');
-            ModelToUse = Notebook;
-            break;
-          case 'desktop':
-            const { Desktop } = require('../models/Device');
-            ModelToUse = Desktop;
-            break;
-          case 'scanner':
-            const { Scanner } = require('../models/Device');
-            ModelToUse = Scanner;
-            break;
-          default:
-            const { Custom } = require('../models/Device');
-            ModelToUse = Custom;
+        // Validar tipo de ativo
+        const validTypes = ['desktop', 'notebook', 'panel', 'printer', 'totem', 'mobile', 'scanner', 'custom'];
+        if (!validTypes.includes(targetType)) {
+          logger.error(`Tipo de ativo inválido: ${targetType}`);
+          throw new Error(`Tipo de ativo não suportado: ${targetType}`);
         }
+
+        // ✅ Sempre usar ManagedAsset com asset_type
+        const ManagedAsset = require('../models/ManagedAsset');
+        const ModelToUse = ManagedAsset;
+        
+        // Adicionar asset_type ao deviceData
+        deviceData.asset_type = targetType;
 
         // Safety fallback for mobile traits
         if (secure_android_id || android_id || imei) {

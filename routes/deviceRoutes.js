@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, validationResult, query, matchedData } = require('express-validator');
 const { Device } = require('../models/Device');
-const Command = require('../models/Command');
+const AssetCommand = require('../models/AssetCommand');  // ✅ FIX: Usar apenas AssetCommand
 const LocationHistory = require('../models/LocationHistory');
 const locationService = require('../services/locationService');
 const { validationErrorHandler, NotFoundError, BadRequestError, ForbiddenError } = require('../middleware/error');
@@ -25,17 +25,18 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
       }
       deviceAuth(req, res, (err2) => {
         if (!err2) {
-          logger.warn('Autenticação de fallback: Legacy Token usado em rota de painel (auth)', {
+          // ✅ FIX: Usar role 'device' ao invés de 'admin'
+          logger.info('Autenticação de dispositivo: Token device usado', {
             ip: req.ip,
             path: req.originalUrl,
             userAgent: req.get('User-Agent')
           });
           req.user = {
-            id: 'legacy_token_user',
-            username: 'legacy_device_admin',
-            role: 'admin',
+            id: req.deviceId || 'device_unknown',
+            username: `device_${req.deviceId || 'unknown'}`,
+            role: 'device',  // ✅ Permissão reduzida
             sector: 'Global',
-            permissions: ['mobile', 'totem', 'admin']
+            permissions: ['read_own_data', 'send_updates']  // ✅ Permissões específicas
           };
           return next();
         }
@@ -221,31 +222,18 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
     }
     const { serial_number } = matchedData(req);
 
-    const commands = await Command.find({
-      serial_number,
-      status: 'pending'
-    }).lean();
-
-    const AssetCommand = require('../models/AssetCommand');
-    const assetCommands = await AssetCommand.find({
+    // ✅ FIX: Consolidado - usar apenas AssetCommand
+    const commands = await AssetCommand.find({
       serialNumber: serial_number,
       status: 'pending'
     }).lean();
 
     if (commands.length > 0) {
-      await Command.updateMany(
-        { _id: { $in: commands.map(c => c._id) } },
-        { $set: { status: 'sent' } }
-      );
-      logger.logDeviceOperation('commands_sent', { serial_number }, { count: commands.length, source: 'devices' });
-    }
-
-    if (assetCommands.length > 0) {
       await AssetCommand.updateMany(
-        { _id: { $in: assetCommands.map(c => c._id) } },
+        { _id: { $in: commands.map(c => c._id) } },
         { $set: { status: 'sent', sentAt: new Date() } }
       );
-      logger.logDeviceOperation('commands_sent', { serial_number }, { count: assetCommands.length, source: 'assets' });
+      logger.logDeviceOperation('commands_sent', { serial_number }, { count: commands.length });
     }
 
     function mapAssetCommandType(type) {
@@ -260,18 +248,14 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
       return mapping[type] || type;
     }
 
-    const allCommands = [
-      ...commands.map(c => ({ ...c, _source: 'device' })),
-      ...assetCommands.map(c => ({
-        _id: c._id,
-        serial_number: c.serialNumber,
-        command: mapAssetCommandType(c.commandType),
-        parameters: c.parameters || {},
-        status: c.status,
-        createdAt: c.createdAt,
-        _source: 'asset'
-      }))
-    ];
+    const allCommands = commands.map(c => ({
+      _id: c._id,
+      serial_number: c.serialNumber,
+      command: mapAssetCommandType(c.commandType),
+      parameters: c.parameters || {},
+      status: c.status,
+      createdAt: c.createdAt
+    }));
 
     res.status(200).json({
       success: true,
@@ -299,34 +283,25 @@ const deviceRoutes = (logger, cache, getApiLimiter, modifyApiLimiter, deviceAuth
       throw new BadRequestError('serial_number ou command_id é obrigatório');
     }
 
-    let commandUpdated = false;
+    // ✅ FIX: Consolidado - usar apenas AssetCommand
     const updateData = {
       status: success ? 'completed' : 'failed',
-      result: result || error_message,
+      result: { stdout: result, stderr: error_message },
       executedAt: new Date(),
       completedAt: new Date()
     };
 
-    let command = await Command.findByIdAndUpdate(command_id, updateData, { new: true });
+    let command = await AssetCommand.findByIdAndUpdate(command_id, updateData, { new: true });
 
-    if (command) {
-      commandUpdated = true;
-    } else {
-      const AssetCommand = require('../models/AssetCommand');
-      command = await AssetCommand.findByIdAndUpdate(command_id, updateData, { new: true });
-      if (command) commandUpdated = true;
-    }
-
-    if (!commandUpdated && serial_number) {
-      command = await Command.findOneAndUpdate(
-        { serial_number, status: 'sent' },
+    if (!command && serial_number) {
+      command = await AssetCommand.findOneAndUpdate(
+        { serialNumber: serial_number, status: 'sent' },
         updateData,
         { new: true, sort: { createdAt: -1 } }
       );
-      if (command) commandUpdated = true;
     }
 
-    if (!commandUpdated) {
+    if (!command) {
       logger.warn(`Tentativa de reportar resultado para comando inexistente ou já processado: ${command_id}`);
       return res.status(200).json({ success: false, message: 'Comando não encontrado ou já finalizado' });
     }

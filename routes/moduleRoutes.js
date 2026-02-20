@@ -35,17 +35,18 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
 
       deviceAuth(req, res, (err2) => {
         if (!err2) {
-          logger.warn('Fallback: Legacy Token usado', {
+          // ✅ FIX: Usar role 'device' ao invés de 'admin'
+          logger.info('Autenticação de dispositivo: Token device usado', {
             ip: req.ip,
             path: req.originalUrl,
             userAgent: req.get('User-Agent'),
           });
           req.user = {
-            id: 'legacy_token_agent',
-            username: 'agent_system',
-            role: 'admin',
+            id: req.deviceId || 'device_unknown',
+            username: `device_${req.deviceId || 'unknown'}`,
+            role: 'device',  // ✅ Permissão reduzida
             sector: 'Global',
-            permissions: ['mobile', 'totem', 'admin'],
+            permissions: ['read_own_data', 'send_updates'],  // ✅ Permissões específicas
           };
           return next();
         }

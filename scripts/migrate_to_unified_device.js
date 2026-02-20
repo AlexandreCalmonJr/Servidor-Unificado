@@ -5,10 +5,8 @@ require('dotenv').config();
 // Carrega Modelos Legados (Assumindo que os arquivos ainda existem)
 // Se já foram deletados, precisaríamos definir schemas inline temporários
 const LegacyTotem = require('../models/Totem');
-const LegacyDesktop = require('../models/Desktop');
-const LegacyNotebook = require('../models/Notebook');
-const LegacyPrinter = require('../models/Printer');
-const LegacyPanel = require('../models/Panel');
+// ✅ CONSOLIDADO - Desktop/Notebook/Printer/Panel foram unificados em ManagedAsset
+const LegacyManagedAsset = require('../models/ManagedAsset');
 // Device Mobile já era 'Device', mas precisamos atualizar para o novo Schema se mudou muito
 // ou se vamos renomear a collection antiga e migrar. 
 // Assumindo: 'Device' antigo -> 'devices_legacy_mobile' (vamos renomear para segurança antes?)

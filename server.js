@@ -243,6 +243,7 @@ const { getApiLimiter, modifyApiLimiter, enrollLimiter } = require('./middleware
 const { errorHandler } = require('./middleware/error');
 
 // Controllers
+// ✅ CONSOLIDADO - totemController agora usa ManagedAsset
 const totemController = require('./controllers/totemController');
 
 // Routes Files
@@ -258,7 +259,6 @@ const publicRoutes = require('./routes/publicRoutes');
 const provisioningRoutes = require('./routes/provisioningRoutes');
 const configProfileRoutes = require('./routes/configProfileRoutes');
 const diagnosticRoutes = require('./routes/diagnosticRoutes');
-const totemRoutes = require('./routes/totemRoutes');
 
 
 // ===== ROTAS PÚBLICAS (sem autenticação) =====
@@ -290,8 +290,8 @@ app.use('/api/diagnostic', diagnosticRoutes(logger, getApiLimiter, auth));
 
 app.use('/api/monitoring', monitoringRoutes(logger, modifyApiLimiter, auth));
 app.use('/api/server', serverRoutes(logger, getApiLimiter, auth));
-app.use('/api/diagnostics', diagnosticRoutes(logger, getApiLimiter, auth));
-app.use('/api/totems', totemRoutes(logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth));
+// ✅ FIX: Removida rota duplicada /api/diagnostics
+// ✅ CONSOLIDADO: /api/totems → /api/modules/totem/assets (moduleRoutes)
 
 // ===== EJS ENGINE =====
 app.set('view engine', 'ejs');

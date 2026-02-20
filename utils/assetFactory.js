@@ -1,51 +1,33 @@
 // File: utils/assetFactory.js
-// Sistema unificado de Factory + Validações + Transformações
+// ✅ CONSOLIDADO - Sistema unificado usando ManagedAsset
 // ===================================================================
 
-// File: utils/assetFactory.js
-// Sistema unificado de Factory + Validações + Transformações
-// ===================================================================
-
-const {
-  Device,
-  Desktop,
-  Notebook,
-  Panel,
-  Printer,
-  Totem,
-  Mobile, // Discriminator para 'mobile'
-  Scanner,
-  Custom
-} = require('../models/Device');
+const ManagedAsset = require('../models/ManagedAsset');
 
 const { body, validationResult } = require('express-validator');
 const locationService = require('../services/locationService');
 
 // ===================================================================
-// 1. REGISTRO DE MODELOS (Agora usando Discriminators)
+// 1. REGISTRO DE TIPOS DE ASSETS (Consolidado em ManagedAsset)
 // ===================================================================
 
-const MODEL_REGISTRY = {
+const ASSET_TYPES = {
   desktop: {
-    model: Desktop,
     displayName: 'Desktop',
     icon: 'computer',
     description: 'Computadores desktop fixos',
   },
   notebook: {
-    model: Notebook,
     displayName: 'Notebook',
     icon: 'laptop',
     description: 'Notebooks e laptops',
   },
   panel: {
-    model: Panel,
     displayName: 'Painel/TV',
     icon: 'tv',
     description: 'Painéis, TVs e monitores',
   },
   printer: {
-    model: Printer,
     displayName: 'Impressora',
     icon: 'print',
     description: 'Impressoras e multifuncionais',
@@ -65,11 +47,13 @@ const MODEL_REGISTRY = {
   scanner: {
     model: Scanner,
     displayName: 'Coletor',
+  },
+  scanner: {
+    displayName: 'Scanner',
     icon: 'qr_code_scanner',
     description: 'Coletores de dados',
   },
   custom: {
-    model: Custom,
     displayName: 'Outros',
     icon: 'devices_other',
     description: 'Outros dispositivos',
@@ -81,24 +65,25 @@ const MODEL_REGISTRY = {
 // ===================================================================
 
 /**
- * Retorna o modelo Mongoose baseado no tipo
+ * Retorna o modelo ManagedAsset para todos os tipos
+ * ✅ CONSOLIDADO - Todos os tipos agora usam ManagedAsset com asset_type
  * @param {string} moduleType - Tipo do módulo
- * @returns {Model} Modelo Mongoose
+ * @returns {Model} ManagedAsset Model
  * @throws {Error} Se tipo não for suportado
  */
 function getModelByType(moduleType) {
   const normalizedType = moduleType.toLowerCase().trim();
-  const entry = MODEL_REGISTRY[normalizedType];
+  const entry = ASSET_TYPES[normalizedType];
 
   if (!entry) {
-    const available = Object.keys(MODEL_REGISTRY).join(', ');
+    const available = Object.keys(ASSET_TYPES).join(', ');
     throw new Error(
       `Tipo de módulo não suportado: "${moduleType}". ` +
       `Tipos disponíveis: ${available}`
     );
   }
 
-  return entry.model;
+  return ManagedAsset;  // ← Sempre retorna ManagedAsset
 }
 
 /**
@@ -108,7 +93,7 @@ function getModelByType(moduleType) {
  */
 function getModuleInfo(moduleType) {
   const normalizedType = moduleType.toLowerCase().trim();
-  return MODEL_REGISTRY[normalizedType] || null;
+  return ASSET_TYPES[normalizedType] || null;
 }
 
 /**

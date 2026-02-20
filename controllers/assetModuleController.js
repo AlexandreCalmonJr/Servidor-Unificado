@@ -1,38 +1,17 @@
 // controllers/assetModuleController.js
 const AssetModuleConfig = require('../models/AssetModuleConfig');
-const {
-  Panel,
-  Desktop,
-  Notebook,
-  Printer,
-  Mobile, // Antigo 'Device'
-  Totem,
-  Scanner,
-  Custom
-} = require('../models/Device');
+// ✅ CONSOLIDADO - Desktop/Notebook/Printer/Panel unificados em ManagedAsset
+const ManagedAsset = require('../models/ManagedAsset');
 const User = require('../models/User'); // Para permissões
 
-// Mapeia o 'moduleId' (identificador) para o Modelo Mongoose
-const assetModels = {
-  panel: Panel,
-  desktop: Desktop,
-  notebook: Notebook,
-  printer: Printer,
-  mobile: Mobile,
-  totem: Totem,
-  scanner: Scanner,
-  custom: Custom,
-};
-
-/**
- * Helper para obter o modelo Mongoose com base no ID do módulo (identificador)
- */
+// ✅ Consolidado - Usar ManagedAsset com asset_type para todos os tipos de ativos
 const getModelByIdentifier = (identifier) => {
-  const Model = assetModels[identifier];
-  if (!Model) {
-    throw new Error('Módulo de ativo não encontrado');
+  // Validar se asset_type é válido
+  const validTypes = ['desktop', 'notebook', 'panel', 'printer', 'totem', 'custom', 'mobile'];
+  if (!validTypes.includes(identifier)) {
+    throw new Error(`Tipo de ativo inválido: ${identifier}`);
   }
-  return Model;
+  return ManagedAsset;  // ← Retornar sempre ManagedAsset
 };
 
 // --- Funções para Ativos (Assets) ---
