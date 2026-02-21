@@ -16,3 +16,6 @@ dist/
 build/
 .vscode/
 .idea/
+.expo/
+node_modules/
+web-build/
