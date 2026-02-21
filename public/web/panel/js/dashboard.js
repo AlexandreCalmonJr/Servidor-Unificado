@@ -7,15 +7,14 @@
 
     function loadDashboard() {
         loadMetrics();
-        loadRecentDevices();
-        loadDeviceStatusChart();
+        loadRecentAssets();
+        loadAssetStatusChart();
         loadModuleStats();
 
-        // Auto-refresh every 30s
         if (refreshInterval) clearInterval(refreshInterval);
         refreshInterval = setInterval(() => {
             loadMetrics();
-            loadDeviceStatusChart();
+            loadAssetStatusChart();
             loadModuleStats();
         }, 30000);
     }
@@ -24,7 +23,7 @@
         try {
             const data = await API.get('/server/status');
 
-            setText('m-devices', data.device_count ?? '--');
+            setText('m-devices', data.asset_count ?? data.device_count ?? '--');
             setText('m-provisioned', data.provisioned_devices ?? '--');
             setText('m-commands', data.pending_commands ?? '--');
 
@@ -40,38 +39,34 @@
             const uptime = data.uptime ?? 0;
             setText('m-uptime', formatUptime(uptime));
 
-            // Topbar server status
             const dot = document.getElementById('server-status-dot');
             const uptimeEl = document.getElementById('server-uptime');
             if (dot) dot.className = 'status-dot';
             if (uptimeEl) uptimeEl.textContent = formatUptime(uptime);
 
-            // Sub-texts
             const devSub = document.getElementById('m-devices-sub');
-            if (devSub) devSub.textContent = 'registrados';
+            if (devSub) devSub.textContent = 'ativos registrados';
             const provSub = document.getElementById('m-provisioned-sub');
-            if (provSub) provSub.textContent = `de ${data.device_count ?? 0}`;
+            if (provSub) provSub.textContent = `de ${data.asset_count ?? data.device_count ?? 0}`;
 
-            // Resource chart
             renderResourceChart(cpu, mem);
-
         } catch (err) {
             console.error('Erro ao carregar métricas:', err);
         }
     }
 
-    async function loadDeviceStatusChart() {
+    // GET /api/monitoring/assets — todos os ativos (sem filtro de tipo)
+    async function loadAssetStatusChart() {
         const canvas = document.getElementById('chart-status');
         if (!canvas || typeof Chart === 'undefined') return;
 
         try {
-            const devices = await API.get('/devices');
-            const listRaw = Array.isArray(devices) ? devices : (devices.devices || devices.data || []);
-            const list = listRaw.filter(d => !['mobile', 'totem'].includes(d.device_type || d.type));
+            const data = await API.get('/monitoring/assets');
+            const list = Array.isArray(data) ? data : (data.assets || []);
 
             const counts = {};
-            list.forEach(d => {
-                const st = d.provisioning_status || d.status || 'unknown';
+            list.forEach(a => {
+                const st = a.status || 'unknown';
                 counts[st] = (counts[st] || 0) + 1;
             });
 
@@ -79,9 +74,9 @@
             const values = Object.values(counts);
             const colors = labels.map(l => {
                 const map = {
-                    completed: '#22c55e', active: '#22c55e', online: '#22c55e',
-                    pending: '#f59e0b', in_progress: '#f59e0b',
-                    failed: '#ef4444', offline: '#ef4444',
+                    active: '#22c55e', online: '#22c55e', completed: '#22c55e',
+                    pending: '#f59e0b', in_progress: '#f59e0b', warning: '#f59e0b',
+                    failed: '#ef4444', offline: '#ef4444', inactive: '#ef4444',
                     maintenance: '#8b5cf6',
                 };
                 return map[l] || '#64748b';
@@ -132,72 +127,62 @@
                 maintainAspectRatio: false,
                 scales: {
                     y: {
-                        beginAtZero: true,
-                        max: 100,
+                        beginAtZero: true, max: 100,
                         ticks: { color: '#64748b', callback: v => v + '%' },
                         grid: { color: 'rgba(100,116,139,0.15)' },
                     },
-                    x: {
-                        ticks: { color: '#94a3b8' },
-                        grid: { display: false },
-                    },
+                    x: { ticks: { color: '#94a3b8' }, grid: { display: false } },
                 },
                 plugins: { legend: { display: false } },
             },
         });
     }
 
-    async function loadRecentDevices() {
+    // GET /api/monitoring/assets — ativos recentes
+    async function loadRecentAssets() {
         const tbody = document.getElementById('recent-devices-body');
         if (!tbody) return;
 
         try {
-            const devices = await API.get('/devices');
-            const listRaw = Array.isArray(devices) ? devices : (devices.devices || devices.data || []);
-            const list = listRaw.filter(d => !['mobile', 'totem'].includes(d.device_type || d.type));
+            const data = await API.get('/monitoring/assets');
+            const list = Array.isArray(data) ? data : (data.assets || []);
             const recent = list.slice(0, 5);
 
             if (recent.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="empty-icon">📱</div><p>Nenhum dispositivo encontrado.</p></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="empty-icon">📦</div><p>Nenhum ativo encontrado.</p></td></tr>';
                 return;
             }
 
-            tbody.innerHTML = recent.map(d => {
+            tbody.innerHTML = recent.map(a => {
+                const st = (a.status || 'unknown').toLowerCase();
                 let statusColor = 'bg-slate-500/10 text-slate-400';
-                const st = (d.provisioning_status || d.status || 'unknown').toLowerCase();
-
                 if (['online', 'active', 'completed'].includes(st)) statusColor = 'bg-emerald-500/10 text-emerald-400';
-                else if (['offline', 'failed', 'error'].includes(st)) statusColor = 'bg-red-500/10 text-red-400';
-                else if (['pending', 'in_progress', 'warning'].includes(st)) statusColor = 'bg-amber-500/10 text-amber-400';
-                else if (['maintenance'].includes(st)) statusColor = 'bg-purple-500/10 text-purple-400';
+                else if (['offline', 'failed', 'error', 'inactive'].includes(st)) statusColor = 'bg-red-500/10 text-red-400';
+                else if (['pending', 'warning'].includes(st)) statusColor = 'bg-amber-500/10 text-amber-400';
+                else if (st === 'maintenance') statusColor = 'bg-purple-500/10 text-purple-400';
 
                 return `
-                <tr class="hover:bg-slate-800/50 transition-colors" data-device-id="${d._id || d.id}">
-                    <td class="p-4 border-b border-slate-800 text-white font-medium">${esc(d.device_name || d.name || 'N/A')}</td>
-                    <td class="p-4 border-b border-slate-800 font-mono text-xs">${esc(d.serial_number || d.serialNumber || 'N/A')}</td>
-                    <td class="p-4 border-b border-slate-800">${formatDate(d.last_seen || d.lastSeen || d.updatedAt)}</td>
-                    <td class="p-4 border-b border-slate-800">${esc(d.sector || d.location || 'N/A')}</td>
+                <tr data-asset-id="${a._id || a.id}">
+                    <td class="p-4 border-b border-slate-800 text-white font-medium">${esc(a.asset_name || a.name || 'N/A')}</td>
+                    <td class="p-4 border-b border-slate-800 font-mono text-xs">${esc(a.serial_number || 'N/A')}</td>
+                    <td class="p-4 border-b border-slate-800">${formatDate(a.last_seen || a.updatedAt)}</td>
+                    <td class="p-4 border-b border-slate-800">${esc(a.sector || a.location || 'N/A')}</td>
                     <td class="p-4 border-b border-slate-800">
-                        <span class="px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor}">
-                            ${st}
-                        </span>
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor}">${st}</span>
                     </td>
-                </tr>
-                `;
+                </tr>`;
             }).join('');
         } catch (err) {
-            tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><p>Erro ao carregar dispositivos.</p></td></tr>';
-            console.error('Erro ao carregar dispositivos recentes:', err);
+            tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><p>Erro ao carregar ativos.</p></td></tr>';
         }
     }
 
-    // Refresh button
     const refreshBtn = document.getElementById('refresh-metrics-btn');
     if (refreshBtn) {
         refreshBtn.addEventListener('click', () => {
             loadMetrics();
-            loadRecentDevices();
-            loadDeviceStatusChart();
+            loadRecentAssets();
+            loadAssetStatusChart();
             showToast('Métricas atualizadas', 'success', 2000);
         });
     }
@@ -207,35 +192,30 @@
         if (!grid) return;
 
         try {
-            // 1. Fetch active modules
             const modulesData = await API.get('/modules');
-            // Remove mobile and totems from dashboard summary as requested
-            const modules = (modulesData.modules || []).filter(m => !['mobile', 'totem'].includes(m.type));
+            const modules = modulesData.modules || [];
 
             if (modules.length === 0) {
                 grid.innerHTML = '<div class="metric-card"><div class="metric-sub">Nenhum módulo ativo</div></div>';
                 return;
             }
 
-            // 2. Fetch stats for each module in parallel
             const statsPromises = modules.map(m =>
                 API.get(`/modules/${m._id || m.id}/stats`)
                     .then(stats => ({ ...m, stats }))
-                    .catch(err => ({ ...m, stats: null, error: err }))
+                    .catch(() => ({ ...m, stats: { total: 0, online: 0, offline: 0 } }))
             );
 
             const results = await Promise.all(statsPromises);
 
-            // 3. Render cards
+            const iconMap = {
+                mobile: 'smartphone', totem: 'monitor', desktop: 'monitor', notebook: 'laptop',
+                panel: 'tv', printer: 'printer', scanner: 'scan', custom: 'settings',
+            };
+
             grid.innerHTML = results.map(item => {
                 const s = item.stats || { total: 0, online: 0, offline: 0 };
-                // Map legacy types to Lucide icon names
-                const iconMap = {
-                    mobile: 'smartphone', totem: 'monitor', desktop: 'monitor', notebook: 'laptop',
-                    panel: 'tv', printer: 'printer', scanner: 'scan', custom: 'settings'
-                };
                 const iconName = iconMap[item.type] || 'box';
-
                 return `
                 <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl hover:border-slate-700 transition-colors group">
                     <div class="flex justify-between items-start mb-3">
@@ -253,31 +233,17 @@
                             <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span> ${s.offline}
                         </span>
                     </div>
-                </div>
-                `;
+                </div>`;
             }).join('');
 
-            // Re-initialize icons for new content
             if (window.lucide) window.lucide.createIcons();
-
         } catch (err) {
             console.error('Erro ao carregar stats dos módulos:', err);
-            grid.innerHTML = '<div class="metric-card"><div class="metric-sub">Erro ao carregar dados</div></div>';
         }
     }
 
-    function getModuleIcon(type) {
-        const icons = {
-            mobile: '📱', totem: '🖥️', desktop: '💻', notebook: '💻',
-            panel: '📺', printer: '🖨️', scanner: '📠', custom: '⚙️'
-        };
-        return icons[type] || '📦';
-    }
-
-    // Expose for WebSocket
-    const originalRefresh = window.DashboardRefresh;
     window.DashboardRefresh = () => {
-        if (originalRefresh) originalRefresh();
+        loadMetrics();
         loadModuleStats();
     };
 

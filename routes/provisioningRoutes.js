@@ -1,16 +1,16 @@
 const express = require('express');
 const crypto = require('crypto');
-const { Device } = require('../models/Device');
+const ManagedAsset = require('../models/ManagedAsset');
+const AssetCommand = require('../models/AssetCommand');
 const ProvisioningToken = require('../models/ProvisioningToken');
 const ConfigProfile = require('../models/ConfigProfile');
-const Command = require('../models/Command');
 const { getLocalIPAddress } = require('../utils/helpers');
-const { mapMacAddressRadioToLocation } = require('../utils/mappings');
+const locationService = require('../services/locationService');
 
 const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
   const router = express.Router();
 
-  // Gerar token de provisionamento
+  // ── Gerar token de provisionamento ───────────────────────────────
   router.post('/generate-token', auth, modifyApiLimiter, async (req, res) => {
     try {
       const { organization, config_profile, max_uses = 1, expires_in_hours = 24 } = req.body;
@@ -20,65 +20,46 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
       }
 
       const profile = await ConfigProfile.findOne({ name: config_profile });
-      if (!profile) {
-        return res.status(404).json({ error: 'Perfil de configuração não encontrado' });
-      }
+      if (!profile) return res.status(404).json({ error: 'Perfil de configuração não encontrado' });
 
       const token = crypto.randomBytes(32).toString('hex');
       const expires_at = new Date(Date.now() + expires_in_hours * 60 * 60 * 1000);
 
       const provisioningToken = new ProvisioningToken({
-        token,
-        organization,
-        config_profile,
-        max_uses,
-        expires_at
+        token, organization, config_profile, max_uses, expires_at,
       });
-
       await provisioningToken.save();
 
       logger.info(`Token de provisionamento gerado: ${token} para ${organization}`);
       res.status(201).json({
-        token,
-        organization,
-        config_profile,
-        max_uses,
-        expires_at,
-        provisioning_url: `http://${getLocalIPAddress()}:${process.env.PORT || 3000}/provision/${token}`
+        token, organization, config_profile, max_uses, expires_at,
+        provisioning_url: `http://${getLocalIPAddress()}:${process.env.PORT || 3000}/provision/${token}`,
       });
     } catch (err) {
-      logger.error(`Erro ao gerar token de provisionamento: ${err.message}`);
+      logger.error(`Erro ao gerar token: ${err.message}`);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   });
 
-  // Verificar status do token (Público/Agente)
+  // ── Verificar status do token (público) ──────────────────────────
   router.get('/tokens/:token/status', modifyApiLimiter, async (req, res) => {
     try {
-      const { token } = req.params;
-      const provisioningToken = await ProvisioningToken.findOne({ token });
-
-      if (!provisioningToken) {
-        return res.status(404).json({ valid: false, message: 'Token não encontrado' });
-      }
+      const provisioningToken = await ProvisioningToken.findOne({ token: req.params.token });
+      if (!provisioningToken) return res.status(404).json({ valid: false, message: 'Token não encontrado' });
 
       const now = new Date();
       const isExpired = provisioningToken.expires_at < now;
       const isExhausted = provisioningToken.used_count >= provisioningToken.max_uses;
-      const isActive = provisioningToken.is_active;
 
-      if (isExpired || isExhausted || !isActive) {
+      if (isExpired || isExhausted || !provisioningToken.is_active) {
         return res.status(410).json({
-          valid: false,
-          message: 'Token expirado ou esgotado',
+          valid: false, message: 'Token expirado ou esgotado',
           organization: provisioningToken.organization,
           config_profile: provisioningToken.config_profile,
           uses_remaining: 0,
-          expires_at: provisioningToken.expires_at
+          expires_at: provisioningToken.expires_at,
         });
       }
-
-      const minutes_remaining = Math.floor((provisioningToken.expires_at - now) / 60000);
 
       res.json({
         valid: true,
@@ -86,263 +67,177 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
         config_profile: provisioningToken.config_profile,
         uses_remaining: provisioningToken.max_uses - provisioningToken.used_count,
         expires_at: provisioningToken.expires_at,
-        minutes_remaining
+        minutes_remaining: Math.floor((provisioningToken.expires_at - now) / 60000),
       });
-
     } catch (err) {
-      logger.error(`Erro ao verificar status do token: ${err.message}`);
+      logger.error(`Erro ao verificar token: ${err.message}`);
       res.status(500).json({ error: 'Erro interno' });
     }
   });
 
-  // Endpoint de provisionamento
+  // ── Enrollar dispositivo ─────────────────────────────────────────
   router.post('/enroll', enrollLimiter, async (req, res) => {
     try {
       const {
-        provisioning_token,
-        device_id,
-        device_name,
-        device_model,
-        serial_number,
-        imei,
-        secure_android_id,
-        android_id, // Support android_id form mobile client
-        ip_address,
-        mac_address_radio,
-        wifi_ipv6,
-        wifi_gateway_ip,
-        wifi_broadcast,
-        wifi_submask
+        provisioning_token, device_id, device_name, device_model,
+        serial_number, imei, secure_android_id, android_id,
+        ip_address, mac_address_radio,
+        wifi_ipv6, wifi_gateway_ip, wifi_broadcast, wifi_submask,
       } = req.body;
 
       if (!provisioning_token || !device_id || !device_name) {
-        logger.warn('Campos obrigatórios ausentes no provisionamento');
         return res.status(400).json({ error: 'provisioning_token, device_id e device_name são obrigatórios' });
       }
 
-      // Validação de MAC Address
       if (mac_address_radio && mac_address_radio !== 'N/A') {
-        const macRegex = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
-        if (!macRegex.test(mac_address_radio)) {
-          logger.warn(`Tentativa de enroll com MAC inválido: ${mac_address_radio}`);
+        if (!/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/.test(mac_address_radio)) {
           return res.status(400).json({ error: 'Formato de MAC Address inválido' });
         }
       }
 
       const token = await ProvisioningToken.findOne({
-        token: provisioning_token,
-        is_active: true,
-        expires_at: { $gt: new Date() }
+        token: provisioning_token, is_active: true, expires_at: { $gt: new Date() },
       });
+      if (!token) return res.status(401).json({ error: 'Token de provisionamento inválido ou expirado' });
+      if (token.used_count >= token.max_uses) return res.status(401).json({ error: 'Token esgotado' });
 
-      if (!token) {
-        logger.warn(`Token de provisionamento inválido ou expirado: ${provisioning_token} (IP: ${req.ip})`);
-        return res.status(401).json({ error: 'Token de provisionamento inválido ou expirado' });
-      }
-
-      if (token.used_count >= token.max_uses) {
-        logger.warn(`Token de provisionamento esgotado: ${provisioning_token}`);
-        return res.status(401).json({ error: 'Token de provisionamento esgotado' });
-      }
-
-      let device = await Device.findOne({ serial_number });
-
-      if (device && device.provisioning_status === 'completed') {
-        logger.warn(`Dispositivo já provisionado: ${serial_number}`);
+      // Verifica se já foi provisionado
+      const existing = await ManagedAsset.findOne({ serial_number });
+      if (existing && existing.provisioning_status === 'completed') {
         return res.status(409).json({ error: 'Dispositivo já provisionado' });
       }
 
       const configProfile = await ConfigProfile.findOne({ name: token.config_profile });
-      if (!configProfile) {
-        logger.error(`Perfil de configuração não encontrado: ${token.config_profile}`);
-        return res.status(500).json({ error: 'Perfil de configuração não encontrado' });
-      }
+      if (!configProfile) return res.status(500).json({ error: 'Perfil de configuração não encontrado' });
 
-      const location = await mapMacAddressRadioToLocation(mac_address_radio || 'N/A');
+      const location = await locationService.mapDeviceLocation({
+        ip_address, mac_address_radio, device_name,
+      });
 
-      const deviceData = {
-        asset_name: device_name, // Unified Schema requires asset_name
-        device_name,
-        device_model,
-        serial_number,
-        imei,
-        secure_android_id: secure_android_id || android_id, // Map correctly
-        android_id: android_id || secure_android_id,        // Map correctly
+      const targetType = configProfile.module_type || 'desktop';
+      const assetData = {
+        asset_type: targetType,
+        asset_name: device_name,
+        serial_number: serial_number || 'N/A',
+        model: device_model,
         ip_address,
-        mac_address_radio,
-        wifi_ipv6,
-        wifi_gateway_ip,
-        wifi_broadcast,
-        wifi_submask,
+        mac_address: mac_address_radio,
+        unit: location.unit,
         sector: location.sector,
         floor: location.floor,
-        provisioning_status: 'in_progress',
-        provisioning_token,
-        configuration_profile: token.config_profile,
-        owner_organization: token.organization,
-        enrollment_date: new Date(),
-        last_seen: new Date()
+        status: 'offline',
+        last_seen: new Date(),
+        custom_data: {
+          imei,
+          android_id: android_id || secure_android_id,
+          wifi_ipv6,
+          wifi_gateway_ip,
+          wifi_broadcast,
+          wifi_submask,
+          provisioning_token,
+          owner_organization: token.organization,
+          configuration_profile: token.config_profile,
+          provisioning_status: 'in_progress',
+          enrollment_date: new Date().toISOString(),
+        },
       };
 
-      if (device) {
-        Object.assign(device, deviceData);
+      let asset;
+      if (existing) {
+        Object.assign(existing, assetData);
+        asset = await existing.save();
       } else {
-        // ✅ CONSOLIDADO - Usar ManagedAsset para todos os tipos de ativos
-        const targetType = configProfile.module_type || 'desktop';
-        logger.info(`Provisioning: Serial=${serial_number}, Profile=${configProfile.name}, TargetType=${targetType}`);
-
-        // Validar tipo de ativo
-        const validTypes = ['desktop', 'notebook', 'panel', 'printer', 'totem', 'mobile', 'scanner', 'custom'];
-        if (!validTypes.includes(targetType)) {
-          logger.error(`Tipo de ativo inválido: ${targetType}`);
-          throw new Error(`Tipo de ativo não suportado: ${targetType}`);
-        }
-
-        // ✅ Sempre usar ManagedAsset com asset_type
-        const ManagedAsset = require('../models/ManagedAsset');
-        const ModelToUse = ManagedAsset;
-        
-        // Adicionar asset_type ao deviceData
-        deviceData.asset_type = targetType;
-
-        // Safety fallback for mobile traits
-        if (secure_android_id || android_id || imei) {
-          const { Mobile } = require('../models/Device');
-          ModelToUse = Mobile;
-        }
-
-        device = new ModelToUse({
-          ...deviceData,
-          device_type: (ModelToUse.modelName === 'Mobile' || targetType === 'mobile') ? 'mobile' : targetType
-        });
+        asset = await ManagedAsset.create(assetData);
       }
 
-      await device.save();
-
-      // ATUALIZAÇÃO DO TOKEN COM INVALIDAÇÃO IMEDIATA
+      // Incrementa uso do token
       token.used_count += 1;
-      if (token.used_count >= token.max_uses) {
-        token.is_active = false;
-        logger.info(`Token ${token.token} esgotado e invalidado.`);
-      }
+      if (token.used_count >= token.max_uses) token.is_active = false;
       await token.save();
 
+      // Cria comandos iniciais
       const initialCommands = [];
 
-      if (configProfile.settings.mandatory_apps) {
+      if (configProfile.settings?.mandatory_apps?.length) {
         for (const app of configProfile.settings.mandatory_apps) {
           initialCommands.push({
-            device_name,
-            serial_number,
-            command: 'install_app',
+            moduleId: targetType,
+            assetId: asset._id.toString(),
+            serialNumber: serial_number,
+            assetName: device_name,
+            commandType: 'install_apk',
+            command: 'INTERNAL_APK_INSTALL',
             parameters: {
               package_name: app.package_name,
               apk_url: app.apk_url,
-              version: app.version
-            }
+              version: app.version,
+            },
+            requiresElevation: false,
+            createdBy: 'provisioning',
           });
         }
       }
 
-      if (configProfile.settings.restrictions) {
+      if (configProfile.settings?.restrictions) {
         initialCommands.push({
-          device_name,
-          serial_number,
-          command: 'apply_restrictions',
-          parameters: configProfile.settings.restrictions
-        });
-      }
-
-      if (configProfile.settings.wifi_configs && configProfile.settings.wifi_configs.length > 0) {
-        initialCommands.push({
-          device_name,
-          serial_number,
-          command: 'configure_wifi',
-          parameters: { wifi_configs: configProfile.settings.wifi_configs }
+          moduleId: targetType,
+          assetId: asset._id.toString(),
+          serialNumber: serial_number,
+          assetName: device_name,
+          commandType: 'cmd_custom',
+          command: 'INTERNAL_APPLY_RESTRICTIONS',
+          parameters: configProfile.settings.restrictions,
+          requiresElevation: false,
+          createdBy: 'provisioning',
         });
       }
 
       if (initialCommands.length > 0) {
-        await Command.insertMany(initialCommands);
+        await AssetCommand.insertMany(initialCommands);
       }
 
       logger.info(`Dispositivo provisionado: ${serial_number} para ${token.organization}`);
       res.status(200).json({
         message: 'Dispositivo provisionado com sucesso',
-        device_id,
-        serial_number,
+        device_id, serial_number,
         organization: token.organization,
         config_profile: token.config_profile,
-        commands_count: initialCommands.length
+        commands_count: initialCommands.length,
       });
-
     } catch (err) {
-      logger.error(`Erro no provisionamento: ${err.message}, Stack: ${err.stack}`);
+      logger.error(`Erro no provisionamento: ${err.message}`);
       res.status(500).json({ error: 'Erro interno do servidor', details: err.message });
     }
   });
 
-  // Finalizar provisionamento
+  // ── Finalizar provisionamento ────────────────────────────────────
   router.post('/complete', auth, modifyApiLimiter, async (req, res) => {
     try {
       const { device_id, serial_number, success, error_message } = req.body;
-
       if (!serial_number || !device_id) {
-        logger.warn('Campos obrigatórios ausentes ao finalizar provisionamento');
         return res.status(400).json({ error: 'serial_number e device_id são obrigatórios' });
       }
 
-      const device = await Device.findOne({ serial_number });
-      if (!device) {
-        logger.warn(`Dispositivo não encontrado: ${serial_number}`);
-        return res.status(404).json({ error: 'Dispositivo não encontrado' });
-      }
+      const asset = await ManagedAsset.findOne({ serial_number });
+      if (!asset) return res.status(404).json({ error: 'Dispositivo não encontrado' });
 
-      device.provisioning_status = success ? 'completed' : 'failed';
-      if (!success && error_message) {
-        device.provisioning_error = error_message;
-        logger.error(`Provisionamento falhou para ${serial_number}: ${error_message}`);
-      }
-      device.compliance_status = success ? 'compliant' : 'non_compliant';
-
-      await device.save();
+      const status = success ? 'completed' : 'failed';
+      asset.custom_data = asset.custom_data || {};
+      asset.custom_data.provisioning_status = status;
+      if (!success && error_message) asset.custom_data.provisioning_error = error_message;
+      await asset.save();
 
       logger.info(`Provisionamento ${success ? 'concluído' : 'falhou'} para: ${serial_number}`);
       res.status(200).json({ message: 'Status de provisionamento atualizado' });
-
     } catch (err) {
-      logger.error(`Erro ao finalizar provisionamento: ${err.message}, Stack: ${err.stack}`);
+      logger.error(`Erro ao finalizar provisionamento: ${err.message}`);
       res.status(500).json({ error: 'Erro interno do servidor', details: err.message });
     }
   });
 
-  const renderProvisioningPage = (logger) => async (req, res) => {
-    try {
-      const token = await ProvisioningToken.findOne({
-        token: req.params.token,
-        is_active: true,
-        expires_at: { $gt: new Date() }
-      });
-
-      if (!token) {
-        return res.status(404).send('Token de provisionamento inválido ou expirado');
-      }
-
-      res.render('provision', {
-        token: req.params.token,
-        organization: token.organization,
-        server_url: `http://${getLocalIPAddress()}:${process.env.PORT || 3000}`
-      });
-    } catch (err) {
-      logger.error(`Erro na página de provisionamento: ${err.message}`);
-      res.status(500).send('Erro interno do servidor');
-    }
-  };
-
-  // Listar tokens ativos
+  // ── Listar tokens ────────────────────────────────────────────────
   router.get('/tokens', auth, async (req, res) => {
     try {
-      // Retorna apenas tokens que ainda não expiraram, ou todos se preferir histórico
       const tokens = await ProvisioningToken.find().sort({ created_at: -1 });
       res.json(tokens);
     } catch (err) {
@@ -351,12 +246,11 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
     }
   });
 
-  // Revogar/Deletar token
+  // ── Revogar token ────────────────────────────────────────────────
   router.delete('/tokens/:id', auth, modifyApiLimiter, async (req, res) => {
     try {
       const token = await ProvisioningToken.findByIdAndDelete(req.params.id);
       if (!token) return res.status(404).json({ error: 'Token não encontrado' });
-
       logger.info(`Token revogado: ${token.token} por ${req.user.username}`);
       res.json({ success: true, message: 'Token revogado' });
     } catch (err) {
@@ -365,39 +259,22 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
     }
   });
 
-  // Download Desktop Client (Renamed with Token)
+  // ── Download do agente desktop ───────────────────────────────────
   router.get('/download/desktop/:token', modifyApiLimiter, async (req, res) => {
     try {
-      const { token } = req.params;
-      const { platform = 'win' } = req.query; // 'win' default
-
-      // 1. Validar token (Opcional: permitir download mesmo se expirado? Melhor validar para garantir config)
-      const provisioningToken = await ProvisioningToken.findOne({ token });
+      const provisioningToken = await ProvisioningToken.findOne({ token: req.params.token });
       if (!provisioningToken || !provisioningToken.is_active) {
-        //logger.warn(`Tentativa de download com token inválido: ${token}`);
-        // return res.status(404).send('Token inválido ou expirado.');
-        // Allow download but warn? No, security first.
         return res.status(401).send('Token de provisionamento inválido ou expirado.');
       }
 
-      // 2. Localizar arquivo base
-      const publicDir = require('path').join(__dirname, '..', 'public', 'downloads');
-      const baseFilename = 'UnifiedDesktop.exe'; // Assumindo executável Portable base
-      const filePath = require('path').join(publicDir, baseFilename);
-
+      const filePath = require('path').join(__dirname, '..', 'public', 'downloads', 'UnifiedDesktop.exe');
       try {
         await require('fs').promises.access(filePath);
-      } catch (e) {
-        logger.error(`Arquivo base não encontrado: ${filePath}`);
+      } catch {
         return res.status(404).send('Instalador não encontrado no servidor.');
       }
 
-      // 3. Servir com nome modificado
-      const downloadFilename = `UnifiedDesktop-${token}.exe`;
-
-      logger.info(`Servindo cliente desktop para token: ${token.substring(0, 8)}...`);
-      res.download(filePath, downloadFilename);
-
+      res.download(filePath, `UnifiedDesktop-${req.params.token}.exe`);
     } catch (err) {
       logger.error(`Erro no download desktop: ${err.message}`);
       res.status(500).send('Erro interno');
@@ -407,25 +284,21 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
   return router;
 };
 
-// Exportar também a função de renderização da página para ser usada em express.js
+// Renderizar página de provisionamento (SSR)
 module.exports = provisioningRoutes;
 module.exports.renderProvisioningPage = (logger) => async (req, res) => {
-  const { token } = req.params;
   try {
     const provisioningToken = await ProvisioningToken.findOne({
-      token: token,
+      token: req.params.token,
       is_active: true,
-      expires_at: { $gt: new Date() }
+      expires_at: { $gt: new Date() },
     });
-
-    if (!provisioningToken) {
-      return res.status(404).send('Token de provisionamento inválido ou expirado');
-    }
+    if (!provisioningToken) return res.status(404).send('Token de provisionamento inválido ou expirado');
 
     res.render('provision', {
-      token: token,
+      token: req.params.token,
       organization: provisioningToken.organization,
-      server_url: `http://${getLocalIPAddress()}:${process.env.PORT || 3000}`
+      server_url: `http://${getLocalIPAddress()}:${process.env.PORT || 3000}`,
     });
   } catch (err) {
     logger.error(`Erro na página de provisionamento: ${err.message}`);

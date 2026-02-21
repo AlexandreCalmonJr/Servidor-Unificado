@@ -1,99 +1,52 @@
-/**
- * MDM Dashboard — Notification System
- * Handles real-time alerts for device status changes and system health
- */
+// MDM Dashboard — Notification System
+// Polling /api/monitoring/assets para alertas de status
 
 const NotificationSystem = (() => {
-    let lastDeviceStates = {}; // { serial: { status: 'online', cpu: 10 } }
+    let lastAssetStates = {};   // { assetId: { status, cpu } }
     let isInitialized = false;
-    const POLLING_INTERVAL = 30000; // 30 seconds
+    const POLLING_INTERVAL = 30000;
 
     function init() {
         if (isInitialized) return;
         isInitialized = true;
 
-        // Initial fetch to populate state without alerting
-        fetchDevices(true);
-
-        // Start polling
-        setInterval(() => fetchDevices(false), POLLING_INTERVAL);
-
-        console.log('Notification System Initialized');
+        fetchAssets(true);
+        setInterval(() => fetchAssets(false), POLLING_INTERVAL);
     }
 
-    async function fetchDevices(isInitial = false) {
+    // GET /api/monitoring/assets — todos os ativos
+    async function fetchAssets(isInitial = false) {
         try {
-            const data = await API.get('/devices');
-            const devices = Array.isArray(data) ? data : (data.devices || []);
-
-            devices.forEach(device => {
-                checkDevice(device, isInitial);
-            });
+            const data = await API.get('/monitoring/assets');
+            const assets = Array.isArray(data) ? data : (data.assets || []);
+            assets.forEach(a => checkAsset(a, isInitial));
         } catch (err) {
-            console.error('Notification System Error:', err);
+            // silencioso — não interrompe o painel
         }
     }
 
-    function checkDevice(device, isInitial) {
-        const serial = device.serial_number || device.serialNumber;
-        if (!serial) return;
+    function checkAsset(asset, isInitial) {
+        const assetId = asset._id || asset.id;
+        if (!assetId) return;
 
-        const currentStatus = (device.provisioning_status || device.status || 'unknown').toLowerCase();
-        const currentCpu = parseFloat(device.cpu_usage || 0); // Assuming API returns cpu_usage
-        const deviceName = device.device_name || device.name || serial;
+        const currentStatus = (asset.status || 'unknown').toLowerCase();
+        const assetName = asset.asset_name || asset.name || assetId;
+        const lastState = lastAssetStates[assetId];
 
-        // Get previous state
-        const lastState = lastDeviceStates[serial];
-
-        // 1. Status Change Alert
         if (!isInitial && lastState && lastState.status !== currentStatus) {
-            // Only alert for significant changes (Online <-> Offline)
-            if (currentStatus === 'online' || currentStatus === 'active') {
-                showToast(`🟢 Dispositivo <b>${esc(deviceName)}</b> está Online`, 'success');
-                addNotificationLog('online', deviceName, 'Dispositivo conectou-se à rede.');
-            } else if (currentStatus === 'offline' || currentStatus === 'failed') {
-                showToast(`🔴 Dispositivo <b>${esc(deviceName)}</b> está Offline`, 'error');
-                addNotificationLog('offline', deviceName, 'Dispositivo desconectou-se ou parou de responder.');
+            if (['online', 'active'].includes(currentStatus)) {
+                showToast(`🟢 ${esc(assetName)} está Online`, 'success');
+            } else if (['offline', 'failed', 'inactive'].includes(currentStatus)) {
+                showToast(`🔴 ${esc(assetName)} está Offline`, 'error');
             }
         }
 
-        // 2. CPU Alert
-        if (!isInitial && currentCpu > 90) {
-            // Debounce: Only alert if it wasn't already high or if it's been a while (simple check here)
-            if (!lastState || lastState.cpu <= 90) {
-                showToast(`⚠️ Alta Carga de CPU em <b>${esc(deviceName)}</b>: ${currentCpu}%`, 'warning');
-                addNotificationLog('cpu', deviceName, `Uso de CPU crítico: ${currentCpu}%`);
-            }
-        }
-
-        // Update state
-        lastDeviceStates[serial] = {
-            status: currentStatus,
-            cpu: currentCpu,
-            timestamp: Date.now()
-        };
-    }
-
-    function addNotificationLog(type, deviceName, message) {
-        // Here we could persist to localStorage or add to a notification dropdown list
-        // For now, we rely on Toasts as requested.
-        // If we want a dropdown, we'd append to a list in the DOM.
-        updateBellIndicator(true);
-    }
-
-    function updateBellIndicator(hasNew) {
-        const bell = document.querySelector('.lucide-bell'); // Assuming lucide icon class or parent
-        if (bell && hasNew) {
-            // Add a red dot if possible, or just animate
-            bell.classList.add('text-red-400');
-            // setTimeout(() => bell.classList.remove('text-red-400'), 5000);
-        }
+        lastAssetStates[assetId] = { status: currentStatus, timestamp: Date.now() };
     }
 
     return { init };
 })();
 
-// Auto-start
 document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(NotificationSystem.init, 5000); // Start after initial load
+    setTimeout(NotificationSystem.init, 5000);
 });

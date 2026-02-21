@@ -1,134 +1,140 @@
 // MDM Dashboard — Devices Page
+// Dispositivos Móveis — usa /api/monitoring/assets?type=mobile
+// CRUD usa /api/modules/:moduleId/assets/:assetId
 
 (() => {
-    let allDevices = [];
+    let allAssets = [];   // ManagedAsset[]
+    let paginator = null;
 
     function loadDevices() {
-        setupDeviceEditModal();
-        setupDeviceDetailModal();
+        setupEditModal();
+        setupDetailModal();
         setupSearch();
         setupFilter();
         setupActionDelegation();
-        fetchDevices();
+        fetchAssets();
     }
 
-    let paginator = null;
-
-    async function fetchDevices() {
+    // ===== FETCH =====
+    // GET /api/monitoring/assets?type=mobile
+    async function fetchAssets() {
         const tbody = document.getElementById('devices-table-body');
         if (!tbody) return;
 
-        try {
-            const data = await API.get('/devices');
-            allDevices = Array.isArray(data) ? data : (data.devices || data.data || []);
+        tbody.innerHTML = `<tr>${skeleton(1, 8)}</tr>`;
 
-            // Init paginator
-            initPaginator(allDevices);
+        try {
+            const data = await API.get('/monitoring/assets?type=mobile');
+            allAssets = Array.isArray(data) ? data : (data.assets || []);
+            initPaginator(allAssets);
         } catch (err) {
-            tbody.innerHTML = '<tr><td colspan="9" class="p-8 text-center text-red-400"><p>Erro ao carregar dispositivos.</p></td></tr>';
-            console.error('Erro ao carregar dispositivos:', err);
+            tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><p>Erro ao carregar dispositivos.</p></td></tr>';
+            console.error(err);
         }
     }
 
     function initPaginator(items) {
         paginator = Paginator(items, {
             perPage: 15,
-            onPageChange: (pageItems) => renderDevices(pageItems)
+            onPageChange: (pageItems) => renderAssets(pageItems),
         });
-        renderDevices(paginator.getPage());
+        renderAssets(paginator.getPage());
         paginator.renderControls('devices-pagination');
     }
 
-    function renderDevices(devices) {
+    function renderAssets(assets) {
         const tbody = document.getElementById('devices-table-body');
         if (!tbody) return;
 
-        // Add Actions header if not present (handled in EJS now, but safe to keep check or remove logic if strictly adhering to EJS)
-        // Ignoring the header injection since EJS now has it fixed.
-
-        if (devices.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" class="p-8 text-center text-slate-500"><div class="flex flex-col items-center gap-2"><i data-lucide="smartphone" size="32" class="opacity-50"></i><p>Nenhum dispositivo encontrado.</p></div></td></tr>';
-            if (window.lucide) window.lucide.createIcons();
+        if (assets.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><div class="empty-icon">📱</div><p>Nenhum dispositivo móvel encontrado.</p></td></tr>';
             return;
         }
 
-        tbody.innerHTML = devices.map(d => {
+        tbody.innerHTML = assets.map(a => {
+            const st = (a.status || 'unknown').toLowerCase();
             let statusColor = 'bg-slate-500/10 text-slate-400';
-            const st = (d.provisioning_status || d.status || 'unknown').toLowerCase();
             if (['online', 'active', 'completed'].includes(st)) statusColor = 'bg-emerald-500/10 text-emerald-400';
-            else if (['offline', 'failed', 'error'].includes(st)) statusColor = 'bg-red-500/10 text-red-400';
-            else if (['pending', 'in_progress', 'warning'].includes(st)) statusColor = 'bg-amber-500/10 text-amber-400';
-            else if (['maintenance'].includes(st)) statusColor = 'bg-purple-500/10 text-purple-400';
+            else if (['offline', 'failed', 'error', 'inactive'].includes(st)) statusColor = 'bg-red-500/10 text-red-400';
+            else if (['pending', 'warning'].includes(st)) statusColor = 'bg-amber-500/10 text-amber-400';
+            else if (st === 'maintenance') statusColor = 'bg-purple-500/10 text-purple-400';
+
+            const assetId = a._id || a.id;
+            const moduleId = a.module_id || '';
+            const battery = a.battery_level ?? a.battery;
 
             return `
-            <tr class="hover:bg-slate-800/50 transition-colors group" data-device-id="${d._id || d.id}">
-                <td class="p-4 border-b border-slate-800">
-                    <div class="font-medium text-white">${esc(d.device_name || d.name || d.model || d.device_model || d.serial_number || d.serialNumber || 'Dispositivo sem nome')}</div>
+            <tr class="hover:bg-slate-800/50 transition-colors group"
+                data-asset-id="${assetId}"
+                data-module-id="${moduleId}"
+                data-serial="${esc(a.serial_number || '')}">
+                <td class="p-4 border-b border-slate-800 font-medium text-white">
+                    ${esc(a.asset_name || a.name || a.serial_number || 'N/A')}
                 </td>
-                <td class="p-4 border-b border-slate-800 font-mono text-xs text-slate-400">${esc(d.serial_number || d.serialNumber || 'N/A')}</td>
-                <td class="p-4 border-b border-slate-800">${esc(d.model || d.device_model || 'N/A')}</td>
-                <td class="p-4 border-b border-slate-800">
-                    <div class="flex items-center gap-1">
-                        <i data-lucide="battery" size="14" class="${(d.battery_level < 20 ? 'text-red-400' : 'text-slate-500')}"></i>
-                        <span>${d.battery_level != null ? d.battery_level + '%' : (d.battery != null ? d.battery + '%' : 'N/A')}</span>
-                    </div>
+                <td class="p-4 border-b border-slate-800 font-mono text-xs text-slate-400">
+                    ${esc(a.serial_number || 'N/A')}
                 </td>
-                <td class="p-4 border-b border-slate-800 font-mono text-xs">${esc(d.ip_address || d.ip || 'N/A')}</td>
-                <td class="p-4 border-b border-slate-800">${esc(d.sector || d.location || 'N/A')}</td>
+                <td class="p-4 border-b border-slate-800">${esc(a.model || 'N/A')}</td>
                 <td class="p-4 border-b border-slate-800">
-                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor}">
-                        ${st}
-                    </span>
+                    ${battery != null ? `<span class="${battery < 20 ? 'text-red-400' : ''}">${battery}%</span>` : 'N/A'}
+                </td>
+                <td class="p-4 border-b border-slate-800 font-mono text-xs">${esc(a.ip_address || 'N/A')}</td>
+                <td class="p-4 border-b border-slate-800">${esc(a.sector || a.location || 'N/A')}</td>
+                <td class="p-4 border-b border-slate-800">
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor}">${st}</span>
                 </td>
                 <td class="p-4 border-b border-slate-800 text-right">
                     <div class="flex items-center justify-end gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-lg transition-colors" data-action="view" data-id="${esc(d._id || d.id || d.serial_number)}" title="Detalhes"><i data-lucide="eye" size="16"></i></button>
-                        <button class="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors" data-action="edit" data-serial="${esc(d.serial_number || d.serialNumber)}" title="Editar"><i data-lucide="edit-2" size="16"></i></button>
-                        <button class="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors" data-action="install_apk" data-serial="${esc(d.serial_number || d.serialNumber)}" title="Instalar APK"><i data-lucide="download" size="16"></i></button>
-                        <button class="p-1.5 text-slate-400 hover:text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors" data-action="restart" data-serial="${esc(d.serial_number || d.serialNumber)}" title="Reiniciar App"><i data-lucide="rotate-cw" size="16"></i></button>
-                        <button class="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors" data-action="delete" data-serial="${esc(d.serial_number || d.serialNumber)}" title="Excluir"><i data-lucide="trash-2" size="16"></i></button>
+                        <button data-action="view" data-id="${assetId}" data-module="${moduleId}" title="Detalhes"
+                            class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-lg">👁️</button>
+                        <button data-action="edit" data-id="${assetId}" data-module="${moduleId}" title="Editar"
+                            class="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg">✏️</button>
+                        <button data-action="install_apk" data-id="${assetId}" data-module="${moduleId}"
+                            data-serial="${esc(a.serial_number || '')}" title="Instalar APK"
+                            class="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg">📥</button>
+                        <button data-action="restart" data-id="${assetId}" data-module="${moduleId}"
+                            data-serial="${esc(a.serial_number || '')}" title="Reiniciar"
+                            class="p-1.5 text-slate-400 hover:text-purple-400 hover:bg-purple-500/10 rounded-lg">🔄</button>
+                        <button data-action="delete" data-id="${assetId}" data-module="${moduleId}"
+                            data-serial="${esc(a.serial_number || '')}" title="Excluir"
+                            class="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg">🗑️</button>
                     </div>
                 </td>
-            </tr>
-            `;
+            </tr>`;
         }).join('');
-
-        if (window.lucide) window.lucide.createIcons();
     }
 
+    // ===== SEARCH / FILTER =====
     function setupSearch() {
         const input = document.getElementById('device-search');
-        if (!input) return;
-        input.addEventListener('input', () => filterDevices());
+        if (input) input.addEventListener('input', filterAssets);
     }
 
     function setupFilter() {
         const select = document.getElementById('device-filter');
-        if (!select) return;
-        select.addEventListener('change', () => filterDevices());
+        if (select) select.addEventListener('change', filterAssets);
     }
 
-    function filterDevices() {
-        const searchVal = (document.getElementById('device-search')?.value || '').toLowerCase();
+    function filterAssets() {
+        const q = (document.getElementById('device-search')?.value || '').toLowerCase();
         const filterVal = document.getElementById('device-filter')?.value || 'all';
 
-        const filtered = allDevices.filter(d => {
-            const name = (d.device_name || d.name || '').toLowerCase();
-            const serial = (d.serial_number || d.serialNumber || '').toLowerCase();
-            const sector = (d.sector || d.location || '').toLowerCase();
-            const matchSearch = !searchVal || name.includes(searchVal) || serial.includes(searchVal) || sector.includes(searchVal);
-
-            const status = (d.provisioning_status || d.status || '').toLowerCase();
-            const matchFilter = filterVal === 'all' || status === filterVal;
-
+        const filtered = allAssets.filter(a => {
+            const name = (a.asset_name || a.name || '').toLowerCase();
+            const serial = (a.serial_number || '').toLowerCase();
+            const sector = (a.sector || a.location || '').toLowerCase();
+            const matchSearch = !q || name.includes(q) || serial.includes(q) || sector.includes(q);
+            const st = (a.status || '').toLowerCase();
+            const matchFilter = filterVal === 'all' || st === filterVal ||
+                (filterVal === 'active' && ['active', 'online'].includes(st)) ||
+                (filterVal === 'completed' && st === 'completed');
             return matchSearch && matchFilter;
         });
 
-        // Re-init paginator with filtered results
         initPaginator(filtered);
     }
 
-    // ===== ACTION DELEGATION (CSP-safe) =====
+    // ===== ACTION DELEGATION =====
     function setupActionDelegation() {
         const tbody = document.getElementById('devices-table-body');
         if (!tbody || tbody.dataset.delegated) return;
@@ -136,47 +142,47 @@
         tbody.addEventListener('click', (e) => {
             const btn = e.target.closest('[data-action]');
             if (!btn) return;
-            const action = btn.dataset.action;
-            if (action === 'view') DeviceDetail.show(btn.dataset.id);
-            else if (action === 'edit') openDeviceEditModal(btn.dataset.serial);
-            else if (action === 'delete') removeDevice(btn.dataset.serial);
-            else if (action === 'install_apk') promptInstallApk(btn.dataset.serial);
-            else if (action === 'restart') confirmRestart(btn.dataset.serial);
+            const { action, id, module: moduleId, serial } = btn.dataset;
+            if (action === 'view') MobileDeviceDetail.show(id, moduleId);
+            else if (action === 'edit') openEditModal(id, moduleId);
+            else if (action === 'install_apk') promptInstallApk(id, moduleId, serial);
+            else if (action === 'restart') promptRestart(id, moduleId, serial);
+            else if (action === 'delete') deleteAsset(id, moduleId, serial);
         });
     }
 
-    async function promptInstallApk(serial) {
-        const url = prompt(`Digite a URL do APK para instalar em ${serial}:`);
+    // ===== COMMANDS (via moduleRoutes) =====
+    // POST /api/modules/:moduleId/assets/:assetId/commands
+    async function promptInstallApk(assetId, moduleId, serial) {
+        if (!moduleId) { showToast('Módulo não identificado para este ativo.', 'warning'); return; }
+        const url = prompt(`URL do APK para instalar em ${serial || assetId}:`);
         if (!url) return;
-
         try {
-            await API.post('/devices/executeCommand', {
-                serial_number: serial,
-                command: 'install_apk',
-                apkUrl: url
+            await API.post(`/modules/${moduleId}/assets/${assetId}/commands`, {
+                commandType: 'install_apk',
+                apkUrl: url,
             });
             showToast('Comando de instalação enviado!', 'success');
         } catch (e) {
-            showToast(`Erro ao enviar comando: ${e.message}`, 'error');
+            showToast(`Erro: ${e.message}`, 'error');
         }
     }
 
-    async function confirmRestart(serial) {
-        if (!confirm(`Deseja reiniciar o aplicativo no dispositivo ${serial}?`)) return;
-
+    async function promptRestart(assetId, moduleId, serial) {
+        if (!await confirmAction(`Reiniciar o app em ${serial || assetId}?`, { okText: 'Reiniciar' })) return;
+        if (!moduleId) { showToast('Módulo não identificado.', 'warning'); return; }
         try {
-            await API.post('/devices/executeCommand', {
-                serial_number: serial,
-                command: 'restart_app'
+            await API.post(`/modules/${moduleId}/assets/${assetId}/commands`, {
+                commandType: 'reboot_device',
             });
             showToast('Comando de reinício enviado!', 'success');
         } catch (e) {
-            showToast(`Erro ao enviar comando: ${e.message}`, 'error');
+            showToast(`Erro: ${e.message}`, 'error');
         }
     }
 
     // ===== EDIT MODAL =====
-    function setupDeviceEditModal() {
+    function setupEditModal() {
         const modal = document.getElementById('device-edit-modal');
         const closeBtn = document.getElementById('device-edit-modal-close');
         const cancelBtn = document.getElementById('device-edit-modal-cancel');
@@ -186,213 +192,224 @@
             if (b) b.addEventListener('click', () => modal.classList.remove('active'));
         });
         if (modal) modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
-        if (saveBtn) saveBtn.addEventListener('click', handleSaveDevice);
+        if (saveBtn) saveBtn.addEventListener('click', handleSaveAsset);
     }
 
-    function setupDeviceDetailModal() {
+    function openEditModal(assetId, moduleId) {
+        const asset = allAssets.find(a => (a._id || a.id) === assetId);
+        if (!asset) { showToast('Ativo não encontrado.', 'error'); return; }
+
+        document.getElementById('edit-device-serial').value = assetId; // reusing field as asset ID
+        document.getElementById('form-device-name').value = asset.asset_name || asset.name || '';
+        document.getElementById('form-device-serial').value = asset.serial_number || '';
+        document.getElementById('form-device-unit').value = asset.unit || '';
+        document.getElementById('form-device-sector').value = asset.sector || asset.location || '';
+        document.getElementById('form-device-floor').value = asset.floor || '';
+
+        const modal = document.getElementById('device-edit-modal');
+        modal.dataset.moduleId = moduleId;
+        modal.classList.add('active');
+    }
+
+    // PUT /api/modules/:moduleId/assets/:assetId
+    async function handleSaveAsset() {
+        const modal = document.getElementById('device-edit-modal');
+        const assetId = document.getElementById('edit-device-serial').value;
+        const moduleId = modal.dataset.moduleId;
+
+        if (!moduleId) { showToast('Módulo não identificado.', 'error'); return; }
+
+        const asset_name = document.getElementById('form-device-name').value.trim();
+        if (!asset_name) { showToast('Nome é obrigatório', 'warning'); return; }
+
+        try {
+            await API.put(`/modules/${moduleId}/assets/${assetId}`, {
+                asset_name,
+                unit: document.getElementById('form-device-unit').value.trim(),
+                sector: document.getElementById('form-device-sector').value.trim(),
+                floor: document.getElementById('form-device-floor').value.trim(),
+            });
+            showToast('Dispositivo atualizado!', 'success');
+            modal.classList.remove('active');
+            fetchAssets();
+        } catch (e) {
+            showToast(`Erro: ${e.message}`, 'error');
+        }
+    }
+
+    // DELETE /api/modules/:moduleId/assets/:assetId
+    async function deleteAsset(assetId, moduleId, serial) {
+        if (!await confirmAction(`Remover dispositivo ${serial || assetId}?`, { danger: true, okText: 'Remover' })) return;
+        if (!moduleId) { showToast('Módulo não identificado.', 'error'); return; }
+        try {
+            await API.delete(`/modules/${moduleId}/assets/${assetId}`);
+            showToast('Dispositivo removido.', 'success');
+            fetchAssets();
+        } catch (e) {
+            showToast(`Erro: ${e.message}`, 'error');
+        }
+    }
+
+    // ===== DETAIL MODAL =====
+    function setupDetailModal() {
         const modal = document.getElementById('device-modal');
         if (!modal) return;
 
-        // Close buttons (x and Fechar)
-        const closeBtn = document.getElementById('device-modal-close');
-        const closeBtnFooter = document.getElementById('device-modal-close-btn');
-        [closeBtn, closeBtnFooter].forEach(b => {
-            if (b) b.addEventListener('click', () => modal.classList.remove('active'));
+        ['device-modal-close', 'device-modal-close-btn'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) btn.addEventListener('click', () => modal.classList.remove('active'));
         });
-
-        // Close on overlay click
         modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
 
-        // The "Edit" button inside the Detail modal
         const editBtn = document.getElementById('device-modal-edit-btn');
         if (editBtn) {
             editBtn.addEventListener('click', () => {
-                if (DeviceDetail.currentSerial) {
+                const assetId = modal.dataset.assetId;
+                const moduleId = modal.dataset.moduleId;
+                if (assetId && moduleId) {
                     modal.classList.remove('active');
-                    openDeviceEditModal(DeviceDetail.currentSerial);
+                    openEditModal(assetId, moduleId);
                 }
             });
         }
     }
 
-    async function openDeviceEditModal(serial) {
-        try {
-            // Find in local list first to save a request, or fetch fresh
-            let device = allDevices.find(d => (d.serial_number || d.serialNumber) === serial);
-            if (!device) {
-                // Fallback fetch if not in list (e.g. paginated)
-                // Note: We don't have a single-fetch by serial route readily exposed in devices.js logic usually, 
-                // but existing DeviceDetail uses /devices/:id. 
-                // However, /devices/:id in deviceRoutes.js is NOT by Serial? 
-                // deviceRoutes: router.get('/:serial_number/location-history') exists.
-                // router.get('/devices/:id')?
-                // Let's check deviceRoutes again.
-                // Ah, deviceRoutes has router.get('/', ...) and router.delete('/:serial_number').
-                // It DOES NOT have router.get('/:serial_number') specifically for details, 
-                // BUT `DeviceDetail.show` calls `/devices/${deviceId}`.
-                // Wait, accessing by ID or Serial? 
-                // The code in `DeviceDetail.show` uses `API.get('/devices/${deviceId}')`.
-                // But deviceRoutes.js DOES NOT have `router.get('/:id')`.
-                // It only has `router.get('/', ...)` (list) and `router.get('/:serial_number/location-history')` and `router.delete(...)`.
-                // So `DeviceDetail.show` might be BROKEN if it relies on `GET /devices/:id`.
-                // I need to fix this or use `allDevices.find`.
-                // For now, let's rely on `allDevices`.
-            }
-
-            if (!device) throw new Error('Dispositivo não encontrado localmente');
-
-            document.getElementById('edit-device-serial').value = serial;
-            document.getElementById('form-device-name').value = device.device_name || device.name || '';
-            document.getElementById('form-device-serial').value = serial;
-            document.getElementById('form-device-unit').value = device.unit || '';
-            document.getElementById('form-device-sector').value = device.sector || device.location || '';
-            document.getElementById('form-device-floor').value = device.floor || '';
-
-            document.getElementById('device-edit-modal').classList.add('active');
-        } catch (e) {
-            showToast('Erro ao carregar dados do dispositivo', 'error');
-        }
-    }
-
-    async function handleSaveDevice() {
-        const serial = document.getElementById('edit-device-serial').value;
-        const device_name = document.getElementById('form-device-name').value.trim();
-        const unit = document.getElementById('form-device-unit').value.trim();
-        const sector = document.getElementById('form-device-sector').value.trim();
-        const floor = document.getElementById('form-device-floor').value.trim();
-
-        if (!device_name) {
-            showToast('Nome é obrigatório', 'warning');
-            return;
-        }
-
-        try {
-            await API.put(`/devices/${serial}`, {
-                device_name,
-                unit,
-                sector,
-                floor
-            });
-            showToast('Dispositivo atualizado com sucesso', 'success');
-            document.getElementById('device-edit-modal').classList.remove('active');
-            fetchDevices(); // Refresh list
-        } catch (e) {
-            showToast(`Erro ao salvar: ${e.message}`, 'error');
-        }
-    }
-
-    async function removeDevice(serial) {
-        if (!await confirmAction(`Tem certeza que deseja remover o dispositivo móvel ${serial}?`, { danger: true, okText: 'Remover' })) return;
-        try {
-            await API.delete(`/devices/${serial}`);
-            showToast('Dispositivo removido com sucesso', 'success');
-            fetchDevices();
-        } catch (e) {
-            showToast(`Erro ao remover: ${e.message}`, 'error');
-        }
-    }
-
-    // Export to global scope
-    window.DeviceManager = {
-        edit: openDeviceEditModal,
-        remove: removeDevice
-    };
-
-    // Make available for Detail Modal
-    window.DeviceDetail = window.DeviceDetail || {}; // Preserve if exists (will be overwritten below effectively)
-
+    window.DeviceManager = { reload: fetchAssets };
     App.onPageLoad('devices', loadDevices);
 })();
 
-// Device Detail Modal
-const DeviceDetail = (() => {
-    let currentSerial = null;
-
-    function show(deviceIdOrSerial) {
+// ===== DETAIL MODAL CONTROLLER =====
+// GET /api/modules/:moduleId/assets/:assetId
+// GET /api/modules/:moduleId/assets/:assetId/history
+const MobileDeviceDetail = (() => {
+    function show(assetId, moduleId) {
         const modal = document.getElementById('device-modal');
         const grid = document.getElementById('device-detail-grid');
-        const historyBody = document.getElementById('device-history-body');
-
         if (!modal || !grid) return;
 
-        currentSerial = deviceIdOrSerial;
+        modal.dataset.assetId = assetId;
+        modal.dataset.moduleId = moduleId;
 
-        grid.innerHTML = '<p style="color: var(--text-muted);">Carregando...</p>';
-        if (historyBody) historyBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Carregando...</td></tr>';
-
+        grid.innerHTML = '<p style="color:var(--text-muted);">Carregando...</p>';
         modal.classList.add('active');
 
-        // Parallel fetch: Details + History
-        // Note: The backend now supports GET /devices/:serial_number
-        Promise.all([
-            API.get(`/devices/${deviceIdOrSerial}`),
-            API.get(`/devices/${deviceIdOrSerial}/location-history`).catch(() => ({ history: [] }))
-        ])
-            .then(([deviceData, historyData]) => {
-                // Render Details
-                const d = deviceData.device || deviceData;
-                const title = document.getElementById('device-modal-title');
-                if (title) title.textContent = d.device_name || d.name || 'Dispositivo Móvel';
-                currentSerial = d.serial_number || d.serialNumber;
-                grid.innerHTML = buildDetailGrid(d);
+        // Reset to overview tab
+        document.getElementById('detail-tab-overview-btn')?.classList.add('active');
+        document.getElementById('detail-tab-history-btn')?.classList.remove('active');
+        document.getElementById('detail-tab-overview-content')?.style?.setProperty('display', 'block');
+        const histContent = document.getElementById('detail-tab-history-content');
+        if (histContent) histContent.style.display = 'none';
 
-                // Render History
-                renderHistory(historyData.history || []);
-            })
-            .catch(err => {
-                grid.innerHTML = `<p style="color: var(--danger);">Erro ao carregar detalhes: ${esc(err.message)}</p>`;
-                if (historyBody) historyBody.innerHTML = '';
-            });
-    }
+        // Setup tabs
+        setupDetailTabs(assetId, moduleId);
 
-    function renderHistory(history) {
-        const tbody = document.getElementById('device-history-body');
-        if (!tbody) return;
-
-        if (!history || history.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Nenhum histórico recente.</td></tr>';
+        if (!moduleId) {
+            // Try to find in monitoring
+            API.get(`/monitoring/assets`)
+                .then(data => {
+                    const list = Array.isArray(data) ? data : (data.assets || []);
+                    const asset = list.find(a => (a._id || a.id) === assetId);
+                    if (asset) renderDetail(asset);
+                    else grid.innerHTML = '<p style="color:var(--danger);">Ativo não encontrado.</p>';
+                })
+                .catch(err => { grid.innerHTML = `<p style="color:var(--danger);">Erro: ${esc(err.message)}</p>`; });
             return;
         }
 
-        tbody.innerHTML = history.map(h => `
-            <tr>
-                <td>${formatDate(h.timestamp)}</td>
-                <td class="mono">${esc(h.bssid || 'N/A')}</td>
-                <td>${esc(h.sector || 'N/A')}</td>
-                <td>${esc(h.floor || 'N/A')}</td>
-            </tr>
-        `).join('');
+        API.get(`/modules/${moduleId}/assets/${assetId}`)
+            .then(data => {
+                const asset = data.asset || data;
+                renderDetail(asset);
+            })
+            .catch(err => {
+                grid.innerHTML = `<p style="color:var(--danger);">Erro: ${esc(err.message)}</p>`;
+            });
     }
 
-    function buildDetailGrid(d) {
+    function setupDetailTabs(assetId, moduleId) {
+        const overviewBtn = document.getElementById('detail-tab-overview-btn');
+        const historyBtn = document.getElementById('detail-tab-history-btn');
+        const overviewContent = document.getElementById('detail-tab-overview-content');
+        const historyContent = document.getElementById('detail-tab-history-content');
+
+        if (overviewBtn) {
+            overviewBtn.onclick = () => {
+                overviewBtn.classList.add('active');
+                historyBtn?.classList.remove('active');
+                if (overviewContent) overviewContent.style.display = 'block';
+                if (historyContent) historyContent.style.display = 'none';
+            };
+        }
+
+        if (historyBtn) {
+            historyBtn.onclick = () => {
+                historyBtn.classList.add('active');
+                overviewBtn?.classList.remove('active');
+                if (overviewContent) overviewContent.style.display = 'none';
+                if (historyContent) historyContent.style.display = 'block';
+                loadHistory(assetId, moduleId);
+            };
+        }
+    }
+
+    // GET /api/modules/:moduleId/assets/:assetId/history
+    async function loadHistory(assetId, moduleId) {
+        const tbody = document.getElementById('device-history-body-full');
+        if (!tbody) return;
+
+        tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Carregando...</td></tr>';
+
+        try {
+            const data = await API.get(`/modules/${moduleId}/assets/${assetId}/history`);
+            const history = data.history || [];
+
+            if (!history.length) {
+                tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Nenhum histórico.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = history.map(h => `
+                <tr>
+                    <td>${formatDate(h.timestamp)}</td>
+                    <td class="mono">${esc(h.ip || h.bssid || 'N/A')}</td>
+                    <td>${esc(h.unit || '-')} / ${esc(h.sector || '-')}</td>
+                    <td>${esc(h.source || 'sistema')}</td>
+                </tr>`).join('');
+        } catch (err) {
+            tbody.innerHTML = `<tr><td colspan="4" style="color:var(--danger);">Erro: ${esc(err.message)}</td></tr>`;
+        }
+    }
+
+    function renderDetail(a) {
+        const modal = document.getElementById('device-modal');
+        const grid = document.getElementById('device-detail-grid');
+        const title = document.getElementById('device-modal-title');
+
+        if (title) title.textContent = a.asset_name || a.name || 'Dispositivo Móvel';
+
         const fields = [
-            { label: 'Nome', value: d.device_name || d.name },
-            { label: 'Serial', value: d.serial_number || d.serialNumber },
-            { label: 'Modelo', value: d.model || d.device_model },
-            { label: 'Fabricante', value: d.manufacturer },
-            { label: 'Android', value: d.android_version },
-            { label: 'Bateria', value: d.battery_level != null ? `${d.battery_level}%` : (d.battery != null ? d.battery + '%' : null) },
-            { label: 'IP', value: d.ip_address || d.ip },
-            { label: 'Unidade', value: d.unit },
-            { label: 'Setor', value: d.sector || d.location },
-            { label: 'Status', value: d.provisioning_status || d.status },
-            { label: 'Manutenção', value: d.maintenance_status },
-            { label: 'Última Conexão', value: formatDate(d.last_seen || d.lastSeen || d.updatedAt) },
-            { label: 'Criado em', value: formatDate(d.createdAt) },
+            { label: 'Nome', value: a.asset_name || a.name },
+            { label: 'Serial', value: a.serial_number },
+            { label: 'Modelo', value: a.model },
+            { label: 'Fabricante', value: a.manufacturer },
+            { label: 'Android', value: a.android_version || a.os_version },
+            { label: 'Bateria', value: a.battery_level != null ? `${a.battery_level}%` : null },
+            { label: 'IP', value: a.ip_address },
+            { label: 'Unidade', value: a.unit },
+            { label: 'Setor', value: a.sector || a.location },
+            { label: 'Status', value: a.status },
+            { label: 'Última Conexão', value: formatDate(a.last_seen || a.updatedAt) },
+            { label: 'Criado em', value: formatDate(a.createdAt) },
         ];
 
-        return fields
+        grid.innerHTML = fields
             .filter(f => f.value != null && f.value !== '')
             .map(f => `
-        <div class="detail-item">
-          <div class="detail-label">${f.label}</div>
-          <div class="detail-value">${esc(String(f.value))}</div>
-        </div>
-      `).join('');
+            <div class="detail-item">
+                <div class="detail-label">${f.label}</div>
+                <div class="detail-value">${esc(String(f.value))}</div>
+            </div>`).join('');
     }
 
-    return {
-        show,
-        get currentSerial() { return currentSerial; }
-    };
+    return { show };
 })();

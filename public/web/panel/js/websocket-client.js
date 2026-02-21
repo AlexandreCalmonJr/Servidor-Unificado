@@ -1,5 +1,5 @@
 // MDM Dashboard — WebSocket Client
-// Connects to the server's WebSocket and handles real-time updates
+// Eventos emitidos pelo servidor: asset_online, asset_offline (ver websocketServer.js)
 
 const WS = (() => {
     let ws = null;
@@ -26,12 +26,10 @@ const WS = (() => {
         ws.onopen = () => {
             reconnectDelay = 2000;
             updateIndicator(true);
-
-            // Register as panel client
             ws.send(JSON.stringify({
                 type: 'register',
                 clientId: 'panel-' + Date.now(),
-                role: 'panel'
+                role: 'panel',
             }));
         };
 
@@ -39,19 +37,11 @@ const WS = (() => {
             try {
                 const msg = JSON.parse(event.data);
                 dispatch(msg);
-            } catch (e) {
-                // ignore non-JSON messages
-            }
+            } catch (e) { /* non-JSON */ }
         };
 
-        ws.onclose = () => {
-            updateIndicator(false);
-            scheduleReconnect();
-        };
-
-        ws.onerror = () => {
-            updateIndicator(false);
-        };
+        ws.onclose = () => { updateIndicator(false); scheduleReconnect(); };
+        ws.onerror = () => { updateIndicator(false); };
     }
 
     function scheduleReconnect() {
@@ -73,12 +63,8 @@ const WS = (() => {
 
     function dispatch(msg) {
         const type = msg.type;
-        if (handlers[type]) {
-            handlers[type].forEach(fn => fn(msg));
-        }
-        if (handlers['*']) {
-            handlers['*'].forEach(fn => fn(msg));
-        }
+        if (handlers[type]) handlers[type].forEach(fn => fn(msg));
+        if (handlers['*']) handlers['*'].forEach(fn => fn(msg));
     }
 
     function on(type, callback) {
@@ -91,38 +77,53 @@ const WS = (() => {
         handlers[type] = handlers[type].filter(fn => fn !== callback);
     }
 
-    // Auto-connect when DOM is ready
     document.addEventListener('DOMContentLoaded', () => {
         if (API.getToken()) connect();
     });
 
-    // ===== Built-in handlers for device status updates =====
+    // ===== Handlers para asset_online / asset_offline =====
+    // O websocketServer.js emite: { type: 'asset_online', assetId, serialNumber, assetType, hostname }
+    //                              { type: 'asset_offline', assetId, serialNumber, assetType, hostname }
 
+    on('asset_online', (msg) => {
+        const label = msg.hostname || msg.serialNumber || msg.assetId || 'Ativo';
+        updateAssetRow(msg.assetId, 'online');
+        showToast(`📱 ${label} ficou online`, 'success');
+        if (typeof window.DashboardRefresh === 'function') window.DashboardRefresh();
+    });
+
+    on('asset_offline', (msg) => {
+        const label = msg.hostname || msg.serialNumber || msg.assetId || 'Ativo';
+        updateAssetRow(msg.assetId, 'offline');
+        showToast(`📱 ${label} ficou offline`, 'warning');
+        if (typeof window.DashboardRefresh === 'function') window.DashboardRefresh();
+    });
+
+    // Backward-compat: alguns eventos ainda podem usar device_online/offline
     on('device_online', (msg) => {
-        updateDeviceRow(msg.deviceId, 'online', msg.hostname);
-        showToast(`📱 ${msg.hostname || 'Dispositivo'} ficou online`, 'success');
+        const label = msg.hostname || msg.deviceId || 'Dispositivo';
+        updateAssetRow(msg.deviceId, 'online');
+        showToast(`📱 ${label} ficou online`, 'success');
     });
 
     on('device_offline', (msg) => {
-        updateDeviceRow(msg.deviceId, 'offline', msg.hostname);
-        showToast(`📱 ${msg.hostname || 'Dispositivo'} ficou offline`, 'warning');
+        const label = msg.hostname || msg.deviceId || 'Dispositivo';
+        updateAssetRow(msg.deviceId, 'offline');
+        showToast(`📱 ${label} ficou offline`, 'warning');
     });
 
-    function updateDeviceRow(deviceId, status, hostname) {
-        // Update device table rows if visible
-        const rows = document.querySelectorAll(`tr[data-device-id="${deviceId}"]`);
-        rows.forEach(row => {
+    function updateAssetRow(assetId, status) {
+        // Atualiza qualquer linha de tabela que tenha data-asset-id ou data-device-id
+        [
+            ...document.querySelectorAll(`tr[data-asset-id="${assetId}"]`),
+            ...document.querySelectorAll(`tr[data-device-id="${assetId}"]`),
+        ].forEach(row => {
             const badge = row.querySelector('.status-badge');
             if (badge) {
-                badge.className = 'status-badge ' + status;
-                badge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+                badge.className = `status-badge ${status === 'online' ? 'online' : 'offline'}`;
+                badge.textContent = status === 'online' ? 'Online' : 'Offline';
             }
         });
-
-        // Update dashboard counter if on dashboard
-        if (typeof window.DashboardRefresh === 'function') {
-            window.DashboardRefresh();
-        }
     }
 
     return { connect, on, off };

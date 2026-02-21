@@ -1,40 +1,29 @@
 // controllers/assetModuleController.js
 const AssetModuleConfig = require('../models/AssetModuleConfig');
-// ✅ CONSOLIDADO - Desktop/Notebook/Printer/Panel unificados em ManagedAsset
 const ManagedAsset = require('../models/ManagedAsset');
-const User = require('../models/User'); // Para permissões
+const User = require('../models/User');
+const mongoose = require('mongoose');
 
-// ✅ Consolidado - Usar ManagedAsset com asset_type para todos os tipos de ativos
-const getModelByIdentifier = (identifier) => {
-  // Validar se asset_type é válido
-  const validTypes = ['desktop', 'notebook', 'panel', 'printer', 'totem', 'custom', 'mobile'];
-  if (!validTypes.includes(identifier)) {
-    throw new Error(`Tipo de ativo inválido: ${identifier}`);
-  }
-  return ManagedAsset;  // ← Retornar sempre ManagedAsset
-};
-
-// --- Funções para Ativos (Assets) ---
+// ── Ativos ────────────────────────────────────────────────────────
 
 // GET /api/modules/:moduleId/assets
 exports.getAssets = async (req, res) => {
   try {
-    const Model = getModelByIdentifier(req.params.moduleId);
-    const assets = await Model.find();
+    const assets = await ManagedAsset.find({ asset_type: req.params.moduleId });
     res.json(assets);
   } catch (error) {
-    res.status(404).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 // GET /api/modules/:moduleId/assets/:assetId
 exports.getAssetById = async (req, res) => {
   try {
-    const Model = getModelByIdentifier(req.params.moduleId);
-    const asset = await Model.findById(req.params.assetId);
-    if (!asset) {
-      return res.status(404).json({ success: false, message: 'Ativo não encontrado' });
-    }
+    const asset = await ManagedAsset.findOne({
+      _id: req.params.assetId,
+      asset_type: req.params.moduleId,
+    });
+    if (!asset) return res.status(404).json({ success: false, message: 'Ativo não encontrado' });
     res.json(asset);
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -44,8 +33,7 @@ exports.getAssetById = async (req, res) => {
 // POST /api/modules/:moduleId/assets
 exports.createAsset = async (req, res) => {
   try {
-    const Model = getModelByIdentifier(req.params.moduleId);
-    const newAsset = new Model(req.body);
+    const newAsset = new ManagedAsset({ ...req.body, asset_type: req.params.moduleId });
     await newAsset.save();
     res.status(201).json(newAsset);
   } catch (error) {
@@ -56,37 +44,30 @@ exports.createAsset = async (req, res) => {
 // PUT /api/modules/:moduleId/assets/:assetId
 exports.updateAsset = async (req, res) => {
   try {
-    const Model = getModelByIdentifier(req.params.moduleId);
-    const updatedAsset = await Model.findByIdAndUpdate(
+    const updated = await ManagedAsset.findByIdAndUpdate(
       req.params.assetId,
       req.body,
       { new: true, runValidators: true }
     );
-    if (!updatedAsset) {
-      return res.status(404).json({ success: false, message: 'Ativo não encontrado' });
-    }
-    res.json(updatedAsset);
+    if (!updated) return res.status(404).json({ success: false, message: 'Ativo não encontrado' });
+    res.json(updated);
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
 // DELETE /api/modules/:moduleId/assets/:assetId
-//
 exports.deleteAsset = async (req, res) => {
   try {
-    const Model = getModelByIdentifier(req.params.moduleId);
-    const deletedAsset = await Model.findByIdAndDelete(req.params.assetId);
-    if (!deletedAsset) {
-      return res.status(404).json({ success: false, message: 'Ativo não encontrado' });
-    }
+    const deleted = await ManagedAsset.findByIdAndDelete(req.params.assetId);
+    if (!deleted) return res.status(404).json({ success: false, message: 'Ativo não encontrado' });
     res.json({ success: true, message: 'Ativo deletado com sucesso' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// --- Funções para Configuração do Módulo ---
+// ── Configuração do Módulo ────────────────────────────────────────
 
 // GET /api/modules
 exports.getModuleConfigs = async (req, res) => {
@@ -102,113 +83,66 @@ exports.getModuleConfigs = async (req, res) => {
 exports.updateModuleConfig = async (req, res) => {
   try {
     const config = await AssetModuleConfig.findOneAndUpdate(
-      { type: req.params.moduleId }, // O :moduleId é o 'type' (ex: 'panel')
+      { type: req.params.moduleId },
       req.body,
       { new: true, runValidators: true }
     );
-    if (!config) {
-      return res.status(404).json({ success: false, message: 'Configuração de módulo não encontrada' });
-    }
+    if (!config) return res.status(404).json({ success: false, message: 'Configuração não encontrada' });
     res.json(config);
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
-// --- Funções para Permissões do Módulo ---
-// (Baseado no service module_management_service.dart)
+// ── Permissões do Módulo ──────────────────────────────────────────
 
 // GET /api/modules/:moduleId/permissions
-//
 exports.getModulePermissions = async (req, res) => {
   try {
-    const { moduleId } = req.params;
-    // A permissão será armazenada como 'module:[moduleId]', ex: 'module:panel'
-    const permissionKey = `module:${moduleId}`;
-
-    // Encontra todos os usuários que possuem essa permissão
-    //
+    const permissionKey = `module:${req.params.moduleId}`;
     const users = await User.find({ permissions: permissionKey }).select('_id');
-
-    const userIds = users.map(u => u._id.toString());
-
-    res.json({ success: true, users: userIds });
+    res.json({ success: true, users: users.map(u => u._id.toString()) });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
 // PUT /api/modules/:moduleId/permissions
-//
 exports.updateModulePermissions = async (req, res) => {
   try {
-    const { moduleId } = req.params;
-    const { userIds } = req.body; // Espera um array de User IDs
-
+    const { userIds } = req.body;
     if (!Array.isArray(userIds)) {
       return res.status(400).json({ success: false, message: 'userIds deve ser um array' });
     }
-
-    const permissionKey = `module:${moduleId}`;
-
-    // 1. Adiciona a permissão para todos os usuários na lista
-    await User.updateMany(
-      { _id: { $in: userIds } },
-      { $addToSet: { permissions: permissionKey } } // $addToSet evita duplicatas
-    );
-
-    // 2. Remove a permissão de todos os usuários que NÃO estão na lista
-    await User.updateMany(
-      { _id: { $nin: userIds } },
-      { $pull: { permissions: permissionKey } } // $pull remove o item do array
-    );
-
+    const permissionKey = `module:${req.params.moduleId}`;
+    await User.updateMany({ _id: { $in: userIds } }, { $addToSet: { permissions: permissionKey } });
+    await User.updateMany({ _id: { $nin: userIds } }, { $pull: { permissions: permissionKey } });
     res.json({ success: true, message: 'Permissões atualizadas com sucesso' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
+// ── Estatísticas ──────────────────────────────────────────────────
+
 // GET /api/modules/:moduleId/stats
 exports.getModuleStats = async (req, res) => {
   try {
-    const { moduleId } = req.params; // ex: 'totem', 'mobile' OU ObjectId
-    const mongoose = require('mongoose');
+    const { moduleId } = req.params;
 
+    // Resolve o tipo: pode ser um ObjectId ou uma string de tipo
     let type = moduleId;
-
-    // Se for ID, busca o tipo no banco
     if (mongoose.isValidObjectId(moduleId)) {
       const config = await AssetModuleConfig.findById(moduleId);
-      if (config) {
-        type = config.type;
-      }
+      if (!config) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
+      type = config.type;
     }
 
-    // Verifica se é um tipo válido no nosso mapa
-    const Model = assetModels[type];
-
-    // Se não achou modelo, tenta normalizar string (lowercase)
-    if (!Model && typeof type === 'string') {
-      const normalized = type.toLowerCase();
-      if (assetModels[normalized]) {
-        type = normalized;
-      }
-    }
-
-    const finalModel = assetModels[type];
-
-    if (!finalModel) {
-      return res.status(404).json({ success: false, message: `Módulo desconhecido ou tipo inválido: ${type} (${moduleId})` });
-    }
-
-    // Contagens
-    const total = await finalModel.countDocuments();
-    const online = await finalModel.countDocuments({ status: { $regex: /online/i } });
-    const offline = await finalModel.countDocuments({ status: { $regex: /offline/i } });
-
-    // "Sem Monitorar" ou outros status
-    const unknown = total - online - offline;
+    const [total, online, offline] = await Promise.all([
+      ManagedAsset.countDocuments({ asset_type: type }),
+      ManagedAsset.countDocuments({ asset_type: type, status: { $regex: /online/i } }),
+      ManagedAsset.countDocuments({ asset_type: type, status: { $regex: /offline/i } }),
+    ]);
 
     res.json({
       success: true,
@@ -218,12 +152,10 @@ exports.getModuleStats = async (req, res) => {
         total,
         online,
         offline,
-        unknown
-      }
+        unknown: total - online - offline,
+      },
     });
-
   } catch (error) {
-    console.error('Erro em getModuleStats:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
