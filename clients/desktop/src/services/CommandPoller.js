@@ -1,408 +1,264 @@
-/**
- * Servidor Unificado - Desktop Client
- * Command and Data Polling Service (Refatorado)
- * 
- * Orquestrador de sincronização de dados e processamento de comandos
- * Delega funcionalidades para módulos especializados:
- * - DataCollector: Coleta de informações do sistema
- * - PayloadBuilder: Construção de payloads com validação
- * - APIClient: Comunicação HTTP com o servidor
- * - CommandExecutor: Execução de comandos pendentes
- */
+// clients/desktop/src/services/CommandPoller.js
+const https = require('https');
+const http = require('http');
+const { EventEmitter } = require('events');
 
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
-const Store = require('electron-store');
-
-// Importa novos módulos de serviço
+// Importação dos seus outros módulos que enviam os dados!
 const DataCollector = require('./DataCollector');
 const PayloadBuilder = require('./PayloadBuilder');
 const APIClient = require('./APIClient');
-const CommandExecutor = require('./CommandExecutor');
 
-// Configuração
-const CONFIG_FILE = path.join(os.homedir(), '.servidor_unificado', 'client_config.json');
-const AUTH_TOKEN_FILE = path.join(os.homedir(), '.servidor_unificado', 'auth.json');
-const POLL_INTERVAL = 30000; // 30 segundos
-const REQUEST_TIMEOUT = 15000; // 15 segundos
+const DEFAULT_POLL_INTERVAL = 10_000; // 10 segundos
 
-const store = new Store();
+class CommandPollerManager extends EventEmitter {
+  constructor() {
+    super();
+    this._logger = console;
+    this._settings = null;
+    this._pollingTimer = null;
+    this._running = false;
+    this._serialNumber = null;
 
-let isPolling = false;
-let lastPollTime = null;
-let pollingTimer = null;
+    // Variáveis de estado esperadas pelo main.js para mostrar na interface
+    this.lastRunTime = null;
+    this.lastRunStatus = 'Aguardando inicialização...';
+    this.syncCount = 0;
+    this.errorCount = 0;
+  }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// CONFIG MANAGEMENT
-// ═══════════════════════════════════════════════════════════════════════════
+  setLogger(logger) {
+    this._logger = logger || console;
+  }
 
-/**
- * Carrega configuração do arquivo
- */
-function loadConfig() {
-    try {
-        if (!fs.existsSync(CONFIG_FILE)) {
-            return null;
-        }
-        const config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-        return config;
-    } catch (err) {
-        console.error('[CommandPoller] Erro ao carregar configuração:', err.message);
-        return null;
+  // Esperado pelo main.js ao iniciar o app
+  async initialize() {
+    this._logger.info('[CommandPoller] Inicializando serviço de background...');
+    this.lastRunStatus = 'Inicializado';
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Configuração e Estado
+  // ──────────────────────────────────────────────────────────────────────────
+
+  configure(settings = {}) {
+    // Mescla as configurações para não perder o token ao salvar só o setor
+    this._settings = { ...(this._settings || {}), ...settings };
+
+    // Normaliza
+    this._settings.serverIp = this._settings.ip || this._settings.serverIp || '127.0.0.1';
+    this._settings.serverPort = this._settings.port || this._settings.serverPort || 3000;
+
+    if (settings.serialNumber) this._serialNumber = settings.serialNumber;
+
+    this._logger.info(`[CommandPoller] Configurado — servidor: ${this._settings.serverIp}:${this._settings.serverPort}`);
+
+    if (this._running) {
+      this.stop();
+      setTimeout(() => this.start(this._serialNumber), 500);
     }
-}
+  }
 
-/**
- * Valida e retorna configuração ativa
- */
-function getActiveConfig() {
-    const config = loadConfig();
-    if (!config || !config.server_url) {
-        console.warn('[CommandPoller] Configuração não encontrada ou inválida');
-        return null;
+  // O main.js chama isso quando clica em "Salvar Config"
+  updateSettings(settings = {}) {
+    this.configure(settings);
+    return Promise.resolve();
+  }
+
+  setSerialNumber(serial) {
+    this._serialNumber = serial;
+  }
+
+  // Transforma em Getter para o main.js acessar como "commandPoller.isRunning"
+  get isRunning() {
+    return this._running;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Getters Internos
+  // ──────────────────────────────────────────────────────────────────────────
+
+  _getConfig() {
+    if (!this._settings) throw new Error('[CommandPoller] configure() ainda não foi chamado');
+    return {
+      serverIp: this._settings.serverIp || '127.0.0.1',
+      serverPort: this._settings.serverPort || 3000,
+      token: this._settings.token || '',
+      moduleId: this._settings.moduleId || 'desktop',
+    };
+  }
+
+  _getBaseUrl() {
+    const { serverIp, serverPort } = this._getConfig();
+    const proto = Number(serverPort) === 443 ? 'https' : 'http';
+    return `${proto}://${serverIp}:${serverPort}`;
+  }
+
+  _getHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${this._getConfig().token}`,
+    };
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // CICLO PRINCIPAL (O QUE ENVIA OS DADOS AO SERVIDOR)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // O main.js chama isso no "Sincronizar Agora" ou ao iniciar
+  async runCycle() {
+    if (!this._settings || !this._settings.serverIp) {
+      throw new Error('Servidor não configurado ou IP ausente.');
     }
-    return config;
-}
 
-/**
- * Obtém token JWT salvo
- */
-function getStoredToken() {
-    try {
-        if (fs.existsSync(AUTH_TOKEN_FILE)) {
-            const auth = JSON.parse(fs.readFileSync(AUTH_TOKEN_FILE, 'utf8'));
-            return auth.jwt_token || null;
-        }
-    } catch (err) {
-        console.error('[CommandPoller] Erro ao ler token:', err.message);
-    }
-    return null;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// DATA SYNCHRONIZATION
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Coleta dados do sistema e envia para o servidor
- * 
- * Fluxo:
- * 1. DataCollector coleta informações do sistema
- * 2. PayloadBuilder constrói e valida payload
- * 3. APIClient envia para /api/modules/{moduleId}/assets ou /api/monitor (legacy)
- */
-async function collectAndSendData() {
-    const config = getActiveConfig();
-    if (!config) {
-        console.warn('[CommandPoller] Configuração não disponível');
-        return false;
-    }
-
-    try {
-        console.log('[CommandPoller] Iniciando sincronização de dados...');
-        const startTime = Date.now();
-
-        // ─────────────────────────────────────────────────────────────────
-        // ETAPA 1: Coletar dados do sistema
-        // ─────────────────────────────────────────────────────────────────
-        console.log('[CommandPoller] [1/4] Coletando informações do sistema...');
-        const coreInfo = await DataCollector.getCoreSystemInfo();
-
-        if (!coreInfo) {
-            console.error('[CommandPoller] Falha ao coletar informações do sistema');
-            return false;
-        }
-
-        console.log('[CommandPoller] ✓ Sistema:', {
-            serial: coreInfo.serial_number,
-            hostname: coreInfo.hostname,
-            ip: coreInfo.ip_address
-        });
-
-        // ─────────────────────────────────────────────────────────────────
-        // ETAPA 2: Determinar tipo de asset e obter configuração do módulo
-        // ─────────────────────────────────────────────────────────────────
-        console.log('[CommandPoller] [2/4] Determinando tipo de asset...');
-        const assetType = coreInfo.is_notebook ? 'notebook' : 'desktop';
-        const assetName = config.asset_name || coreInfo.hostname;
-        const sector = config.sector || 'Padrão';
-        const floor = config.floor || 0;
-
-        let moduleId = null;
-        let shouldUseLegacy = false;
-
-        // Se tem módulo configurado, tenta usar novo sistema
-        if (config.module_id) {
-            moduleId = config.module_id;
-            console.log('[CommandPoller] ✓ Usando módulo:', moduleId);
-        } else if (assetType === 'notebook' || config.use_legacy_totem) {
-            // Fallback para legacy /api/monitor (totem)
-            shouldUseLegacy = true;
-            console.log('[CommandPoller] ✓ Usando endpoint legacy: /api/monitor');
-        }
-
-        // ─────────────────────────────────────────────────────────────────
-        // ETAPA 3: Construir e validar payload
-        // ─────────────────────────────────────────────────────────────────
-        console.log('[CommandPoller] [3/4] Construindo payload...');
-        
-        let payload;
-        let validation;
-
-        if (!shouldUseLegacy) {
-            // Novo sistema: payload modular
-            payload = PayloadBuilder.buildModulePayload(
-                coreInfo,
-                assetType,
-                sector,
-                floor,
-                assetName
-            );
-            validation = PayloadBuilder.validatePayload(payload, assetType);
-        } else {
-            // Legacy: payload totem
-            payload = PayloadBuilder.buildLegacyPayload(coreInfo, assetName);
-            validation = PayloadBuilder.validatePayload(payload, 'totem');
-        }
-
-        if (!validation.isValid) {
-            console.error('[CommandPoller] Payload inválido:', validation.errors);
-            return false;
-        }
-
-        if (validation.warnings.length > 0) {
-            console.warn('[CommandPoller] Avisos de validação:', validation.warnings);
-        }
-
-        console.log('[CommandPoller] ✓ Payload construído e validado');
-
-        // ─────────────────────────────────────────────────────────────────
-        // ETAPA 4: Enviar para o servidor
-        // ─────────────────────────────────────────────────────────────────
-        console.log('[CommandPoller] [4/4] Enviando para servidor...');
-        const token = getStoredToken();
-
-        let result;
-        if (!shouldUseLegacy && moduleId) {
-            // Novo sistema
-            result = await APIClient.sendAssetToModule(
-                config.server_url,
-                moduleId,
-                payload,
-                token
-            );
-        } else {
-            // Legacy
-            result = await APIClient.sendLegacyData(
-                config.server_url,
-                payload,
-                token
-            );
-        }
-
-        if (!result.success) {
-            console.error('[CommandPoller] Falha ao enviar dados:', result.error);
-            return false;
-        }
-
-        const elapsed = Date.now() - startTime;
-        console.log(`[CommandPoller] ✓ Sincronização concluída em ${elapsed}ms`, {
-            endpoint: !shouldUseLegacy ? `/api/modules/${moduleId}/assets` : '/api/monitor',
-            status: result.status,
-            updated: result.updated
-        });
-
-        return true;
-    } catch (err) {
-        console.error('[CommandPoller] Erro durante sincronização:', err.message);
-        return false;
-    }
-}
-
-/**
- * Processa comandos pendentes
- * 
- * Fluxo:
- * 1. Obtém serial e configuração
- * 2. CommandExecutor busca comandos pendentes no servidor
- * 3. CommandExecutor executa cada comando
- * 4. CommandExecutor reporta resultados
- */
-async function processPendingCommands() {
-    const config = getActiveConfig();
-    if (!config || !config.module_id) {
-        // Sem módulo configurado, não processa comandos
-        return;
-    }
+    this.lastRunTime = new Date();
+    this._logger.info('[CommandPoller] Iniciando runCycle (Coletando dados da máquina)...');
 
     try {
-        console.log('[CommandPoller] Processando comandos pendentes...');
-        
-        const serialNumber = await DataCollector.getSerialNumber();
-        if (!serialNumber) {
-            console.warn('[CommandPoller] Serial number não disponível');
-            return;
-        }
+      // 1. Coleta dados reais da máquina
+      const coreInfo = await DataCollector.getCoreSystemInfo();
+      if (coreInfo.serial_number) {
+        this.setSerialNumber(coreInfo.serial_number);
+      }
 
-        const token = getStoredToken();
+      // 2. Constrói Payload (Módulo ou Legado)
+      const baseUrl = this._getBaseUrl();
+      const token = this._settings.token;
 
-        // CommandExecutor gerencia todo o ciclo: busca, executa, reporta
-        const count = await CommandExecutor.executePendingCommands(
-            config.server_url,
-            config.module_id,
-            serialNumber,
-            token
+      let result;
+      if (this._settings.forceLegacyMode) {
+        const payload = PayloadBuilder.buildLegacyPayload(coreInfo, this._settings.assetName);
+        result = await APIClient.sendLegacyData(baseUrl, payload, token);
+      } else {
+        const payload = PayloadBuilder.buildModulePayload(
+          coreInfo,
+          'desktop', // Pode ajustar se necessário
+          this._settings.sector,
+          this._settings.floor,
+          this._settings.assetName
         );
+        result = await APIClient.sendAssetToModule(baseUrl, this._settings.moduleId, payload, token);
+      }
 
-        console.log(`[CommandPoller] Processados ${count} comandos`);
-    } catch (err) {
-        console.error('[CommandPoller] Erro ao processar comandos:', err.message);
+      this.lastRunStatus = 'Online / Sincronizado';
+      this.syncCount++;
+      this._logger.info('[CommandPoller] Sincronização concluída com sucesso!');
+
+      return { success: true, result };
+    } catch (error) {
+      this.lastRunStatus = `Erro: ${error.message}`;
+      this.errorCount++;
+      this._logger.error(`[CommandPoller] Falha no runCycle: ${error.message}`);
+      throw error;
     }
-}
+  }
 
-/**
- * Ciclo completo: coleta dados + processa comandos
- */
-async function syncDeviceData() {
+  // ──────────────────────────────────────────────────────────────────────────
+  // Start / Stop e Polling de Comandos
+  // ──────────────────────────────────────────────────────────────────────────
+
+  async start(serialNumber) {
+    if (serialNumber) this._serialNumber = serialNumber;
+
+    if (this._running) return;
+    if (!this._settings) return;
+
+    this._running = true;
+    this._logger.info(`[CommandPoller] Iniciando serviço para serial: ${this._serialNumber || 'Desconhecido'}`);
+
+    // Roda a primeira sincronização de inventário ao iniciar
     try {
-        // Evita múltiplas sincronizações simultâneas
-        if (isPolling) {
-            console.warn('[CommandPoller] Sincronização já em andamento');
-            return false;
-        }
+      await this.runCycle();
+    } catch (e) {
+      this._logger.warn(`[CommandPoller] Erro na primeira sincronização: ${e.message}`);
+    }
 
-        isPolling = true;
-        const dataSuccess = await collectAndSendData();
-        await processPendingCommands();
+    this._poll();
+  }
 
-        lastPollTime = new Date();
-        return dataSuccess;
+  stop() {
+    this._running = false;
+    if (this._pollingTimer) {
+      clearTimeout(this._pollingTimer);
+      this._pollingTimer = null;
+    }
+    this.lastRunStatus = 'Parado';
+    this._logger.info('[CommandPoller] Parado');
+  }
+
+  async _poll() {
+    if (!this._running) return;
+
+    try {
+      const commands = await this._fetchPendingCommands();
+      if (commands && commands.length > 0) {
+        this._logger.info(`[CommandPoller] ${commands.length} comando(s) pendente(s)`);
+        this.emit('commands', commands);
+      }
     } catch (err) {
-        console.error('[CommandPoller] Erro no ciclo de sincronização:', err.message);
-        return false;
-    } finally {
-        isPolling = false;
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// POLLING MANAGEMENT
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Inicia polling periódico
- */
-function startPolling(interval = POLL_INTERVAL) {
-    if (pollingTimer) {
-        console.warn('[CommandPoller] Polling já está ativo');
-        return;
+      // Falha silenciosa para não spammar os logs em caso de rede oscilando
     }
 
-    console.log(`[CommandPoller] Iniciando polling (intervalo: ${interval}ms)`);
-
-    // Sincroniza imediatamente
-    syncDeviceData();
-
-    // Configura polling periódico
-    pollingTimer = setInterval(async () => {
-        await syncDeviceData();
-    }, interval);
-}
-
-/**
- * Para polling periódico
- */
-function stopPolling() {
-    if (pollingTimer) {
-        console.log('[CommandPoller] Parando polling');
-        clearInterval(pollingTimer);
-        pollingTimer = null;
+    if (this._running) {
+      this._pollingTimer = setTimeout(() => this._poll(), DEFAULT_POLL_INTERVAL);
     }
-}
+  }
 
-/**
- * Verifica se está em polling
- */
-function isActive() {
-    return pollingTimer !== null;
-}
+  async _fetchPendingCommands() {
+    const { moduleId } = this._getConfig();
+    const serial = this._serialNumber;
+    if (!serial) return [];
 
-/**
- * Retorna timestamp do último poll
- */
-function getLastPollTime() {
-    return lastPollTime;
-}
+    const url = `${this._getBaseUrl()}/api/modules/${moduleId}/assets/commands/pending?serial_number=${encodeURIComponent(serial)}`;
+    const data = await this._request('GET', url);
+    return data?.commands || [];
+  }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// INITIALIZATION & EXPORTS
-// ═══════════════════════════════════════════════════════════════════════════
+  async reportCommandResult(commandId, success, result = {}) {
+    const { moduleId } = this._getConfig();
+    const url = `${this._getBaseUrl()}/api/modules/${moduleId}/assets/commands/${commandId}/result`;
+    const payload = {
+      success,
+      result: {
+        stdout: result.stdout || '',
+        stderr: result.stderr || '',
+        exitCode: result.exitCode ?? (success ? 0 : 1),
+        executionTime: result.executionTime || 0,
+      },
+      executedAt: new Date().toISOString(),
+    };
+    return this._request('POST', url, payload);
+  }
 
-class CommandPollerManager {
-    constructor() {
-        this.isRunning = false;
-        this.lastRunTime = null;
-    }
+  _request(method, url, body = null) {
+    return new Promise((resolve, reject) => {
+      const parsedUrl = new URL(url);
+      const lib = parsedUrl.protocol === 'https:' ? https : http;
+      const reqBody = body ? JSON.stringify(body) : null;
 
-    /**
-     * Inicializa o serviço
-     */
-    async init() {
-        console.log('[CommandPoller] Inicializando serviço...');
-        const config = getActiveConfig();
-        
-        if (!config) {
-            console.error('[CommandPoller] Configuração não disponível - não iniciando polling');
-            return false;
-        }
+      const options = {
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port,
+        path: parsedUrl.pathname + parsedUrl.search,
+        method,
+        headers: this._getHeaders(),
+      };
 
-        this.isRunning = true;
-        startPolling();
-        return true;
-    }
+      if (reqBody) options.headers['Content-Length'] = Buffer.byteLength(reqBody);
 
-    /**
-     * Para o serviço
-     */
-    stop() {
-        console.log('[CommandPoller] Parando serviço');
-        stopPolling();
-        this.isRunning = false;
-    }
+      const req = lib.request(options, (res) => {
+        let raw = '';
+        res.on('data', (chunk) => { raw += chunk; });
+        res.on('end', () => {
+          try { resolve(JSON.parse(raw)); }
+          catch { resolve({ raw }); }
+        });
+      });
 
-    /**
-     * Força sincronização agora
-     */
-    async forceSync() {
-        console.log('[CommandPoller] Sincronização forçada');
-        return await syncDeviceData();
-    }
-
-    /**
-     * Retorna status
-     */
-    getStatus() {
-        return {
-            isRunning: this.isRunning,
-            isPolling,
-            lastPollTime,
-            isActive: isActive()
-        };
-    }
-
-    /**
-     * Gerencia configuração
-     */
-    getConfig() {
-        return getActiveConfig();
-    }
-
-    async syncDeviceData() {
-        const success = await collectAndSendData();
-        this.lastRunTime = new Date();
-        return success;
-    }
+      req.on('error', reject);
+      if (reqBody) req.write(reqBody);
+      req.end();
+    });
+  }
 }
 
 module.exports = new CommandPollerManager();

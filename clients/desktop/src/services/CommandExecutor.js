@@ -1,132 +1,146 @@
-/**
- * CommandExecutor.js
- * Responsável por executar comandos no sistema e reportar resultados
- * Extraído de: CommandPoller.js → fetchPendingCommands, reportCommandResult, _runCommand
- */
+// clients/desktop/src/services/CommandExecutor.js
+// CORREÇÃO: Campos alinhados com o que o servidor retorna:
+//   cmd.command         (não command_text)
+//   cmd.requiresElevation (não requires_elevation)
+//   cmd.id              (não _id)
 
-const { exec, execSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+const { exec, execFile } = require('child_process');
 const os = require('os');
-const APIClient = require('./APIClient');
+const path = require('path');
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// COMMAND EXECUTION
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+class CommandExecutor {
+  constructor(logger) {
+    this._logger = logger || console;
+  }
 
-async function runCommand(command, options = {}) {
-    const timeout = options.timeout || 60000;
-    const requiresElevation = options.requiresElevation || false;
+  // ──────────────────────────────────────────────────────────────────────────
+  // execute(cmd)
+  // cmd vem do servidor — campos conforme AssetCommand schema:
+  //   cmd.id               → string (ObjectId do comando)
+  //   cmd.command          → string (texto do comando a executar)
+  //   cmd.command_type     → string (enum: cmd_custom, powershell_custom, etc.)
+  //   cmd.requiresElevation → boolean
+  // ──────────────────────────────────────────────────────────────────────────
+  async execute(cmd) {
+    // Suporte a ambos os formatos (novo: cmd.command / legado: cmd.command_text)
+    const commandText = cmd.command || cmd.command_text || '';
+    const commandId   = cmd.id      || cmd._id          || '';
+    const elevated    = cmd.requiresElevation ?? cmd.requires_elevation ?? false;
+    const commandType = cmd.command_type || 'cmd_custom';
 
-    if (requiresElevation) {
-        // Cria script .bat temporário e executa com RunAs
-        const tmpBat = path.join(os.tmpdir(), `temp_command_${Date.now()}.bat`);
-        return new Promise(resolve => {
-            try {
-                fs.writeFileSync(tmpBat, `@echo off\n${command}\n`);
-                exec(
-                    `powershell -Command "Start-Process -FilePath '${tmpBat}' -Verb RunAs -Wait"`,
-                    { timeout },
-                    (err, stdout, stderr) => {
-                        try { fs.unlinkSync(tmpBat); } catch (_) { }
-                        resolve({
-                            stdout: (stdout || '').trim(),
-                            stderr: (err?.message || stderr || '').trim(),
-                            exitCode: err?.code ?? 0,
-                        });
-                    }
-                );
-            } catch (e) {
-                resolve({ stdout: '', stderr: e.message, exitCode: -1 });
-            }
-        });
-    } else {
-        // Execução normal
-        return new Promise(resolve => {
-            const start = Date.now();
-            exec(command, { timeout, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
-                const executionTime = Date.now() - start;
-                resolve({
-                    stdout: (stdout || '').trim(),
-                    stderr: (err?.message || stderr || '').trim(),
-                    exitCode: err?.code ?? 0,
-                    executionTime,
-                });
-            });
-        });
+    this._logger.info(`[CommandExecutor] Executando cmd ${commandId} (tipo: ${commandType}, elevado: ${elevated})`);
+
+    if (!commandText && !this._isPredefinedType(commandType)) {
+      return {
+        success: false,
+        result: { stdout: '', stderr: 'Texto do comando ausente', exitCode: 1 },
+      };
     }
-}
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// COMMAND POLLING & EXECUTION CYCLE
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-async function executePendingCommands(serverUrl, moduleId, serialNumber, token) {
     try {
-        console.log('[CommandExecutor] 🔄 Verificando comandos pendentes...');
+      let result;
 
-        const commands = await APIClient.fetchPendingCommands(
-            serverUrl,
-            moduleId,
-            serialNumber,
-            token
-        );
+      switch (commandType) {
+        case 'powershell_custom':
+          result = await this._runPowershell(commandText, elevated);
+          break;
 
-        if (commands.length === 0) {
-            console.log('[CommandExecutor] ✅ Nenhum comando pendente');
-            return 0;
+        case 'restart_computer':
+          result = await this._runShell('shutdown /r /t 0', false);
+          break;
+
+        case 'shutdown_computer':
+          result = await this._runShell('shutdown /s /t 0', false);
+          break;
+
+        case 'flush_dns':
+          result = await this._runShell('ipconfig /flushdns', false);
+          break;
+
+        case 'map_lpt2': {
+          // Parâmetros extras em cmd.parameters (objeto JSON)
+          const params = cmd.parameters || {};
+          const printerPath = params.printer_path || commandText;
+          result = await this._runShell(`net use LPT2 "${printerPath}" /persistent:yes`, false);
+          break;
         }
 
-        console.log(`[CommandExecutor] 📋 ${commands.length} comando(s) encontrado(s)`);
+        case 'cmd_custom':
+        default:
+          result = await this._runShell(commandText, elevated);
+          break;
+      }
 
-        let executedCount = 0;
-        for (const cmd of commands) {
-            try {
-                console.log(`[CommandExecutor] ▶️ Executando: ${cmd.command_text}`);
-
-                const start = Date.now();
-                const result = await runCommand(cmd.command_text, {
-                    timeout: cmd.timeout || 60000,
-                    requiresElevation: cmd.requires_elevation || false,
-                });
-                const executionTime = Date.now() - start;
-
-                // Reportar resultado
-                await APIClient.reportCommandResult(
-                    serverUrl,
-                    moduleId,
-                    cmd._id || cmd.id,
-                    token,
-                    {
-                        success: result.exitCode === 0,
-                        stdout: result.stdout,
-                        stderr: result.stderr,
-                        exitCode: result.exitCode,
-                        executionTime,
-                    }
-                );
-
-                executedCount++;
-                console.log(`[CommandExecutor] ✅ Comando executado: ${cmd.command_text}`);
-            } catch (error) {
-                console.error('[CommandExecutor] ❌ Erro ao executar comando:', error.message);
-                // Continua com próximo comando
-            }
-        }
-
-        console.log(`[CommandExecutor] ✅ Execução completa: ${executedCount}/${commands.length} comandos`);
-        return executedCount;
+      return { success: true, result };
     } catch (error) {
-        console.error('[CommandExecutor] ❌ Erro no ciclo de execução:', error.message);
-        return 0;
+      this._logger.error(`[CommandExecutor] Falha: ${error.message}`);
+      return {
+        success: false,
+        result: { stdout: '', stderr: error.message, exitCode: 1 },
+      };
     }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Helpers internos
+  // ──────────────────────────────────────────────────────────────────────────
+  _isPredefinedType(type) {
+    const predefined = [
+      'restart_computer', 'shutdown_computer', 'flush_dns', 'lock_screen',
+      'map_lpt2', 'unmap_lpt2', 'open_notepad', 'close_notepad',
+    ];
+    return predefined.includes(type);
+  }
+
+  _runShell(command, elevated) {
+    return new Promise((resolve, reject) => {
+      const finalCmd = elevated && os.platform() === 'win32'
+        ? `runas /user:Administrator "${command}"`
+        : command;
+
+      exec(finalCmd, { timeout: 30_000 }, (error, stdout, stderr) => {
+        if (error && !stdout) {
+          reject(error);
+          return;
+        }
+        resolve({
+          stdout:        stdout   || '',
+          stderr:        stderr   || '',
+          exitCode:      error ? error.code || 1 : 0,
+          executionTime: 0,
+        });
+      });
+    });
+  }
+
+  _runPowershell(script, elevated) {
+    return new Promise((resolve, reject) => {
+      const args = [
+        '-NonInteractive',
+        '-NoProfile',
+        elevated ? '-ExecutionPolicy', 'Bypass' : '-ExecutionPolicy', 'RemoteSigned',
+        '-Command', script,
+      ];
+
+      let stdout = '';
+      let stderr = '';
+      const ps = execFile('powershell.exe', args, { timeout: 60_000 });
+
+      ps.stdout.on('data', (d) => { stdout += d; });
+      ps.stderr.on('data', (d) => { stderr += d; });
+
+      ps.on('close', (code) => {
+        resolve({
+          stdout:        stdout.trim(),
+          stderr:        stderr.trim(),
+          exitCode:      code ?? 0,
+          executionTime: 0,
+        });
+      });
+
+      ps.on('error', reject);
+    });
+  }
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// EXPORTS
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-module.exports = {
-    runCommand,
-    executePendingCommands,
-};
+module.exports = CommandExecutor;

@@ -242,29 +242,52 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   // Cria ou atualiza (agente)
   router.post(
     '/:moduleId/assets',
-    flexibleAuth, // <-- ⚠️ ESTA É A LINHA QUE O SCRIPT DE VERIFICAÇÃO ESTÁ PROCURANDO
+    flexibleAuth,
     modifyApiLimiter,
     validateByModuleId,
     async (req, res) => {
       try {
+        // [PATCH] Injetar module_id e asset_type no payload antes de processar
+        // O middleware validateByModuleId geralmente anexa o objeto module ao req
+        if (req.module && req.module._id) {
+          req.body.module_id = req.module._id;        // ObjectId do módulo
+          req.body.asset_type = req.module.type;      // ex: 'desktop', 'mobile'
+        } else if (req.moduleType) {
+          // Fallback caso apenas o tipo esteja disponível
+          req.body.asset_type = req.moduleType;
+        }
+
         const moduleType = req.moduleType;
         const Model = getModelByType(moduleType);
+        
+        // Verifica se já existe pelo serial_number
         const existing = await Model.findOne({ serial_number: req.body.serial_number });
 
         let asset;
         if (existing) {
+          // Atualiza ativo existente
           asset = await updateAsset(moduleType, existing._id, req.body);
           logger.info(`Ativo atualizado: ${asset.asset_name} (S/N: ${asset.serial_number})`);
-          return res.json({ success: true, message: 'Atualizado', asset: transformAssetForOutput(asset), updated: true });
+          return res.json({ 
+            success: true, 
+            message: 'Atualizado', 
+            asset: transformAssetForOutput(asset), 
+            updated: true 
+          });
         } else {
+          // Cria novo ativo com os dados injetados
           asset = await createAsset(moduleType, req.body);
           logger.info(`Ativo criado: ${asset.asset_name} (S/N: ${asset.serial_number})`);
-          return res.status(201).json({ success: true, message: 'Criado', asset, updated: false });
+          return res.status(201).json({ 
+            success: true, 
+            message: 'Criado', 
+            asset: transformAssetForOutput(asset), 
+            updated: false 
+          });
         }
       } catch (error) {
-        // CORREÇÃO (Item 8): Tratamento de erro Mongoose
         logger.error(`Erro ao processar ativo: ${error.message}`);
-        const specificError = handleMongooseError(error); // Tenta tratar erro do Mongoose
+        const specificError = handleMongooseError(error);
 
         if (specificError.isOperational) {
           return res.status(specificError.statusCode).json({

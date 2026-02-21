@@ -49,6 +49,7 @@ const configProfileRoutes = require('./routes/configProfileRoutes');
 const bssidRoutes = require('./routes/bssidRoutes');
 const unitRoutes = require('./routes/unitRoutes');
 const diagnosticRoutes = require('./routes/diagnosticRoutes');
+const deviceRoutes = require('./routes/deviceRoutes');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -213,7 +214,7 @@ app.use('/api', publicRoutes(logger, getApiLimiter));
 // ===== ROTAS DE AGENTES (deviceAuth) =====
 // Agentes enviam dados de monitoramento (desktop, totem, mobile, etc.)
 app.post('/api/monitor', modifyApiLimiter, deviceAuth, agentController.handleAgentData);
-
+app.use('/api/devices', deviceRoutes(logger, modifyApiLimiter, getApiLimiter, deviceAuth));
 // ===== ROTAS MODULARES (painel + agentes) =====
 app.use('/api/modules', moduleRoutes(logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth));
 app.use('/api', assetCommandRoutes(logger, modifyApiLimiter, auth, deviceAuth));

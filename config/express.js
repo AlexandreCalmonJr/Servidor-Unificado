@@ -13,9 +13,10 @@ const cacheService = require('../services/cacheService');
 
 // Rotas
 const authRoutes = require('../routes/authRoutes');
-const agentController = require('../controllers/agentController');
+const totemController = require('../controllers/totemController');
 const monitoringRoutes = require('../routes/monitoringRoutes');
 const moduleRoutes = require('../routes/moduleRoutes');
+const deviceRoutes = require('../routes/deviceRoutes'); // [NOVO] Importação da rota de dispositivos
 const assetCommandRoutes = require('../routes/assetCommandRoutes');
 const provisioningRoutes = require('../routes/provisioningRoutes');
 const configProfileRoutes = require('../routes/configProfileRoutes');
@@ -50,11 +51,11 @@ const expressConfig = (app, logger) => {
 
   // ── Rotas para clientes / agentes ────────────────────────────────
   // Totem (agente envia dados de monitoramento)
-  // Agentes enviam dados de monitoramento (totem, desktop, etc.)
-  app.post('/api/monitor', modifyApiLimiter, deviceAuth, agentController.handleAgentData);
+  app.post('/api/monitor', modifyApiLimiter, deviceAuth, totemController.handleTotemData);
 
   // ── Rotas modulares (painel + agentes) ───────────────────────────
   app.use('/api/modules', moduleRoutes(logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth));
+  app.use('/api/devices', deviceRoutes(logger, modifyApiLimiter, getApiLimiter, deviceAuth)); // [NOVO] Registro da rota
   app.use('/api', assetCommandRoutes(logger, modifyApiLimiter, auth, deviceAuth));
 
   // ── Rotas do painel de controle ──────────────────────────────────

@@ -113,18 +113,26 @@ function createWindow() {
     });
 
     ipcMain.handle('save-settings', async (event, settings) => {
+        // [CORREÇÃO] Busca as configurações atuais antes de sobrescrever
+        const currentSettings = store.get('settings', {});
+
         const normalized = {
-            ip: String(settings.ip || '').trim(),
-            port: String(settings.port || '3000').trim(),
-            token: String(settings.token || '').trim(),
-            moduleId: String(settings.moduleId || '').trim(),
-            sector: String(settings.sector || '').trim(),
-            floor: String(settings.floor || '').trim(),
-            assetName: String(settings.assetName || '').trim(),
-            interval: Number(settings.interval) || 300,
-            forceLegacyMode: settings.forceLegacyMode === true,
-            lockOnMinimize: settings.lockOnMinimize === true,
-            adminPassword: settings.adminPassword || 'admin123'
+            // Se o frontend mandar vazio, mantém o que já estava salvo
+            ip: String(settings.ip || currentSettings.ip || '').trim(),
+            port: String(settings.port || currentSettings.port || '3000').trim(),
+            token: String(settings.token || currentSettings.token || '').trim(),
+
+            moduleId: String(settings.moduleId !== undefined ? settings.moduleId : currentSettings.moduleId || '').trim(),
+            sector: String(settings.sector !== undefined ? settings.sector : currentSettings.sector || '').trim(),
+            floor: String(settings.floor !== undefined ? settings.floor : currentSettings.floor || '').trim(),
+            assetName: String(settings.assetName !== undefined ? settings.assetName : currentSettings.assetName || '').trim(),
+
+            interval: Number(settings.interval) || currentSettings.interval || 300,
+
+            // Booleanos precisam de checagem estrita para não virarem true/false acidentalmente
+            forceLegacyMode: settings.forceLegacyMode !== undefined ? settings.forceLegacyMode === true : currentSettings.forceLegacyMode,
+            lockOnMinimize: settings.lockOnMinimize !== undefined ? settings.lockOnMinimize === true : currentSettings.lockOnMinimize,
+            adminPassword: settings.adminPassword || currentSettings.adminPassword || 'admin123'
         };
 
         store.set('settings', normalized);
@@ -134,22 +142,16 @@ function createWindow() {
         try {
             const commandPoller = require('./src/services/CommandPoller');
             await commandPoller.updateSettings(normalized);
+
+            // [OPCIONAL/RECOMENDADO] Reinicia o polling se tivermos IP, Porta e Token
+            if (normalized.ip && normalized.token && normalized.moduleId) {
+                if (!commandPoller.isRunning()) {
+                    await commandPoller.start();
+                }
+            }
         } catch (e) {
             logger.warn('Failed to update CommandPoller settings', e.message);
         }
-
-        return { success: true };
-    });
-
-    ipcMain.handle('save-force-legacy', async (event, value) => {
-        const current = store.get('settings', {});
-        current.forceLegacyMode = value === true;
-        store.set('settings', current);
-
-        try {
-            const commandPoller = require('./src/services/CommandPoller');
-            await commandPoller.updateSettings({ forceLegacyMode: value === true });
-        } catch (_) { }
 
         return { success: true };
     });

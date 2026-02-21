@@ -248,7 +248,14 @@ function updateUIWithSettings(settings) {
     }
     select.value = settings.moduleId || '';
 
-    document.getElementById('input-token').value = settings.token || '';
+    const tokenInput = document.getElementById('input-token');
+    if (settings.token) {
+        tokenInput.placeholder = '•••••••••••••••• (Salvo)';
+        tokenInput.value = ''; // Mantém vazio para não enviar acidentalmente
+    } else {
+        tokenInput.placeholder = 'Insira o token do servidor';
+        tokenInput.value = '';
+    }
     document.getElementById('input-sector').value = settings.sector || '';
     document.getElementById('input-floor').value = settings.floor || '';
     document.getElementById('check-legacy').checked = settings.forceLegacyMode || false;
@@ -262,21 +269,33 @@ function updateUIWithSettings(settings) {
 
 async function saveClientSettings() {
     const current = await ipcRenderer.invoke('get-settings');
+    const tokenInputValue = document.getElementById('input-token').value.trim();
 
-    // Merge new client settings with existing connection settings
+    // Mescla as configurações
     const newSettings = {
         ...current,
         moduleId: document.getElementById('select-module').value,
-        token: document.getElementById('input-token').value,
         sector: document.getElementById('input-sector').value,
         floor: document.getElementById('input-floor').value,
         forceLegacyMode: document.getElementById('check-legacy').checked,
         lockOnMinimize: document.getElementById('check-lock').checked
     };
 
+    // Só sobrescreve o token no payload se o input não estiver vazio
+    if (tokenInputValue !== '') {
+        newSettings.token = tokenInputValue;
+    }
+
     const result = await ipcRenderer.invoke('save-settings', newSettings);
     if (result.success) {
         showToast('Configurações do cliente salvas!', 'success');
+
+        // Limpa o campo e atualiza o placeholder visualmente
+        if (tokenInputValue !== '') {
+            document.getElementById('input-token').value = '';
+            document.getElementById('input-token').placeholder = '•••••••••••••••• (Salvo)';
+        }
+
         refreshStatus();
     } else {
         showToast('Erro ao salvar.', 'error');

@@ -25,11 +25,13 @@ const AssetCommandSchema = new mongoose.Schema({
     type: String,
     required: true,
     enum: [
-      'cmd_custom',           // ✅ OBRIGATÓRIO (Era 'custom' antes e dava erro)
+      // ── Comandos Desktop / Notebook ──────────────────────────────
+      'cmd_custom',
       'powershell_custom',
-      'map_lpt2',             // ✅ Novo
-      'download_file',        // ✅ Novo
-      'auto_start_app',       // ✅ Novo
+      'custom_script',
+      'map_lpt2',
+      'download_file',
+      'auto_start_app',
       'restart_computer',
       'flush_dns',
       'restart_print_spooler',
@@ -39,7 +41,27 @@ const AssetCommandSchema = new mongoose.Schema({
       'clear_temp',
       'check_disk',
       'network_reset',
-      'custom_script'
+
+      // ── Comandos Mobile / Multiplataforma ────────────────────────
+      'reboot_device',      // reiniciar dispositivo (mobile + desktop)
+      'lock_device',        // bloquear dispositivo
+      'wipe_data',          // limpar dados
+      'send_message',       // exibir mensagem (alias: show_message)
+      'push_message',       // enviar mensagem remota
+      'show_message',       // exibir alerta
+      'install_apk',        // instalar APK (mobile)
+      'install_app',        // instalar aplicativo (alias install_apk)
+      'restrict_settings',  // restringir configurações
+      'restart_app',        // reiniciar aplicativo mobile
+      'reboot',             // reboot (alias: reboot_device)
+
+      // ── Comandos Kiosk / Launcher (mobile) ───────────────────────
+      'enable_kiosk',
+      'start_kiosk',
+      'disable_kiosk',
+      'stop_kiosk',
+      'set_default_launcher',
+      'update_allowed_apps', // atualizar lista de apps permitidos
     ]
   },
   command: {
@@ -57,7 +79,7 @@ const AssetCommandSchema = new mongoose.Schema({
   },
   timeout: {
     type: Number,
-    default: 60000 // 60 segundos
+    default: 60000
   },
   status: {
     type: String,
