@@ -145,7 +145,7 @@ function createWindow() {
 
             // [OPCIONAL/RECOMENDADO] Reinicia o polling se tivermos IP, Porta e Token
             if (normalized.ip && normalized.token && normalized.moduleId) {
-                if (!commandPoller.isRunning()) {
+                if (!commandPoller.isRunning) {  // ✅ SEM parênteses - é um getter
                     await commandPoller.start();
                 }
             }

@@ -249,12 +249,25 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       try {
         // [PATCH] Injetar module_id e asset_type no payload antes de processar
         // O middleware validateByModuleId geralmente anexa o objeto module ao req
+        logger.info(`📥 POST /api/modules/assets recebido:`, {
+          moduleId: req.params.moduleId,
+          moduleType: req.moduleType,
+          serialNumber: req.body.serial_number,
+          assetType: req.body.asset_type,
+          assetName: req.body.asset_name,
+        });
+        
         if (req.module && req.module._id) {
           req.body.module_id = req.module._id;        // ObjectId do módulo
-          req.body.asset_type = req.module.type;      // ex: 'desktop', 'mobile'
+          // Só sobrescreve asset_type se cliente não enviou
+          if (!req.body.asset_type) {
+            req.body.asset_type = req.module.type;    // ex: 'desktop', 'mobile'
+          }
         } else if (req.moduleType) {
           // Fallback caso apenas o tipo esteja disponível
-          req.body.asset_type = req.moduleType;
+          if (!req.body.asset_type) {
+            req.body.asset_type = req.moduleType;
+          }
         }
 
         const moduleType = req.moduleType;
@@ -267,7 +280,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
         if (existing) {
           // Atualiza ativo existente
           asset = await updateAsset(moduleType, existing._id, req.body);
-          logger.info(`Ativo atualizado: ${asset.asset_name} (S/N: ${asset.serial_number})`);
+          logger.info(`✏️  Ativo ATUALIZADO: ${asset.asset_name} (S/N: ${asset.serial_number}) em módulo ${req.moduleType}`);
           return res.json({ 
             success: true, 
             message: 'Atualizado', 
@@ -277,7 +290,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
         } else {
           // Cria novo ativo com os dados injetados
           asset = await createAsset(moduleType, req.body);
-          logger.info(`Ativo criado: ${asset.asset_name} (S/N: ${asset.serial_number})`);
+          logger.info(`✨ Ativo CRIADO: ${asset.asset_name} (S/N: ${asset.serial_number}) em módulo ${req.moduleType}`);
           return res.status(201).json({ 
             success: true, 
             message: 'Criado', 

@@ -107,6 +107,10 @@ function buildModulePayload(coreInfo, moduleType, sector, floor, assetName) {
     }
 
     const type = (moduleType || '').toLowerCase();
+    
+    // ✅ IMPORTANTE: Adicionar asset_type ao payload
+    payload.asset_type = type || 'desktop';
+    console.log(`[PayloadBuilder] 🏷️ Asset Type definido: ${payload.asset_type}`);
 
     // Ajustes específicos por tipo
     switch (type) {

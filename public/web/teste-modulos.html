@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧪 Teste Visual: Módulos</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            padding: 40px;
+        }
+        
+        .module-list {
+            border-right: 2px solid #eee;
+            padding-right: 30px;
+        }
+        
+        .module-list h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+        }
+        
+        .module-item {
+            background: #f8f9fa;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .module-item:hover {
+            border-color: #667eea;
+            background: #f0f3ff;
+            transform: translateX(5px);
+        }
+        
+        .module-item.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .module-icon {
+            font-size: 2em;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        
+        .module-name {
+            font-weight: bold;
+            font-size: 1.1em;
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        .module-type {
+            font-size: 0.9em;
+            opacity: 0.7;
+        }
+        
+        .details {
+            padding-left: 30px;
+        }
+        
+        .details h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+        }
+        
+        .detail-box {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+        
+        .detail-label {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .detail-value {
+            font-weight: bold;
+            font-size: 1.2em;
+            color: #333;
+        }
+        
+        .asset-count {
+            background: #e7f5ff;
+            color: #0066cc;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            display: inline-block;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            margin-left: 10px;
+        }
+        
+        .status-online {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .console-output {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            line-height: 1.6;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .console-line {
+            margin-bottom: 5px;
+        }
+        
+        .console-success { color: #00ff00; }
+        .console-error { color: #ff6b6b; }
+        .console-info { color: #87ceeb; }
+        .console-warn { color: #ffa500; }
+        
+        footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            border-top: 1px solid #ddd;
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+                gap: 30px;
+            }
+            
+            .module-list {
+                border-right: none;
+                border-bottom: 2px solid #eee;
+                padding-right: 0;
+                padding-bottom: 30px;
+            }
+            
+            .details {
+                padding-left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧪 Teste Visual: Mudança de Módulos</h1>
+            <p class="subtitle">Clique em um módulo e veja as informações mudar</p>
+        </header>
+        
+        <div class="content">
+            <!-- MÓDULOS -->
+            <div class="module-list">
+                <h2>📦 Módulos Disponíveis</h2>
+                
+                <div class="module-item active" onclick="selectModule(this, 'notebook', 'Notebooks TI', 1)">
+                    <span class="module-icon">💻</span>
+                    <span class="module-name">Notebooks TI</span>
+                    <span class="module-type">Type: notebook</span>
+                </div>
+                
+                <div class="module-item" onclick="selectModule(this, 'totem', 'Totem Module', 1)">
+                    <span class="module-icon">🖥️</span>
+                    <span class="module-name">Totem Module</span>
+                    <span class="module-type">Type: totem</span>
+                </div>
+                
+                <div class="module-item" onclick="selectModule(this, 'desktop', 'Desktop TI', 0)">
+                    <span class="module-icon">💻</span>
+                    <span class="module-name">Desktop TI</span>
+                    <span class="module-type">Type: desktop</span>
+                </div>
+            </div>
+            
+            <!-- DETALHES -->
+            <div class="details">
+                <h2>📊 Detalhes do Módulo</h2>
+                
+                <div class="detail-box">
+                    <div class="detail-label">Nome</div>
+                    <div class="detail-value" id="moduleName">Notebooks TI</div>
+                </div>
+                
+                <div class="detail-box">
+                    <div class="detail-label">Tipo</div>
+                    <div class="detail-value" id="moduleType">notebook</div>
+                </div>
+                
+                <div class="detail-box">
+                    <div class="detail-label">Ativos</div>
+                    <span class="asset-count" id="assetCount">1 ativo</span>
+                    <span class="status-badge status-online" id="status">🟢 Ativo</span>
+                </div>
+                
+                <div class="console-output">
+                    <div class="console-line console-info">📍 Módulo clicado: Notebooks TI (notebook)</div>
+                    <div class="console-line console-success">✅ Nav item marcado como ativo: Notebooks TI</div>
+                    <div class="console-line console-success">✅ Título atualizado: "Notebooks TI"</div>
+                    <div class="console-line console-info">📡 Buscando detalhes do módulo: ...</div>
+                    <div class="console-line console-success">✅ Módulo carregado: Notebooks TI (notebook)</div>
+                    <div class="console-line console-info">📡 Buscando ativos do módulo: ...</div>
+                    <div class="console-line console-success">✅ 1 ativo(s) carregado(s)</div>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            💡 <strong>Dica:</strong> Clique em cada módulo para ver como a interface se atualiza. Em produção, o console (F12) mostrará estes logs para confirmar que tudo funciona corretamente.
+        </footer>
+    </div>
+    
+    <script>
+        const consoleOutput = document.querySelector('.console-output');
+        
+        function addConsoleLog(type, message) {
+            const line = document.createElement('div');
+            line.className = `console-line console-${type}`;
+            line.textContent = message;
+            consoleOutput.appendChild(line);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+        
+        function selectModule(element, type, name, count) {
+            // Remove active de todos
+            document.querySelectorAll('.module-item').forEach(m => m.classList.remove('active'));
+            // Adiciona active neste
+            element.classList.add('active');
+            
+            // Limpar console
+            consoleOutput.innerHTML = '';
+            
+            // Atualizar detalhes
+            document.getElementById('moduleName').textContent = name;
+            document.getElementById('moduleType').textContent = type;
+            document.getElementById('assetCount').textContent = `${count} ativo${count !== 1 ? 's' : ''}`;
+            
+            const statusEl = document.getElementById('status');
+            if (type === 'desktop' && count === 0) {
+                statusEl.className = 'status-badge status-offline';
+                statusEl.textContent = '🔴 Sem ativos';
+            } else {
+                statusEl.className = 'status-badge status-online';
+                statusEl.textContent = '🟢 Ativo';
+            }
+            
+            // Simular logs do console
+            addConsoleLog('info', `📍 Módulo clicado: ${name} (${type})`);
+            setTimeout(() => addConsoleLog('success', `✅ Nav item marcado como ativo: ${name}`), 200);
+            setTimeout(() => addConsoleLog('success', `✅ Título atualizado: "${name}"`), 400);
+            setTimeout(() => addConsoleLog('info', `📡 Buscando detalhes do módulo: ...`), 600);
+            setTimeout(() => addConsoleLog('success', `✅ Módulo carregado: ${name} (${type})`), 800);
+            setTimeout(() => addConsoleLog('info', `📡 Buscando ativos do módulo: ...`), 1000);
+            setTimeout(() => addConsoleLog('success', `✅ ${count} ativo(s) carregado(s)`), 1200);
+        }
+    </script>
+</body>
+</html>

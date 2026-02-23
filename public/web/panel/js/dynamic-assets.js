@@ -8,8 +8,12 @@
     let allAssets = [];
 
     function loadDynamicModule(moduleId) {
-        if (!moduleId) return;
+        if (!moduleId) {
+            console.error('❌ moduleId não fornecido!');
+            return;
+        }
         currentModuleId = moduleId;
+        console.log(`🔄 loadDynamicModule chamado para: ${moduleId}`);
 
         fetchModuleDetail(moduleId);
         setupDynamicModal();
@@ -19,23 +23,40 @@
     async function fetchModuleDetail(moduleId) {
         const title = document.getElementById('dynamic-module-title');
         const tbody = document.getElementById('dynamic-table-body');
-        if (!tbody) return;
+        if (!tbody) {
+            console.error('❌ dynamic-table-body não encontrado!');
+            return;
+        }
 
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><p>Carregando...</p></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><p>⏳ Carregando...</p></td></tr>';
+        console.log(`📡 Buscando detalhes do módulo: ${moduleId}`);
 
         try {
             const mod = await API.get(`/modules/${moduleId}`);
             currentModuleType = mod.type || 'custom';
             currentModuleName = mod.name || 'Módulo';
 
-            if (title) title.textContent = `${currentModuleName}`;
+            console.log(`✅ Módulo carregado: ${currentModuleName} (${currentModuleType})`);
+
+            if (title) {
+                title.textContent = `${currentModuleName}`;
+                console.log(`✅ dynamic-module-title atualizado: "${currentModuleName}"`);
+            } else {
+                console.warn('⚠️ dynamic-module-title não encontrado');
+            }
 
             const pageTitle = document.getElementById('page-title');
-            if (pageTitle) pageTitle.textContent = currentModuleName;
+            if (pageTitle) {
+                pageTitle.textContent = `📦 ${currentModuleName} (${currentModuleType})`;
+                console.log(`✅ page-title atualizado: "${currentModuleName}"`);
+            } else {
+                console.error('❌ page-title não encontrado!');
+            }
 
             await fetchAssets(moduleId);
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="7" class="empty-state"><p style="color:var(--danger);">Erro: ${esc(err.message)}</p></td></tr>`;
+            console.error(`❌ Erro ao buscar módulo: ${err.message}`);
+            tbody.innerHTML = `<tr><td colspan="7" class="empty-state"><p style="color:var(--danger);">❌ Erro: ${esc(err.message)}</p></td></tr>`;
         }
     }
 
@@ -43,16 +64,24 @@
 
     async function fetchAssets(moduleId) {
         const tbody = document.getElementById('dynamic-table-body');
-        if (!tbody) return;
+        if (!tbody) {
+            console.error('❌ dynamic-table-body não encontrado!');
+            return;
+        }
+
+        console.log(`📡 Buscando ativos do módulo: ${moduleId}`);
 
         try {
             const data = await API.get(`/modules/${moduleId}/assets`);
             allAssets = data.assets || [];
+            
+            console.log(`✅ ${allAssets.length} ativo(s) carregado(s)`);
 
             initPaginator(allAssets);
             renderModuleStats(allAssets);
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="7" class="empty-state"><p style="color:var(--danger);">Erro: ${esc(err.message)}</p></td></tr>`;
+            console.error(`❌ Erro ao buscar ativos: ${err.message}`);
+            tbody.innerHTML = `<tr><td colspan="7" class="empty-state"><p style="color:var(--danger);">❌ Erro: ${esc(err.message)}</p></td></tr>`;
         }
     }
 
@@ -491,24 +520,39 @@
 
             // Bind click events
             container.querySelectorAll('.nav-dynamic-module').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const modId = btn.dataset.moduleId;
-                    const modName = btn.dataset.moduleName;
+                btn.addEventListener('click', function(e) {
+                    const modId = this.dataset.moduleId;
+                    const modType = this.dataset.moduleType;
+                    const modName = this.dataset.moduleName;
+
+                    console.log(`📍 Módulo clicado: ${modName} (${modType})`);
 
                     // Deactivate all nav items
                     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-                    btn.classList.add('active');
+                    this.classList.add('active');
+                    console.log(`✅ Nav item marcado como ativo: ${modName}`);
 
                     // Hide all page sections, show dynamic one
                     document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
                     const dynPage = document.getElementById('page-dynamic-module');
-                    if (dynPage) dynPage.classList.add('active');
+                    if (dynPage) {
+                        dynPage.classList.add('active');
+                        console.log(`✅ Página dinâmica mostrada`);
+                    } else {
+                        console.error('❌ page-dynamic-module não encontrado!');
+                    }
 
                     // Update title
                     const pageTitle = document.getElementById('page-title');
-                    if (pageTitle) pageTitle.textContent = modName;
+                    if (pageTitle) {
+                        pageTitle.textContent = `📦 ${modName} (${modType})`;
+                        console.log(`✅ Título atualizado: "${modName}"`);
+                    } else {
+                        console.error('❌ page-title não encontrado!');
+                    }
 
                     // Load the module
+                    console.log(`🔄 Carregando dados do módulo: ${modName}`);
                     loadDynamicModule(modId);
                 });
             });

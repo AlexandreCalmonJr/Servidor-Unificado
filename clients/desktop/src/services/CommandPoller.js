@@ -112,6 +112,10 @@ class CommandPollerManager extends EventEmitter {
 
     this.lastRunTime = new Date();
     this._logger.info('[CommandPoller] Iniciando runCycle (Coletando dados da máquina)...');
+    
+    // ✅ DEBUG: Log das configurações
+    const config = this._getConfig();
+    this._logger.info(`[CommandPoller] Configuração: serverIp=${config.serverIp}, serverPort=${config.serverPort}, moduleId=${config.moduleId}`);
 
     try {
       // 1. Coleta dados reais da máquina
@@ -129,13 +133,36 @@ class CommandPollerManager extends EventEmitter {
         const payload = PayloadBuilder.buildLegacyPayload(coreInfo, this._settings.assetName);
         result = await APIClient.sendLegacyData(baseUrl, payload, token);
       } else {
+        // 🔥 CRITICAL FIX: Buscar o tipo correto do módulo no servidor
+        // ao invés de hardcodar 'desktop'
+        let moduleType = 'desktop'; // Padrão se falhar
+        this._logger.info(`[CommandPoller] 🔍 Buscando tipo do módulo ${this._settings.moduleId}...`);
+        
+        try {
+          const moduleInfo = await APIClient.getModuleInfo(baseUrl, this._settings.moduleId, token);
+          this._logger.debug(`[CommandPoller] Resposta do GET /api/modules/{moduleId}:`, JSON.stringify(moduleInfo));
+          
+          if (moduleInfo && moduleInfo.module && moduleInfo.module.type) {
+            moduleType = moduleInfo.module.type;
+            this._logger.info(`[CommandPoller] ✅ Tipo do módulo obtido com sucesso: ${moduleType}`);
+          } else {
+            this._logger.warn(`[CommandPoller] ⚠️  GET retornou mas sem module.type. Resposta:`, JSON.stringify(moduleInfo));
+            this._logger.warn(`[CommandPoller] Usando fallback 'desktop'`);
+          }
+        } catch (e) {
+          this._logger.error(`[CommandPoller] ❌ Falha ao obter tipo do módulo: ${e.message}`);
+          this._logger.debug(`[CommandPoller] Erro completo:`, e);
+          this._logger.warn(`[CommandPoller] Usando fallback 'desktop'`);
+        }
+
         const payload = PayloadBuilder.buildModulePayload(
           coreInfo,
-          'desktop', // Pode ajustar se necessário
+          moduleType, // ✅ Agora usa o tipo REAL do módulo
           this._settings.sector,
           this._settings.floor,
           this._settings.assetName
         );
+        this._logger.info(`[CommandPoller] 📤 Enviando para moduleId: ${this._settings.moduleId} com asset_type: ${moduleType}`);
         result = await APIClient.sendAssetToModule(baseUrl, this._settings.moduleId, payload, token);
       }
 

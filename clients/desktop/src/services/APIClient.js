@@ -32,14 +32,25 @@ function getLegacyHeaders(token) {
 
 async function fetchModuleStructure(serverUrl, moduleId, token) {
     try {
-        const response = await axios.get(`${serverUrl}/api/modules/${moduleId}`, {
+        const url = `${serverUrl}/api/modules/${moduleId}`;
+        console.log(`[APIClient] 🔍 GET ${url}`);
+        
+        const response = await axios.get(url, {
             headers: getHeaders(token),
             timeout: 10000,
             proxy: false,
         });
+        
+        console.log(`[APIClient] ✅ Resposta recebida: ${JSON.stringify(response.data)}`);
         return response.data?.module || response.data;
     } catch (error) {
-        console.error('[APIClient] ❌ Erro ao buscar estrutura do módulo:', error.message);
+        console.error(`[APIClient] ❌ Erro ao buscar estrutura do módulo: ${error.message}`);
+        if (error.response?.status === 401) {
+            console.error(`[APIClient] Erro 401: Não autorizado. Verifique token.`);
+        }
+        if (error.response?.data) {
+            console.error(`[APIClient] Resposta do servidor:`, error.response.data);
+        }
         throw error;
     }
 }
@@ -64,8 +75,12 @@ async function listModules(serverUrl, token) {
 
 async function sendAssetToModule(serverUrl, moduleId, payload, token) {
     try {
+        const url = `${serverUrl}/api/modules/${moduleId}/assets`;
+        console.log(`[APIClient] 📤 Enviando para: ${url}`);
+        console.log(`[APIClient] 📋 Payload: asset_type=${payload.asset_type}, serial=${payload.serial_number}, name=${payload.asset_name}`);
+        
         const response = await axios.post(
-            `${serverUrl}/api/modules/${moduleId}/assets`,
+            url,
             payload,
             { headers: getHeaders(token), timeout: 30000, proxy: false }
         );
@@ -73,6 +88,7 @@ async function sendAssetToModule(serverUrl, moduleId, payload, token) {
         const wasUpdated = response.data?.updated === true;
         const message = wasUpdated ? 'atualizado' : 'criado';
         console.log(`[APIClient] ✅ Ativo ${message}: ${payload.asset_name} (S/N: ${payload.serial_number})`);
+        console.log(`[APIClient] 📊 Status HTTP: ${response.status}`);
 
         return {
             success: true,
@@ -81,6 +97,7 @@ async function sendAssetToModule(serverUrl, moduleId, payload, token) {
         };
     } catch (error) {
         console.error('[APIClient] ❌ Erro ao enviar ativo para módulo:', error.message);
+        console.error(`[APIClient] ❌ URL tentada: ${serverUrl}/api/modules/${moduleId}/assets`);
         if (error.response?.data) {
             console.error('[APIClient] Resposta do servidor:', error.response.data);
         }
@@ -166,6 +183,7 @@ module.exports = {
     getHeaders,
     getLegacyHeaders,
     fetchModuleStructure,
+    getModuleInfo: fetchModuleStructure, // Alias para consistência com CommandPoller
     listModules,
     sendAssetToModule,
     sendLegacyData,

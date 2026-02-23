@@ -134,9 +134,9 @@ const managedAssetSchema = new mongoose.Schema({
 
 // ─── Índices ──────────────────────────────────────────────────────────
 managedAssetSchema.index({ module_id: 1, status: 1 });
-// ÚNICO por serial + tipo — evita duplicatas entre módulos distintos
-managedAssetSchema.index({ asset_type: 1, serial_number: 1 }, { unique: true });
-managedAssetSchema.index({ serial_number: 1 });            // busca rápida por serial
+// ÚNICO globalmente por serial_number — evita duplicatas mesmo em módulos distintos
+managedAssetSchema.index({ serial_number: 1 }, { unique: true });
+managedAssetSchema.index({ asset_type: 1, serial_number: 1 });  // busca composta rápida
 managedAssetSchema.index({ last_seen: -1 });
 managedAssetSchema.index({ location: 1 });
 managedAssetSchema.index({ asset_name: 'text', serial_number: 'text' });
