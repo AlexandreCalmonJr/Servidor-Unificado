@@ -1,12 +1,12 @@
-// File: models/ManagedAsset.js
+// File: models/ManagedAsset.js (CORRIGIDO — serial_number único por módulo)
 const mongoose = require('mongoose');
 
 const managedAssetSchema = new mongoose.Schema({
   module_id: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'AssetModule',
-    required: false,   // ← CORRIGIDO: agentes não conhecem o ObjectId; auto-injetado pela route
-    default: null,
+    ref: 'AssetModuleConfig',
+    required: true,   // ✅ OBRIGATÓRIO — todo ativo pertence a um módulo
+    index: true,
   },
   asset_name: {
     type: String,
@@ -16,7 +16,6 @@ const managedAssetSchema = new mongoose.Schema({
   asset_type: {
     type: String,
     required: true,
-    // Tipos suportados pelos módulos dos dois clientes:
     enum: ['desktop', 'notebook', 'totem', 'panel', 'printer', 'scanner', 'mobile', 'custom'],
   },
   serial_number: {
@@ -37,7 +36,6 @@ const managedAssetSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  // Localização resolvida pelo locationService
   unit: { type: String, trim: true, default: 'N/A' },
   sector: { type: String, trim: true, default: 'Desconhecido' },
   floor: { type: String, trim: true, default: 'Desconhecido' },
@@ -60,7 +58,7 @@ const managedAssetSchema = new mongoose.Schema({
   os_version: String,
   ip_address: String,
   mac_address: String,
-  mac_address_radio: String,   // BSSID do Wi-Fi (notebook/totem)
+  mac_address_radio: String,
   installed_software: [String],
   antivirus_status: Boolean,
   antivirus_version: String,
@@ -107,7 +105,7 @@ const managedAssetSchema = new mongoose.Schema({
   // ─── Histórico de localização ─────────────────────────────────────
   location_history: [mongoose.Schema.Types.Mixed],
 
-  // ─── Dados customizados (qualquer tipo de ativo) ──────────────────
+  // ─── Dados customizados ──────────────────────────────────────────
   custom_data: {
     type: Map,
     of: mongoose.Schema.Types.Mixed,
@@ -133,10 +131,16 @@ const managedAssetSchema = new mongoose.Schema({
 });
 
 // ─── Índices ──────────────────────────────────────────────────────────
+
+// ✅ CORREÇÃO PRINCIPAL: serial_number único POR MÓDULO
+// Permite o mesmo serial em módulos diferentes, mas não dentro do mesmo módulo
+managedAssetSchema.index(
+  { module_id: 1, serial_number: 1 },
+  { unique: true, name: 'idx_module_serial_unique' }
+);
+
 managedAssetSchema.index({ module_id: 1, status: 1 });
-// ÚNICO globalmente por serial_number — evita duplicatas mesmo em módulos distintos
-managedAssetSchema.index({ serial_number: 1 }, { unique: true });
-managedAssetSchema.index({ asset_type: 1, serial_number: 1 });  // busca composta rápida
+managedAssetSchema.index({ module_id: 1, asset_type: 1 });
 managedAssetSchema.index({ last_seen: -1 });
 managedAssetSchema.index({ location: 1 });
 managedAssetSchema.index({ asset_name: 'text', serial_number: 'text' });

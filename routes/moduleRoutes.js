@@ -1,10 +1,9 @@
-// File: routes/moduleRoutes.js (VERSÃO FINAL — FACTORY + VALIDAÇÃO + TRANSFORMAÇÃO)
+// File: routes/moduleRoutes.js (CORRIGIDO — Isolamento por module_id)
 const express = require('express');
 const AssetModuleConfig = require('../models/AssetModuleConfig');
-const User = require('../models/User'); // Carregado apenas quando necessário
-const { handleMongooseError } = require('../middleware/error'); // CORREÇÃO (Item 8): Importar handler
+const User = require('../models/User');
+const { handleMongooseError } = require('../middleware/error');
 
-// Factory completo
 const {
   getModelByType,
   validateByModuleId,
@@ -12,7 +11,6 @@ const {
   createAsset,
   updateAsset,
 } = require('../utils/assetFactory');
-// Tipos suportados dinâmicos (inclui totem, mobile, etc)
 const { getSupportedTypes } = require('../utils/assetFactory');
 
 const { getModuleStats, getActiveModules } = require('../controllers/assetModuleController');
@@ -20,24 +18,23 @@ const { getModuleStats, getActiveModules } = require('../controllers/assetModule
 module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => {
   const router = express.Router();
 
-  // ===== HELPER: Busca Módulo por ID ou Tipo =====
   const mongoose = require('mongoose');
+
+  // ===== HELPER: Busca Módulo por ID ou Tipo =====
   const findModuleParam = (param) => {
     if (mongoose.isValidObjectId(param)) {
       return AssetModuleConfig.findById(param);
     }
-    // Tenta buscar por tipo (ex: 'mobile', 'desktop')
     return AssetModuleConfig.findOne({ type: param });
   };
 
-  // ===== AUTENTICAÇÃO FLEXÍVEL (JWT + Legacy Token) =====
+  // ===== AUTENTICAÇÃO FLEXÍVEL =====
   const flexibleAuth = (req, res, next) => {
     auth(req, res, (err) => {
       if (!err) return next();
 
       deviceAuth(req, res, (err2) => {
         if (!err2) {
-          // ✅ FIX: Usar role 'device' ao invés de 'admin'
           logger.info('Autenticação de dispositivo: Token device usado', {
             ip: req.ip,
             path: req.originalUrl,
@@ -46,18 +43,17 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
           req.user = {
             id: req.deviceId || 'device_unknown',
             username: `device_${req.deviceId || 'unknown'}`,
-            role: 'device',  // ✅ Permissão reduzida
+            role: 'device',
             sector: 'Global',
-            permissions: ['read_own_data', 'send_updates'],  // ✅ Permissões específicas
+            permissions: ['read_own_data', 'send_updates'],
           };
           return next();
         }
 
-        // Se ambas falharem, retornar erro de autenticação
         if (err?.name === 'JsonWebTokenError' || err?.name === 'TokenExpiredError' || err?.name === 'NoTokenError') {
-          return res.status(401).json({ 
-            success: false, 
-            message: `Token inválido ou não fornecido: ${err?.message}` 
+          return res.status(401).json({
+            success: false,
+            message: `Token inválido ou não fornecido: ${err?.message}`
           });
         }
         return res.status(401).json({ success: false, message: 'Autenticação falhou' });
@@ -69,16 +65,18 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   // MÓDULOS
   // ===================================================================
 
-  // GET /api/modules/active (CLIENTS) - Deve vir antes de /:moduleId
   router.get('/active', flexibleAuth, getApiLimiter, getActiveModules);
 
+  // GET /api/modules — lista módulos com contagem de ativos ISOLADA por module_id
   router.get('/', flexibleAuth, getApiLimiter, async (req, res) => {
     try {
       const modules = await AssetModuleConfig.find().sort({ created_at: -1 }).lean();
+
       const modulesWithCount = await Promise.all(
         modules.map(async (m) => {
           const Model = getModelByType(m.type);
-          const count = Model ? await Model.countDocuments() : 0;
+          // ✅ CORREÇÃO: filtra por module_id para isolar ativos de cada módulo
+          const count = Model ? await Model.countDocuments({ module_id: m._id }) : 0;
           return { ...m, id: m._id, asset_count: count };
         })
       );
@@ -91,24 +89,49 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
     }
   });
 
+  // GET /api/modules/:moduleId
   router.get('/:moduleId', flexibleAuth, getApiLimiter, async (req, res) => {
     try {
       const module = await findModuleParam(req.params.moduleId).lean();
       if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
 
       const Model = getModelByType(module.type);
-      const assetCount = Model ? await Model.countDocuments() : 0;
+      // ✅ CORREÇÃO: conta apenas ativos deste módulo específico
+      const assetCount = Model ? await Model.countDocuments({ module_id: module._id }) : 0;
 
       logger.info(`Módulo consultado: ${module.name} por ${req.user.username}`);
-      res.json({ success: true, module: { ...module, asset_count: assetCount } });
+      res.json({ success: true, module: { ...module, asset_count: assetCount }, ...module, asset_count: assetCount });
     } catch (error) {
       logger.error(`Erro ao buscar módulo: ${error.message}`);
       res.status(500).json({ success: false, message: 'Erro interno', error: error.message });
     }
   });
 
-  // GET /api/modules/:moduleId/stats (DASHBOARD)
-  router.get('/:moduleId/stats', flexibleAuth, getApiLimiter, getModuleStats);
+  // GET /api/modules/:moduleId/stats
+  router.get('/:moduleId/stats', flexibleAuth, getApiLimiter, async (req, res) => {
+    try {
+      const module = await findModuleParam(req.params.moduleId).lean();
+      if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
+
+      const Model = getModelByType(module.type);
+      if (!Model) return res.status(400).json({ success: false, message: 'Tipo não suportado' });
+
+      // ✅ CORREÇÃO: stats isolados por module_id
+      const moduleFilter = { module_id: module._id };
+
+      const [total, online, offline, maintenance] = await Promise.all([
+        Model.countDocuments(moduleFilter),
+        Model.countDocuments({ ...moduleFilter, status: { $in: ['online', 'active'] } }),
+        Model.countDocuments({ ...moduleFilter, status: { $in: ['offline', 'inactive', 'failed', 'unknown'] } }),
+        Model.countDocuments({ ...moduleFilter, status: 'maintenance' }),
+      ]);
+
+      res.json({ success: true, total, online, offline, maintenance });
+    } catch (error) {
+      logger.error(`Erro ao buscar stats: ${error.message}`);
+      res.status(500).json({ success: false, message: 'Erro interno', error: error.message });
+    }
+  });
 
   // ===================================================================
   // CRIAÇÃO / ATUALIZAÇÃO DE MÓDULO (ADMIN)
@@ -120,7 +143,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
     modifyApiLimiter,
     [
       require('express-validator').body('name').trim().notEmpty(),
-      // Usar lista dinâmica de tipos suportados pelo ManagedAsset
       require('express-validator').body('type').isIn(getSupportedTypes()),
     ],
     async (req, res) => {
@@ -182,8 +204,9 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
 
       const Model = getModelByType(module.type);
-      if (Model && await Model.countDocuments() > 0) {
-        return res.status(400).json({ success: false, message: 'Módulo possui ativos' });
+      // ✅ CORREÇÃO: verifica apenas ativos deste módulo específico
+      if (Model && await Model.countDocuments({ module_id: module._id }) > 0) {
+        return res.status(400).json({ success: false, message: 'Módulo possui ativos. Exclua os ativos primeiro.' });
       }
 
       await AssetModuleConfig.findByIdAndDelete(req.params.moduleId);
@@ -196,9 +219,10 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   });
 
   // ===================================================================
-  // ATIVOS
+  // ATIVOS — isolados por module_id
   // ===================================================================
 
+  // GET /api/modules/:moduleId/assets
   router.get('/:moduleId/assets', flexibleAuth, getApiLimiter, async (req, res) => {
     try {
       const module = await findModuleParam(req.params.moduleId);
@@ -208,7 +232,10 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       if (!Model) return res.status(400).json({ success: false, message: 'Tipo não suportado' });
 
       const { page = 1, limit = 50, status, search } = req.query;
-      const filter = {};
+
+      // ✅ CORREÇÃO: filtro base sempre inclui module_id
+      const filter = { module_id: module._id };
+
       if (status) filter.status = status;
       if (search) {
         filter.$or = [
@@ -239,7 +266,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
     }
   });
 
-  // Cria ou atualiza (agente)
+  // POST /api/modules/:moduleId/assets — cria ou atualiza ativo
   router.post(
     '/:moduleId/assets',
     flexibleAuth,
@@ -247,8 +274,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
     validateByModuleId,
     async (req, res) => {
       try {
-        // [PATCH] Injetar module_id e asset_type no payload antes de processar
-        // O middleware validateByModuleId geralmente anexa o objeto module ao req
         logger.info(`📥 POST /api/modules/assets recebido:`, {
           moduleId: req.params.moduleId,
           moduleType: req.moduleType,
@@ -256,15 +281,14 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
           assetType: req.body.asset_type,
           assetName: req.body.asset_name,
         });
-        
+
+        // ✅ CORREÇÃO: sempre injeta module_id no payload
         if (req.module && req.module._id) {
-          req.body.module_id = req.module._id;        // ObjectId do módulo
-          // Só sobrescreve asset_type se cliente não enviou
+          req.body.module_id = req.module._id;
           if (!req.body.asset_type) {
-            req.body.asset_type = req.module.type;    // ex: 'desktop', 'mobile'
+            req.body.asset_type = req.module.type;
           }
         } else if (req.moduleType) {
-          // Fallback caso apenas o tipo esteja disponível
           if (!req.body.asset_type) {
             req.body.asset_type = req.moduleType;
           }
@@ -272,30 +296,33 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
 
         const moduleType = req.moduleType;
         const Model = getModelByType(moduleType);
-        
-        // Verifica se já existe pelo serial_number
-        const existing = await Model.findOne({ serial_number: req.body.serial_number });
+        const moduleId = req.module?._id || req.body.module_id;
+
+        // ✅ CORREÇÃO: busca ativo existente DENTRO deste módulo
+        // Evita colisão de serial_number entre módulos diferentes
+        const existing = await Model.findOne({
+          serial_number: req.body.serial_number,
+          module_id: moduleId,
+        });
 
         let asset;
         if (existing) {
-          // Atualiza ativo existente
           asset = await updateAsset(moduleType, existing._id, req.body);
-          logger.info(`✏️  Ativo ATUALIZADO: ${asset.asset_name} (S/N: ${asset.serial_number}) em módulo ${req.moduleType}`);
-          return res.json({ 
-            success: true, 
-            message: 'Atualizado', 
-            asset: transformAssetForOutput(asset), 
-            updated: true 
+          logger.info(`✏️ Ativo ATUALIZADO: ${asset.asset_name} (S/N: ${asset.serial_number}) no módulo ${moduleId}`);
+          return res.json({
+            success: true,
+            message: 'Atualizado',
+            asset: transformAssetForOutput(asset),
+            updated: true
           });
         } else {
-          // Cria novo ativo com os dados injetados
           asset = await createAsset(moduleType, req.body);
-          logger.info(`✨ Ativo CRIADO: ${asset.asset_name} (S/N: ${asset.serial_number}) em módulo ${req.moduleType}`);
-          return res.status(201).json({ 
-            success: true, 
-            message: 'Criado', 
-            asset: transformAssetForOutput(asset), 
-            updated: false 
+          logger.info(`✨ Ativo CRIADO: ${asset.asset_name} (S/N: ${asset.serial_number}) no módulo ${moduleId}`);
+          return res.status(201).json({
+            success: true,
+            message: 'Criado',
+            asset: transformAssetForOutput(asset),
+            updated: false
           });
         }
       } catch (error) {
@@ -319,7 +346,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
     }
   );
 
-  // Atualiza via painel
+  // PUT /api/modules/:moduleId/assets/:assetId
   router.put(
     '/:moduleId/assets/:assetId',
     auth,
@@ -332,12 +359,10 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
         logger.info(`Ativo atualizado (painel): ${asset.asset_name} por ${req.user.username}`);
         res.json({ success: true, message: 'Atualizado', asset: transformAssetForOutput(asset) });
       } catch (error) {
-        // CORREÇÃO (Item 8): Tratamento de erro Mongoose
         logger.error(`Erro ao atualizar ativo: ${error.message}`);
-        const specificError = handleMongooseError(error); // Tenta tratar erro do Mongoose
+        const specificError = handleMongooseError(error);
 
         if (specificError.isOperational) {
-          // É um erro tratado (400, 404, 409, 422)
           return res.status(specificError.statusCode).json({
             success: false,
             message: specificError.message,
@@ -345,7 +370,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
           });
         }
 
-        // Trata o "não encontrado" que vem do assetFactory
         if (error.message.includes('não encontrado')) {
           return res.status(404).json({
             success: false,
@@ -354,7 +378,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
           });
         }
 
-        // Fallback para 500
         res.status(500).json({
           success: false,
           message: 'Erro ao atualizar',
@@ -364,14 +387,19 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
     }
   );
 
+  // DELETE /api/modules/:moduleId/assets/:assetId
   router.delete('/:moduleId/assets/:assetId', auth, modifyApiLimiter, async (req, res) => {
     try {
       const module = await findModuleParam(req.params.moduleId);
       if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
 
       const Model = getModelByType(module.type);
-      const asset = await Model.findByIdAndDelete(req.params.assetId);
-      if (!asset) return res.status(404).json({ success: false, message: 'Ativo não encontrado' });
+      // ✅ CORREÇÃO: garante que o ativo pertence a este módulo
+      const asset = await Model.findOneAndDelete({
+        _id: req.params.assetId,
+        module_id: module._id,
+      });
+      if (!asset) return res.status(404).json({ success: false, message: 'Ativo não encontrado neste módulo' });
 
       logger.info(`Ativo excluído: ${asset.asset_name} por ${req.user.username}`);
       res.json({ success: true, message: 'Excluído' });
@@ -390,96 +418,56 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       const { moduleId, assetId } = req.params;
 
       const module = await findModuleParam(moduleId);
-      if (!module) {
-        return res.status(404).json({
-          success: false,
-          message: 'Módulo não encontrado'
-        });
-      }
+      if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
 
       const Model = getModelByType(module.type);
-      const asset = await Model.findById(assetId);
+      // ✅ CORREÇÃO: garante pertencimento ao módulo
+      const asset = await Model.findOne({ _id: assetId, module_id: module._id });
+      if (!asset) return res.status(404).json({ success: false, message: 'Ativo não encontrado neste módulo' });
 
-      if (!asset) {
-        return res.status(404).json({
-          success: false,
-          message: 'Ativo não encontrado'
-        });
-      }
-
-      // Campos que podem ser atualizados via PATCH
       const allowedFields = [
         'location', 'assigned_to', 'status', 'notes',
         'maintenance_status', 'maintenance_ticket', 'maintenance_reason'
       ];
 
-      // Atualiza apenas campos permitidos
       Object.keys(req.body).forEach(key => {
-        if (allowedFields.includes(key)) {
-          asset[key] = req.body[key];
-        }
+        if (allowedFields.includes(key)) asset[key] = req.body[key];
       });
 
       asset.updated_at = new Date();
       await asset.save();
 
       logger.info(`Ativo atualizado (PATCH): ${asset.asset_name} por ${req.user.username}`);
-
-      res.json({
-        success: true,
-        message: 'Ativo atualizado',
-        asset: transformAssetForOutput(asset),
-      });
+      res.json({ success: true, message: 'Ativo atualizado', asset: transformAssetForOutput(asset) });
     } catch (error) {
       logger.error(`Erro no PATCH: ${error.message}`);
-      res.status(500).json({
-        success: false,
-        message: 'Erro na atualização',
-        error: error.message
-      });
+      res.status(500).json({ success: false, message: 'Erro na atualização', error: error.message });
     }
-  }
-  );
+  });
 
-  // Endpoint específico para manutenção
   router.put('/:moduleId/assets/:assetId/maintenance', auth, modifyApiLimiter, async (req, res) => {
     try {
       const { moduleId, assetId } = req.params;
       const { maintenance_status, maintenance_ticket, maintenance_reason, maintenance_history_entry } = req.body;
 
       const module = await findModuleParam(moduleId);
-      if (!module) {
-        return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
-      }
+      if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
 
       const Model = getModelByType(module.type);
-      const asset = await Model.findById(assetId);
+      // ✅ CORREÇÃO: garante pertencimento ao módulo
+      const asset = await Model.findOne({ _id: assetId, module_id: module._id });
+      if (!asset) return res.status(404).json({ success: false, message: 'Ativo não encontrado neste módulo' });
 
-      if (!asset) {
-        return res.status(404).json({ success: false, message: 'Ativo não encontrado' });
-      }
+      if (typeof maintenance_status === 'boolean') asset.maintenance_status = maintenance_status;
+      if (maintenance_ticket !== undefined) asset.maintenance_ticket = maintenance_ticket;
+      if (maintenance_reason !== undefined) asset.maintenance_reason = maintenance_reason;
 
-      // Atualiza campos de manutenção
-      if (typeof maintenance_status === 'boolean') {
-        asset.maintenance_status = maintenance_status;
-      }
-      if (maintenance_ticket !== undefined) {
-        asset.maintenance_ticket = maintenance_ticket;
-      }
-      if (maintenance_reason !== undefined) {
-        asset.maintenance_reason = maintenance_reason;
-      }
-
-      // Adiciona entrada no histórico se fornecida
       if (maintenance_history_entry) {
         try {
           const historyEntry = typeof maintenance_history_entry === 'string'
             ? JSON.parse(maintenance_history_entry)
             : maintenance_history_entry;
-
-          if (!asset.maintenance_history) {
-            asset.maintenance_history = [];
-          }
+          if (!asset.maintenance_history) asset.maintenance_history = [];
           asset.maintenance_history.push(historyEntry);
         } catch (e) {
           logger.warn(`Erro ao parsear maintenance_history_entry: ${e.message}`);
@@ -490,22 +478,47 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       await asset.save();
 
       logger.info(`Manutenção atualizada: ${asset.asset_name} por ${req.user.username}`);
-
-      res.json({
-        success: true,
-        message: 'Status de manutenção atualizado',
-        asset: transformAssetForOutput(asset),
-      });
+      res.json({ success: true, message: 'Status de manutenção atualizado', asset: transformAssetForOutput(asset) });
     } catch (error) {
       logger.error(`Erro ao atualizar manutenção: ${error.message}`);
-      res.status(500).json({
-        success: false,
-        message: 'Erro ao atualizar manutenção',
-        error: error.message
-      });
+      res.status(500).json({ success: false, message: 'Erro ao atualizar manutenção', error: error.message });
     }
   });
 
+  // ===================================================================
+  // HISTÓRICO
+  // ===================================================================
+
+  router.get('/:moduleId/assets/:assetId/history', auth, getApiLimiter, async (req, res) => {
+    try {
+      const { moduleId, assetId } = req.params;
+
+      const module = await findModuleParam(moduleId);
+      if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
+
+      const Model = getModelByType(module.type);
+      // ✅ CORREÇÃO: garante pertencimento ao módulo
+      const asset = await Model.findOne({ _id: assetId, module_id: module._id }).lean();
+      if (!asset) return res.status(404).json({ success: false, message: 'Ativo não encontrado neste módulo' });
+
+      const locHistory = asset.location_history || [];
+      const maintHistory = asset.maintenance_history || [];
+
+      const history = [...locHistory, ...maintHistory]
+        .filter(h => h.timestamp)
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+      logger.info(`Histórico solicitado: ${asset.asset_name} por ${req.user.username}`);
+      res.json({
+        success: true,
+        history,
+        asset: { id: asset._id, name: asset.asset_name, serial: asset.serial_number, status: asset.status }
+      });
+    } catch (error) {
+      logger.error(`Erro ao buscar histórico: ${error.message}`);
+      res.status(500).json({ success: false, message: 'Erro ao buscar histórico', error: error.message });
+    }
+  });
 
   // ===================================================================
   // PERMISSÕES
@@ -548,64 +561,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       res.status(500).json({ success: false, message: 'Erro', error: error.message });
     }
   });
-
-
-  router.get('/:moduleId/assets/:assetId/history', auth, getApiLimiter, async (req, res) => {
-    try {
-      const { moduleId, assetId } = req.params;
-
-      const module = await findModuleParam(moduleId);
-      if (!module) {
-        return res.status(404).json({
-          success: false,
-          message: 'Módulo não encontrado'
-        });
-      }
-
-      const Model = getModelByType(module.type);
-      const asset = await Model.findById(assetId).lean();
-
-      if (!asset) {
-        return res.status(404).json({
-          success: false,
-          message: 'Ativo não encontrado'
-        });
-      }
-
-      // Retorna histórico unificado (localização + manutenção)
-      const locHistory = asset.location_history || [];
-      const maintHistory = asset.maintenance_history || [];
-
-      // Adiciona flag de tipo para o frontend se necessário (opcional, pois 'source' já ajuda)
-      // Mas vamos garantir que tudo tenha timestamp válido
-      const history = [...locHistory, ...maintHistory]
-        .filter(h => h.timestamp)
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-      logger.info(`Histórico solicitado: ${asset.asset_name} por ${req.user.username}`);
-
-      res.json({
-        success: true,
-        history,
-        asset: {
-          id: asset._id,
-          name: asset.asset_name,
-          serial: asset.serial_number,
-          status: asset.status,
-        }
-      });
-    } catch (error) {
-      logger.error(`Erro ao buscar histórico: ${error.message}`);
-      res.status(500).json({
-        success: false,
-        message: 'Erro ao buscar histórico',
-        error: error.message
-      });
-    }
-  }
-  );
-
-
-
 
   return router;
 };
