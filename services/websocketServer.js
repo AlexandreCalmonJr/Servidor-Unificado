@@ -9,6 +9,7 @@ class WebSocketServer {
       return WebSocketServer.instance;
     }
     this.wss = new WebSocket.Server({ server, path: '/ws' });
+    this.clients = new Map(); // Mapear userId -> Set de conexões
     WebSocketServer.instance = this;
     this._init();
   }
@@ -18,10 +19,21 @@ class WebSocketServer {
 
     this.wss.on('connection', (ws, req) => {
       const ip = req.socket.remoteAddress;
+      const userId = req.url.split('?')[1]?.split('=')[1]; // ?userId=xxx
+      
       logger.info(`🔌 New WebSocket connection from ${ip}`);
 
       ws.isAlive = true;
+      ws.userId = userId;
       ws.on('pong', () => { ws.isAlive = true; });
+
+      // Registrar cliente por userId
+      if (userId) {
+        if (!this.clients.has(userId)) {
+          this.clients.set(userId, new Set());
+        }
+        this.clients.get(userId).add(ws);
+      }
 
       ws.on('message', async (message) => {
         try {
@@ -34,6 +46,12 @@ class WebSocketServer {
 
       ws.on('close', () => {
         logger.info(`🔌 WebSocket connection closed from ${ip}`);
+        if (userId && this.clients.has(userId)) {
+          this.clients.get(userId).delete(ws);
+          if (this.clients.get(userId).size === 0) {
+            this.clients.delete(userId);
+          }
+        }
         if (ws.assetId) {
           this._updateAssetStatus(ws.assetId, 'offline');
         }
@@ -123,6 +141,23 @@ class WebSocketServer {
     });
   }
 
+  // Enviar notificação para usuário específico
+  notifyUser(userId, data) {
+    if (this.clients.has(userId)) {
+      const userClients = this.clients.get(userId);
+      userClients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify(data));
+        }
+      });
+    }
+  }
+
+  // Enviar notificação para todos os usuários
+  notifyAll(data) {
+    this.broadcast(data);
+  }
+
   static getInstance() {
     return WebSocketServer.instance;
   }
@@ -130,6 +165,18 @@ class WebSocketServer {
   static broadcastToAll(data) {
     if (WebSocketServer.instance) {
       WebSocketServer.instance.broadcast(data);
+    }
+  }
+
+  static notifyUser(userId, data) {
+    if (WebSocketServer.instance) {
+      WebSocketServer.instance.notifyUser(userId, data);
+    }
+  }
+
+  static notifyAll(data) {
+    if (WebSocketServer.instance) {
+      WebSocketServer.instance.notifyAll(data);
     }
   }
 }

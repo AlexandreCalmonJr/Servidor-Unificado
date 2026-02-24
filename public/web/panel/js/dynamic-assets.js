@@ -109,8 +109,8 @@
                 <td class="mono">${esc(a.serial_number || 'N/A')}</td>
                 <td class="mono">${esc(a.ip_address || 'N/A')}</td>
                 <td>${esc(a.location || 'N/A')}</td>
-                <td>${statusBadge(a.status)}</td>
-                <td>${formatDate(a.last_seen || a.updatedAt)}</td>
+                <td>${statusBadgeWithIcon(a.status)}</td>
+                <td title="${new Date(a.last_seen || a.updatedAt).toLocaleString('pt-BR')}">${TimeFormatter.formatTimeAgo(a.last_seen || a.updatedAt)}</td>
                 <td>
                     <button class="btn btn-ghost btn-sm" onclick="DynamicAssetManager.view('${a._id || a.id}')" title="Ver Detalhes">👁️</button>
                     <button class="btn btn-ghost btn-sm" onclick="DynamicAssetManager.edit('${a._id || a.id}')" title="Editar">✏️</button>
@@ -119,6 +119,11 @@
                 </td>
             </tr>
         `).join('');
+    }
+
+    function statusBadgeWithIcon(status) {
+        const badge = TimeFormatter.getStatusBadge(status);
+        return `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: ${badge.bg}; color: ${badge.color}; border-radius: 4px; font-size: 12px; font-weight: 600;">${badge.icon} ${badge.label}</span>`;
     }
 
     function renderModuleStats(assets) {

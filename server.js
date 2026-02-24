@@ -50,6 +50,8 @@ const bssidRoutes = require('./routes/bssidRoutes');
 const unitRoutes = require('./routes/unitRoutes');
 const diagnosticRoutes = require('./routes/diagnosticRoutes');
 const deviceRoutes = require('./routes/deviceRoutes');
+const exportRoutes = require('./routes/exportRoutes');
+const savedFilterRoutes = require('./routes/savedFilterRoutes');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -227,6 +229,8 @@ app.use('/api/units', unitRoutes(logger, getApiLimiter, modifyApiLimiter, auth))
 app.use('/api/bssid-mappings', bssidRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
 app.use('/api/server', serverRoutes(logger, getApiLimiter, auth));
 app.use('/api/diagnostic', diagnosticRoutes(logger, getApiLimiter, auth));
+app.use('/api/export', exportRoutes(logger, getApiLimiter, auth));
+app.use('/api/filters', savedFilterRoutes(logger, modifyApiLimiter, auth));
 
 // ===== PAINEL WEB (SPA) =====
 app.get('/provision/:token', provisioningRoutes.renderProvisioningPage(logger));

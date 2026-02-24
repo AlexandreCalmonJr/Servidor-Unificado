@@ -12,6 +12,7 @@ const {
   updateAsset,
 } = require('../utils/assetFactory');
 const { getSupportedTypes } = require('../utils/assetFactory');
+const { cursorPaginate, parseCursorParams, formatCursorResponse } = require('../utils/paginationHelper');
 
 const { getModuleStats, getActiveModules } = require('../controllers/assetModuleController');
 
@@ -110,11 +111,20 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   // GET /api/modules/:moduleId/stats
   router.get('/:moduleId/stats', flexibleAuth, getApiLimiter, async (req, res) => {
     try {
-      const module = await findModuleParam(req.params.moduleId).lean();
+      const module = await findModuleParam(req.params.moduleId);
       if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
 
       const Model = getModelByType(module.type);
       if (!Model) return res.status(400).json({ success: false, message: 'Tipo não suportado' });
+
+      // 💾 Verificar cache
+      const cacheService = require('../services/cacheService');
+      const cacheKey = `stats:${module._id}`;
+      const cachedStats = await cacheService.get(cacheKey);
+      if (cachedStats) {
+        logger.info(`📦 Stats retornado do cache para ${module.name}`);
+        return res.json({ success: true, ...cachedStats, fromCache: true });
+      }
 
       // ✅ CORREÇÃO: stats isolados por module_id
       const moduleFilter = { module_id: module._id };
@@ -126,7 +136,13 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
         Model.countDocuments({ ...moduleFilter, status: 'maintenance' }),
       ]);
 
-      res.json({ success: true, total, online, offline, maintenance });
+      const stats = { total, online, offline, maintenance };
+
+      // 💾 Cachear por 60 segundos
+      await cacheService.set(cacheKey, stats, 60);
+
+      logger.info(`📊 Stats calculados para ${module.name}`);
+      res.json({ success: true, ...stats, fromCache: false });
     } catch (error) {
       logger.error(`Erro ao buscar stats: ${error.message}`);
       res.status(500).json({ success: false, message: 'Erro interno', error: error.message });
@@ -222,7 +238,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   // ATIVOS — isolados por module_id
   // ===================================================================
 
-  // GET /api/modules/:moduleId/assets
+  // GET /api/modules/:moduleId/assets — com paginação tradicional
   router.get('/:moduleId/assets', flexibleAuth, getApiLimiter, async (req, res) => {
     try {
       const module = await findModuleParam(req.params.moduleId);
@@ -231,10 +247,15 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       const Model = getModelByType(module.type);
       if (!Model) return res.status(400).json({ success: false, message: 'Tipo não suportado' });
 
-      const { page = 1, limit = 50, status, search } = req.query;
+      const { page = 1, limit = 50, status, search, includeDeleted = false } = req.query;
 
       // ✅ CORREÇÃO: filtro base sempre inclui module_id
       const filter = { module_id: module._id };
+
+      // 🗑️ Soft delete: não incluir deletados por padrão
+      if (includeDeleted !== 'true') {
+        filter.is_deleted = false;
+      }
 
       if (status) filter.status = status;
       if (search) {
@@ -262,6 +283,42 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       });
     } catch (error) {
       logger.error(`Erro ao listar ativos: ${error.message}`);
+      res.status(500).json({ success: false, message: 'Erro ao carregar ativos', error: error.message });
+    }
+  });
+
+  // GET /api/modules/:moduleId/assets/cursor — com cursor pagination (novo)
+  router.get('/:moduleId/assets/cursor', flexibleAuth, getApiLimiter, parseCursorParams, async (req, res) => {
+    try {
+      const module = await findModuleParam(req.params.moduleId);
+      if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
+
+      const Model = getModelByType(module.type);
+      if (!Model) return res.status(400).json({ success: false, message: 'Tipo não suportado' });
+
+      const { status, search } = req.query;
+
+      // ✅ Filtro base com module_id
+      let query = Model.find({ module_id: module._id });
+
+      if (status) query = query.where('status').equals(status);
+      if (search) {
+        query = query.or([
+          { asset_name: { $regex: search, $options: 'i' } },
+          { serial_number: { $regex: search, $options: 'i' } },
+          { location: { $regex: search, $options: 'i' } },
+        ]);
+      }
+
+      const { cursor, limit, sortBy, sortOrder } = req.cursorParams;
+      const result = await cursorPaginate(query, cursor, limit, sortBy, sortOrder);
+
+      const transformed = result.items.map(transformAssetForOutput);
+      
+      logger.info(`Ativos com cursor: ${result.items.length} do módulo ${module.name}`);
+      res.json(formatCursorResponse({ ...result, items: transformed }));
+    } catch (error) {
+      logger.error(`Erro ao listar ativos com cursor: ${error.message}`);
       res.status(500).json({ success: false, message: 'Erro ao carregar ativos', error: error.message });
     }
   });

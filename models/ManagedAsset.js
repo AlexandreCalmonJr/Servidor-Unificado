@@ -115,12 +115,28 @@ const managedAssetSchema = new mongoose.Schema({
   // ─── Provisionamento ──────────────────────────────────────────────
   provisioning_status: { type: String, default: null },
 
+  // ─── Soft Delete (para manter histórico) ───────────────────────────
+  deleted_at: {
+    type: Date,
+    default: null,
+    index: true  // 🗑️ Para filtros rápidos
+  },
+  is_deleted: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+
   // ─── Metadados ────────────────────────────────────────────────────
   created_by: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
   updated_by: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  deleted_by: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
@@ -145,15 +161,72 @@ managedAssetSchema.index({ last_seen: -1 });
 managedAssetSchema.index({ location: 1 });
 managedAssetSchema.index({ asset_name: 'text', serial_number: 'text' });
 
+// 🗑️ Índices para soft delete
+managedAssetSchema.index({ deleted_at: 1 });
+managedAssetSchema.index({ is_deleted: 1 });
+managedAssetSchema.index({ module_id: 1, is_deleted: 1 });
+
 // ─── Virtual ──────────────────────────────────────────────────────────
 managedAssetSchema.virtual('is_currently_online').get(function () {
   const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
   return this.last_seen >= fifteenMinutesAgo;
 });
 
+// ─── Métodos ──────────────────────────────────────────────────────────
+
+/**
+ * Soft delete: marca como deletado
+ */
+managedAssetSchema.methods.softDelete = function (deletedBy) {
+  this.deleted_at = new Date();
+  this.is_deleted = true;
+  if (deletedBy) this.deleted_by = deletedBy;
+  return this.save();
+};
+
+/**
+ * Restaura um ativo deletado
+ */
+managedAssetSchema.methods.restore = function () {
+  this.deleted_at = null;
+  this.is_deleted = false;
+  this.deleted_by = null;
+  return this.save();
+};
+
+/**
+ * Verifica se foi deletado
+ */
+managedAssetSchema.methods.isDeleted = function () {
+  return this.is_deleted === true;
+};
+
 managedAssetSchema.methods.updateLastSeen = function () {
   this.last_seen = new Date();
   return this.save();
+};
+
+// ─── Query Helpers ──────────────────────────────────────────────────
+
+/**
+ * Escopo para excluir deletados por padrão
+ */
+managedAssetSchema.query.active = function () {
+  return this.where({ is_deleted: false });
+};
+
+/**
+ * Escopo para incluir apenas deletados
+ */
+managedAssetSchema.query.deleted = function () {
+  return this.where({ is_deleted: true });
+};
+
+/**
+ * Escopo para incluir todos (com ou sem deletados)
+ */
+managedAssetSchema.query.withDeleted = function () {
+  return this; // Sem filtro
 };
 
 module.exports = mongoose.model('ManagedAsset', managedAssetSchema);

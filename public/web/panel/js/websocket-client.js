@@ -126,5 +126,35 @@ const WS = (() => {
         });
     }
 
+    // ===== Handlers para notificações =====
+    on('notification', (msg) => {
+        const { title, message, severity, event } = msg;
+        
+        // Mostrar toast
+        const icon = severity === 'success' ? '✅' : severity === 'error' ? '❌' : severity === 'warning' ? '⚠️' : 'ℹ️';
+        showToast(`${icon} ${title}\n${message}`, severity);
+
+        // Log específico por evento
+        if (event === 'token_created') {
+            console.log('🔑 Novo token de provisionamento criado');
+            if (typeof window.loadTokens === 'function') window.loadTokens();
+        } else if (event === 'device_enrolled') {
+            console.log('📱 Novo dispositivo provisionado');
+            if (typeof window.loadModules === 'function') window.loadModules();
+        } else if (event === 'command_executed') {
+            console.log('⌨️ Comando executado');
+            if (typeof window.loadCommands === 'function') window.loadCommands();
+        }
+    });
+
+    // ===== Handler para atualizações de dashboard =====
+    on('dashboard_update', (msg) => {
+        const { moduleId, stats } = msg;
+        console.log(`📊 Dashboard update para módulo ${moduleId}:`, stats);
+        if (typeof window.updateDashboard === 'function') {
+            window.updateDashboard(moduleId, stats);
+        }
+    });
+
     return { connect, on, off };
 })();

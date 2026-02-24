@@ -6,6 +6,7 @@ const ProvisioningToken = require('../models/ProvisioningToken');
 const ConfigProfile = require('../models/ConfigProfile');
 const { getLocalIPAddress } = require('../utils/helpers');
 const locationService = require('../services/locationService');
+const notificationService = require('../services/notificationService');
 
 const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
   const router = express.Router();
@@ -31,6 +32,10 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
       await provisioningToken.save();
 
       logger.info(`Token de provisionamento gerado: ${token} para ${organization}`);
+      
+      // 🔔 Notificar via WebSocket
+      notificationService.notifyTokenCreated(token, organization, config_profile);
+
       res.status(201).json({
         token, organization, config_profile, max_uses, expires_at,
         provisioning_url: `http://${getLocalIPAddress()}:${process.env.PORT || 3000}/provision/${token}`,
@@ -197,6 +202,10 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
       }
 
       logger.info(`Dispositivo provisionado: ${serial_number} para ${token.organization}`);
+      
+      // 🔔 Notificar via WebSocket
+      notificationService.notifyDeviceEnrolled(device_name, serial_number, token.organization);
+
       res.status(200).json({
         message: 'Dispositivo provisionado com sucesso',
         device_id, serial_number,
