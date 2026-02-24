@@ -1,4 +1,4 @@
-// File: routes/moduleRoutes.js (CORRIGIDO — Isolamento por module_id)
+// File: routes/moduleRoutes.js (CORRIGIDO — Isolamento por module_id e Soft Delete)
 const express = require('express');
 const AssetModuleConfig = require('../models/AssetModuleConfig');
 const User = require('../models/User');
@@ -76,8 +76,11 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       const modulesWithCount = await Promise.all(
         modules.map(async (m) => {
           const Model = getModelByType(m.type);
-          // ✅ CORREÇÃO: filtra por module_id para isolar ativos de cada módulo
-          const count = Model ? await Model.countDocuments({ module_id: m._id }) : 0;
+          // ✅ CORREÇÃO: filtra por module_id e ignora deletados
+          const count = Model ? await Model.countDocuments({ 
+            module_id: m._id,
+            is_deleted: { $ne: true }
+          }) : 0;
           return { ...m, id: m._id, asset_count: count };
         })
       );
@@ -97,8 +100,11 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
 
       const Model = getModelByType(module.type);
-      // ✅ CORREÇÃO: conta apenas ativos deste módulo específico
-      const assetCount = Model ? await Model.countDocuments({ module_id: module._id }) : 0;
+      // ✅ CORREÇÃO: conta apenas ativos deste módulo específico ignorando deletados
+      const assetCount = Model ? await Model.countDocuments({ 
+        module_id: module._id,
+        is_deleted: { $ne: true }
+      }) : 0;
 
       logger.info(`Módulo consultado: ${module.name} por ${req.user.username}`);
       res.json({ success: true, module: { ...module, asset_count: assetCount }, ...module, asset_count: assetCount });
@@ -126,8 +132,11 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
         return res.json({ success: true, ...cachedStats, fromCache: true });
       }
 
-      // ✅ CORREÇÃO: stats isolados por module_id
-      const moduleFilter = { module_id: module._id };
+      // ✅ CORREÇÃO: stats isolados por module_id e ignorando deletados
+      const moduleFilter = { 
+        module_id: module._id,
+        is_deleted: { $ne: true }
+      };
 
       const [total, online, offline, maintenance] = await Promise.all([
         Model.countDocuments(moduleFilter),
@@ -220,8 +229,8 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
 
       const Model = getModelByType(module.type);
-      // ✅ CORREÇÃO: verifica apenas ativos deste módulo específico
-      if (Model && await Model.countDocuments({ module_id: module._id }) > 0) {
+      // ✅ CORREÇÃO: verifica apenas ativos deste módulo específico que não estejam deletados
+      if (Model && await Model.countDocuments({ module_id: module._id, is_deleted: { $ne: true } }) > 0) {
         return res.status(400).json({ success: false, message: 'Módulo possui ativos. Exclua os ativos primeiro.' });
       }
 
@@ -254,7 +263,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
 
       // 🗑️ Soft delete: não incluir deletados por padrão
       if (includeDeleted !== 'true') {
-        filter.is_deleted = false;
+        filter.is_deleted = { $ne: true };
       }
 
       if (status) filter.status = status;
@@ -298,8 +307,11 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
 
       const { status, search } = req.query;
 
-      // ✅ Filtro base com module_id
-      let query = Model.find({ module_id: module._id });
+      // ✅ Filtro base com module_id previnindo soft delete
+      let query = Model.find({ 
+        module_id: module._id,
+        is_deleted: { $ne: true } 
+      });
 
       if (status) query = query.where('status').equals(status);
       if (search) {

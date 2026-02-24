@@ -1,4 +1,4 @@
-// File: models/ManagedAsset.js (CORRIGIDO — serial_number único por módulo)
+// File: models/ManagedAsset.js (CORRIGIDO — serial_number único por módulo e Query Helper)
 const mongoose = require('mongoose');
 
 const managedAssetSchema = new mongoose.Schema({
@@ -212,7 +212,8 @@ managedAssetSchema.methods.updateLastSeen = function () {
  * Escopo para excluir deletados por padrão
  */
 managedAssetSchema.query.active = function () {
-  return this.where({ is_deleted: false });
+  // ✅ CORREÇÃO: Utiliza $ne para dados legados funcionarem no helper
+  return this.where({ is_deleted: { $ne: true } });
 };
 
 /**

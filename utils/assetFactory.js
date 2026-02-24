@@ -334,9 +334,13 @@ async function sanitizeAssetData(data, moduleType) {
     sanitized.last_seen = new Date();
   }
 
+  // ✅ CORREÇÃO: Garante que o ativo não nasce deletado no banco de dados
+  if (sanitized.is_deleted === undefined) {
+    sanitized.is_deleted = false;
+  }
+
   // =================================================================
-  // ✅ INÍCIO DA CORREÇÃO
-  // =Data
+  // Data
   // 1. Prioriza dados de 'sector' e 'floor' vindos do custom_data (enviados pelo agente)
   if (sanitized.custom_data) {
     if (sanitized.custom_data.sector && (sanitized.sector === 'Desconhecido' || !sanitized.sector)) {
