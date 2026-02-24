@@ -397,13 +397,27 @@
     async function loadModuleAssets(moduleId, moduleType, area) {
         try {
             const data = await API.get(`/modules/${moduleId}/assets`);
-            const assets = data.assets || [];
+            console.log('📋 Assets carregados (resposta completa):', data);
+            console.log('📋 Tipo de dados:', typeof data);
+            console.log('📋 Data.assets:', data.assets);
+            console.log('📋 É array?', Array.isArray(data.assets));
+            
+            let assets = data.assets || data || [];
+            console.log('📋 Assets após fallback:', assets);
+            console.log('📋 Assets length:', assets.length);
+            
+            if (!Array.isArray(assets)) {
+                console.warn('⚠️ Assets não é array, convertendo:', assets);
+                assets = [];
+            }
 
             if (assets.length === 0) {
+                console.warn('⚠️ Nenhum ativo encontrado');
                 area.innerHTML = '<p style="color: var(--text-muted); padding: 12px;">Nenhum ativo neste módulo.</p>';
                 return;
             }
 
+            console.log('✅ Renderizando', assets.length, 'ativos');
             area.innerHTML = `
         <table class="data-table" style="margin-top: 8px;">
           <thead>
@@ -417,11 +431,13 @@
             </tr>
           </thead>
           <tbody>
-            ${assets.map(a => `
+            ${assets.map(a => {
+                console.log('📍 Ativo:', a);
+                return `
               <tr>
                 <td>${esc(a.asset_name || a.name || 'N/A')}</td>
                 <td class="mono">${esc(a.serial_number || 'N/A')}</td>
-                <td>${statusBadge(a.status)}</td>
+                <td>${statusBadge(a.status || a.device_status || 'active')}</td>
                 <td>${esc(a.location || 'N/A')}</td>
                 <td>${formatDate(a.last_seen)}</td>
                 <td>
@@ -429,7 +445,8 @@
                   <button class="btn btn-danger btn-sm" onclick="ModuleManager.removeAsset('${moduleId}', '${a._id || a.id}', '${esc(a.asset_name || '')}')" title="Excluir">🗑</button>
                 </td>
               </tr>
-            `).join('')}
+            `;
+            }).join('')}
           </tbody>
         </table>
         <div style="padding: 8px; color: var(--text-muted); font-size: 12px;">

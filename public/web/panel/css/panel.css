@@ -1,7 +1,7 @@
 /* ============================================
    MDM DASHBOARD — DESIGN SYSTEM
-   Palette: Signal Orange (#FF6B2C) + Charcoal
-   Style: Command Center / Technical HUD
+   Palette: Blue (#3B82F6) + Minimalista
+   Style: Clean & Modern
    ============================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -17,14 +17,14 @@
   --bg-input: #1E1E1E;
   --bg-modal-overlay: rgba(0, 0, 0, 0.75);
 
-  --accent: #FF6B2C;
-  --accent-hover: #FF8A50;
-  --accent-dim: rgba(255, 107, 44, 0.15);
-  --accent-glow: rgba(255, 107, 44, 0.3);
+  --accent: #3B82F6;
+  --accent-hover: #60A5FA;
+  --accent-dim: rgba(59, 130, 246, 0.12);
+  --accent-glow: rgba(59, 130, 246, 0.2);
 
   --text-primary: #F0F0F0;
-  --text-secondary: #999999;
-  --text-muted: #666666;
+  --text-secondary: #A0A0A0;
+  --text-muted: #707070;
   --text-on-accent: #FFFFFF;
 
   --border-color: #2A2A2A;
@@ -59,6 +59,53 @@
   --duration-fast: 150ms;
   --duration-normal: 250ms;
   --duration-slow: 400ms;
+}
+
+/* ===== LIGHT MODE ===== */
+body.light-mode {
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F8F9FA;
+  --bg-sidebar: #FFFFFF;
+  --bg-card: #F8F9FA;
+  --bg-card-hover: #F0F1F3;
+  --bg-input: #FFFFFF;
+  --bg-modal-overlay: rgba(0, 0, 0, 0.4);
+
+  --text-primary: #000000;
+  --text-secondary: #555555;
+  --text-muted: #888888;
+  --text-on-accent: #FFFFFF;
+
+  --border-color: #E0E0E0;
+  --border-active: #CCCCCC;
+  --border-focus: var(--accent);
+
+  /* Shadows */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-card-hover: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-modal: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .sidebar {
+  border-right-color: var(--border-color);
+  box-shadow: 1px 0 3px rgba(0, 0, 0, 0.05);
+}
+
+body.light-mode .topbar {
+  border-bottom-color: var(--border-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+body.light-mode .module-card {
+  border-color: var(--border-color);
+}
+
+body.light-mode input,
+body.light-mode textarea,
+body.light-mode select {
+  background: var(--bg-input);
+  border-color: var(--border-color);
+  color: var(--text-primary);
 }
 
 /* ===== RESET ===== */
@@ -172,7 +219,6 @@ a:hover {
   color: var(--accent);
   text-transform: uppercase;
   letter-spacing: 1px;
-  text-shadow: 0 0 4px rgba(255, 107, 44, 0.2);
 }
 
 .form-group input,
@@ -180,8 +226,8 @@ a:hover {
 .form-group select {
   width: 100%;
   padding: 11px 14px;
-  background: linear-gradient(135deg, var(--bg-input) 0%, rgba(255, 107, 44, 0.05) 100%);
-  border: 2px solid var(--border-color);
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   color: var(--text-primary);
   font-family: var(--font-ui);
@@ -199,8 +245,8 @@ a:hover {
 .form-group select:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 12px rgba(255, 107, 44, 0.3), 0 0 0 3px var(--accent-dim);
-  background: linear-gradient(135deg, rgba(255, 107, 44, 0.1) 0%, rgba(255, 107, 44, 0.05) 100%);
+  box-shadow: 0 0 0 2px var(--accent-dim);
+  background: var(--bg-input);
 }
 
 .form-group textarea {
@@ -510,7 +556,6 @@ a:hover {
   height: 7px;
   border-radius: 50%;
   background: var(--success);
-  animation: pulse-dot 2s infinite;
 }
 
 .topbar-right .server-status .status-dot.offline {
@@ -520,12 +565,10 @@ a:hover {
 
 #ws-status-dot {
   background: var(--text-muted);
-  animation: none;
 }
 
 #ws-status-dot.connected {
   background: var(--info, #38bdf8);
-  animation: pulse-dot 2s infinite;
 }
 
 .topbar-user {
@@ -601,8 +644,7 @@ a:hover {
   transition: all var(--duration-normal) var(--ease-spring);
   position: relative;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .metric-card::before {
@@ -612,7 +654,7 @@ a:hover {
   right: -50%;
   width: 200%;
   height: 200%;
-  background: radial-gradient(circle, rgba(255, 107, 44, 0.1) 0%, transparent 70%);
+  background: transparent;
   pointer-events: none;
   transition: opacity var(--duration-normal);
   opacity: 0;
@@ -624,17 +666,17 @@ a:hover {
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  height: 1px;
+  background: var(--border-color);
   opacity: 0;
   transition: opacity var(--duration-fast);
 }
 
 .metric-card:hover {
-  transform: translateY(-4px) scale(1.02);
-  box-shadow: 0 12px 24px rgba(255, 107, 44, 0.2), 0 0 20px rgba(255, 107, 44, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
   border-color: var(--accent);
-  background: linear-gradient(135deg, rgba(255, 107, 44, 0.05) 0%, rgba(255, 107, 44, 0.02) 100%);
+  background: var(--bg-card);
 }
 
 .metric-card:hover::before {
@@ -660,13 +702,11 @@ a:hover {
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 1px;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .metric-card .metric-icon {
   font-size: 1.5rem;
   color: var(--accent);
-  text-shadow: 0 0 8px rgba(255, 107, 44, 0.3);
   animation: float 3s ease-in-out infinite;
 }
 
@@ -677,8 +717,6 @@ a:hover {
   color: var(--accent);
   line-height: 1;
   margin-bottom: 8px;
-  text-shadow: 0 4px 8px rgba(255, 107, 44, 0.2);
-  animation: pulse-glow 2s ease-in-out infinite;
 }
 
 .metric-card .metric-sub {
@@ -697,16 +735,15 @@ a:hover {
 
 .metric-card.orange:hover {
   border-color: var(--accent);
-  background: linear-gradient(135deg, rgba(255, 107, 44, 0.08) 0%, rgba(255, 107, 44, 0.03) 100%);
+  background: var(--bg-card);
 }
 
 .metric-card.orange .metric-value {
-  color: #FF6B2C;
-  text-shadow: 0 0 12px rgba(255, 107, 44, 0.4);
+  color: var(--accent);
 }
 
 .metric-card.orange .metric-icon {
-  color: #FF6B2C;
+  color: var(--accent);
 }
 
 .metric-card.green {
@@ -715,12 +752,11 @@ a:hover {
 
 .metric-card.green:hover {
   border-color: var(--success);
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, rgba(34, 197, 94, 0.03) 100%);
+  background: var(--bg-card);
 }
 
 .metric-card.green .metric-value {
   color: #22C55E;
-  text-shadow: 0 0 12px rgba(34, 197, 94, 0.4);
 }
 
 .metric-card.green .metric-icon {
@@ -733,12 +769,11 @@ a:hover {
 
 .metric-card.yellow:hover {
   border-color: var(--warning);
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.08) 0%, rgba(251, 191, 36, 0.03) 100%);
+  background: var(--bg-card);
 }
 
 .metric-card.yellow .metric-value {
   color: #FBBF24;
-  text-shadow: 0 0 12px rgba(251, 191, 36, 0.4);
 }
 
 .metric-card.yellow .metric-icon {
@@ -751,12 +786,11 @@ a:hover {
 
 .metric-card.red:hover {
   border-color: var(--danger);
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(239, 68, 68, 0.03) 100%);
+  background: var(--bg-card);
 }
 
 .metric-card.red .metric-value {
   color: #EF4444;
-  text-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
 }
 
 .metric-card.red .metric-icon {
@@ -769,12 +803,11 @@ a:hover {
 
 .metric-card.blue:hover {
   border-color: var(--info);
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(59, 130, 246, 0.03) 100%);
+  background: var(--bg-card);
 }
 
 .metric-card.blue .metric-value {
   color: #3B82F6;
-  text-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
 }
 
 .metric-card.blue .metric-icon {
@@ -824,13 +857,12 @@ a:hover {
 
 /* ===== DATA TABLES ===== */
 .table-container {
-  background: linear-gradient(135deg, var(--bg-card) 0%, rgba(255, 107, 44, 0.05) 100%);
+  background: var(--bg-card);
   border: 2px solid var(--border-color);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   position: relative;
-  backdrop-filter: blur(10px);
 }
 
 .table-container::before {
@@ -840,7 +872,7 @@ a:hover {
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background: transparent;
   opacity: 0.6;
 }
 
@@ -852,14 +884,13 @@ a:hover {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
-  background: linear-gradient(180deg, rgba(255, 107, 44, 0.08) 0%, transparent 100%);
+  background: var(--bg-secondary);
 }
 
 .table-header h3 {
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--accent);
-  text-shadow: 0 0 8px rgba(255, 107, 44, 0.2);
 }
 
 .table-actions {
@@ -870,7 +901,7 @@ a:hover {
 
 .search-input {
   padding: 9px 14px 9px 34px;
-  background: linear-gradient(135deg, var(--bg-input) 0%, rgba(255, 107, 44, 0.05) 100%);
+  background: var(--bg-input);
   border: 2px solid var(--border-color);
   border-radius: var(--radius-md);
   color: var(--text-primary);
@@ -887,12 +918,12 @@ a:hover {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 12px rgba(255, 107, 44, 0.3), 0 0 0 3px var(--accent-dim);
-  background: linear-gradient(135deg, rgba(255, 107, 44, 0.1) 0%, rgba(255, 107, 44, 0.05) 100%);
+  background: var(--bg-input);
 }
 
 .filter-select {
   padding: 9px 28px 9px 12px;
-  background: linear-gradient(135deg, var(--bg-input) 0%, rgba(255, 107, 44, 0.05) 100%);
+  background: var(--bg-input);
   border: 2px solid var(--border-color);
   border-radius: var(--radius-md);
   color: var(--text-primary);
@@ -911,7 +942,7 @@ a:hover {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 12px rgba(255, 107, 44, 0.3);
-  background: linear-gradient(135deg, rgba(255, 107, 44, 0.1) 0%, rgba(255, 107, 44, 0.05) 100%);
+  background: var(--bg-input);
 }
 
 .data-table {
@@ -932,7 +963,6 @@ a:hover {
   position: sticky;
   top: 0;
   z-index: 1;
-  text-shadow: 0 0 4px rgba(255, 107, 44, 0.3);
 }
 
 .data-table tbody tr {
@@ -1063,18 +1093,17 @@ a:hover {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent) 0%, #FF5500 100%);
+  background: var(--accent);
   color: var(--text-on-accent);
   border-color: var(--accent);
-  box-shadow: 0 4px 12px rgba(255, 107, 44, 0.3);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, var(--accent-hover) 0%, #FF6B2C 100%);
+  background: var(--accent-hover);
   border-color: var(--accent-hover);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(255, 107, 44, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
 }
 
 .btn-primary:active {
@@ -1082,17 +1111,17 @@ a:hover {
 }
 
 .btn-ghost {
-  background: rgba(255, 107, 44, 0.05);
+  background: var(--accent-dim);
   color: var(--accent);
   border-color: var(--accent-dim);
   transition: all var(--duration-fast);
 }
 
 .btn-ghost:hover {
-  background: var(--accent-dim);
-  color: var(--text-on-accent);
+  background: rgba(59, 130, 246, 0.2);
+  color: var(--accent-hover);
   border-color: var(--accent);
-  box-shadow: 0 4px 12px rgba(255, 107, 44, 0.2);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
   transform: translateY(-1px);
 }
 
@@ -1105,7 +1134,7 @@ a:hover {
 .btn-danger:hover {
   background: rgba(239, 68, 68, 0.2);
   border-color: var(--danger);
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.15);
   transform: translateY(-1px);
 }
 
@@ -1142,7 +1171,6 @@ a:hover {
   justify-content: center;
   padding: 24px;
   animation: fadeIn 0.2s var(--ease-smooth);
-  backdrop-filter: blur(4px);
 }
 
 .modal-overlay.active {
@@ -1188,7 +1216,6 @@ a:hover {
   font-size: 1.1rem;
   font-weight: 800;
   color: var(--accent);
-  text-shadow: 0 0 8px rgba(255, 107, 44, 0.2);
 }
 
 .modal-close {
@@ -1232,14 +1259,13 @@ a:hover {
   text-transform: uppercase;
   letter-spacing: 1px;
   margin-bottom: 8px;
-  text-shadow: 0 0 4px rgba(255, 107, 44, 0.2);
 }
 
 .modal-body .form-group input,
 .modal-body .form-group select {
   width: 100%;
   padding: 11px 14px;
-  background: linear-gradient(135deg, var(--bg-input) 0%, rgba(255, 107, 44, 0.05) 100%);
+  background: var(--bg-input);
   border: 2px solid var(--border-color);
   border-radius: var(--radius-md);
   color: var(--text-primary);
@@ -1257,7 +1283,7 @@ a:hover {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 12px rgba(255, 107, 44, 0.3), 0 0 0 3px var(--accent-dim);
-  background: linear-gradient(135deg, rgba(255, 107, 44, 0.1) 0%, rgba(255, 107, 44, 0.05) 100%);
+  background: var(--bg-input);
 }
 
 .modal-body .form-group select {
@@ -1729,8 +1755,7 @@ a:hover {
   transition: all var(--duration-normal) var(--ease-spring);
   position: relative;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .module-card::before {
@@ -1787,7 +1812,6 @@ a:hover {
 .module-icon {
   font-size: 2rem;
   flex-shrink: 0;
-  text-shadow: 0 0 12px rgba(255, 107, 44, 0.3);
   animation: float 3s ease-in-out infinite;
 }
 
@@ -1795,7 +1819,6 @@ a:hover {
   font-weight: 800;
   font-size: 1.1rem;
   color: var(--accent);
-  text-shadow: 0 2px 8px rgba(255, 107, 44, 0.2);
 }
 
 .module-card-type {
@@ -1843,7 +1866,6 @@ a:hover {
   font-size: 0.9rem;
   color: var(--accent);
   font-weight: 700;
-  text-shadow: 0 0 8px rgba(255, 107, 44, 0.2);
 }
 
 .module-expand-btn {
@@ -2096,8 +2118,7 @@ textarea:focus {
   transition: all var(--duration-normal) var(--ease-spring);
   position: relative;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .token-card::before {
@@ -2152,7 +2173,6 @@ textarea:focus {
   cursor: pointer;
   border: 1px solid var(--accent-dim);
   transition: all var(--duration-fast);
-  text-shadow: 0 0 4px rgba(255, 107, 44, 0.2);
   position: relative;
   z-index: 1;
 }
@@ -2199,8 +2219,7 @@ textarea:focus {
   transition: all var(--duration-normal) var(--ease-spring);
   position: relative;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .profile-card::before {
@@ -2263,7 +2282,6 @@ textarea:focus {
   color: var(--accent);
   font-weight: 600;
   transition: all var(--duration-fast);
-  text-shadow: 0 0 4px rgba(255, 107, 44, 0.2);
 }
 
 .setting-chip:hover {
@@ -2605,11 +2623,9 @@ input[type="checkbox"] {
 @keyframes pulse-glow {
   0%, 100% {
     opacity: 1;
-    text-shadow: 0 4px 8px rgba(255, 107, 44, 0.2);
   }
   50% {
     opacity: 0.8;
-    text-shadow: 0 0 16px rgba(255, 107, 44, 0.4);
   }
 }
 
@@ -2936,4 +2952,30 @@ input[type="checkbox"] {
 .badge-default {
   background: rgba(255, 107, 44, 0.2);
   color: var(--accent);
+}
+
+/* ===== THEME TOGGLE BUTTON ===== */
+.theme-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: var(--accent-dim);
+  border-radius: var(--radius-md);
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: all var(--duration-fast) var(--ease-smooth);
+  margin-right: 12px;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--accent-glow);
+  transform: scale(1.05);
+}
+
+.theme-toggle-btn:active {
+  transform: scale(0.95);
 }
