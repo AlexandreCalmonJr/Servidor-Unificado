@@ -1,6 +1,12 @@
 // MDM Dashboard — API Client Module
 
 const API = (() => {
+
+    // Detecta se está em localhost ou em produção
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    // Em produção, não usamos porta no BASE_URL (o Railway cuida do roteamento)
+    const port = isLocalhost ? (window.location.port || 3000) : '';
+    const colon = port ? `:${port}` : '';
     // Auto-detect base URL from current location
     const BASE_URL = `${window.location.protocol}//${window.location.hostname}:${window.location.port || 3000}/api`;
 
