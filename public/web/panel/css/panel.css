@@ -3044,3 +3044,113 @@ input[type="checkbox"] {
 .theme-toggle-btn:active {
   transform: scale(0.95);
 }
+
+/* =============================================
+   MODAIS 100% MINIMALISTAS - SEM VISUAIS FANCY
+   (coloque no FINAL do panel.css)
+   ============================================= */
+
+.modal-overlay {
+  background: rgba(0, 0, 0, 0.92) !important;
+}
+
+.modal-box {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7) !important;
+  overflow: hidden !important;
+  max-height: 92vh !important;
+}
+
+/* Remove TODOS os efeitos decorativos */
+.modal-box::before,
+.modal-box::after,
+.modal-header::before,
+.modal-header::after,
+.token-card::before,
+.token-card::after,
+.profile-card::before,
+.profile-card::after,
+.module-card::before,
+.module-card::after {
+  display: none !important;
+}
+
+/* Header bem simples */
+.modal-header {
+  background: var(--bg-secondary) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+  padding: 18px 24px !important;
+}
+
+.modal-header h3 {
+  color: var(--text-primary) !important;
+  font-size: 1.05rem !important;
+  font-weight: 600 !important;
+  margin: 0 !important;
+}
+
+/* Corpo limpo */
+.modal-body {
+  padding: 24px !important;
+  background: var(--bg-card) !important;
+}
+
+/* Footer simples */
+.modal-footer {
+  background: var(--bg-secondary) !important;
+  border-top: 1px solid var(--border-color) !important;
+  padding: 16px 24px !important;
+  gap: 12px !important;
+}
+
+/* Labels e campos bem clean */
+.modal-body .form-group label {
+  color: var(--text-secondary) !important;
+  font-weight: 500 !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  font-size: 0.9rem !important;
+}
+
+.modal-body .form-group input,
+.modal-body .form-group select,
+.modal-body .form-group textarea {
+  border: 1px solid var(--border-color) !important;
+  background: var(--bg-input) !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+}
+
+.modal-body .form-group input:focus,
+.modal-body .form-group select:focus,
+.modal-body .form-group textarea:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+}
+
+/* Tabs dos modais (ex: Novo Ativo, Detalhes do Dispositivo) */
+.tab-bar {
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 6px !important;
+  padding: 4px !important;
+}
+
+.tab-btn {
+  border-radius: 4px !important;
+  padding: 9px 18px !important;
+  font-weight: 500 !important;
+}
+
+.tab-btn.active {
+  background: var(--accent) !important;
+  color: #fff !important;
+}
+
+/* Botões dos modais mais simples */
+.modal-footer .btn {
+  border-radius: 6px !important;
+  padding: 10px 20px !important;
+}
