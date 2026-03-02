@@ -16,28 +16,7 @@ class SavedFiltersManager {
    */
   async loadFilters() {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        console.warn('No token found for loading filters');
-        return [];
-      }
-
-      const response = await fetch(`/api/filters/module/${this.moduleId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          window.location.href = '/panel/login.html';
-          return [];
-        }
-        throw new Error(`Failed to load filters: ${response.statusText}`);
-      }
-
-      const data = await response.json();
+      const data = await API.get(`/filters/module/${this.moduleId}`);
       this.filters = data.filters || [];
 
       // Find default filter
@@ -56,34 +35,12 @@ class SavedFiltersManager {
    */
   async saveCurrentFilter(filterName, filterData) {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        showToastError('Erro', 'Token não encontrado');
-        return null;
-      }
-
-      const response = await fetch('/api/filters', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          moduleId: this.moduleId,
-          filterName,
-          filterData,
-        }),
+      const savedFilter = await API.post('/filters', {
+        moduleId: this.moduleId,
+        filterName,
+        filterData,
       });
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          window.location.href = '/panel/login.html';
-          return null;
-        }
-        throw new Error(`Failed to save filter: ${response.statusText}`);
-      }
-
-      const savedFilter = await response.json();
       this.filters.push(savedFilter);
 
       showToastSuccess(`Filtro "${filterName}" salvo com sucesso`);
@@ -100,33 +57,10 @@ class SavedFiltersManager {
    */
   async updateFilter(filterId, filterName, filterData) {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        showToastError('Erro', 'Token não encontrado');
-        return null;
-      }
-
-      const response = await fetch(`/api/filters/${filterId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          filterName,
-          filterData,
-        }),
+      const updated = await API.put(`/filters/${filterId}`, {
+        filterName,
+        filterData,
       });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          window.location.href = '/panel/login.html';
-          return null;
-        }
-        throw new Error(`Failed to update filter: ${response.statusText}`);
-      }
-
-      const updated = await response.json();
 
       // Update in local array
       const index = this.filters.findIndex(f => f._id === filterId);
@@ -148,27 +82,7 @@ class SavedFiltersManager {
    */
   async deleteFilter(filterId) {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        showToastError('Erro', 'Token não encontrado');
-        return false;
-      }
-
-      const response = await fetch(`/api/filters/${filterId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          window.location.href = '/panel/login.html';
-          return false;
-        }
-        throw new Error(`Failed to delete filter: ${response.statusText}`);
-      }
+      await API.delete(`/filters/${filterId}`);
 
       // Remove from local array
       this.filters = this.filters.filter(f => f._id !== filterId);
@@ -187,27 +101,7 @@ class SavedFiltersManager {
    */
   async setDefaultFilter(filterId) {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        showToastError('Erro', 'Token não encontrado');
-        return false;
-      }
-
-      const response = await fetch(`/api/filters/${filterId}/set-default`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          window.location.href = '/panel/login.html';
-          return false;
-        }
-        throw new Error(`Failed to set default: ${response.statusText}`);
-      }
+      await API.post(`/filters/${filterId}/set-default`);
 
       // Update local flags
       this.filters.forEach(f => {

@@ -74,7 +74,7 @@
         try {
             const data = await API.get(`/modules/${moduleId}/assets`);
             allAssets = data.assets || [];
-            
+
             console.log(`✅ ${allAssets.length} ativo(s) carregado(s)`);
 
             initPaginator(allAssets);
@@ -136,25 +136,21 @@
         const warning = assets.filter(a => ['warning', 'maintenance', 'pending', 'retired'].includes((a.status || '').toLowerCase())).length;
 
         const stats = [
-            { label: 'Total de Ativos', value: total, icon: 'box', color: 'text-blue-400', bg: 'bg-blue-500/10' },
-            { label: 'Online', value: online, icon: 'wifi', color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-            { label: 'Offline', value: offline, icon: 'wifi-off', color: 'text-red-400', bg: 'bg-red-500/10' },
-            { label: 'Atenção/Manut.', value: warning, icon: 'alert-triangle', color: 'text-amber-400', bg: 'bg-amber-500/10' }
+            { label: 'Total de Ativos', value: total, icon: '📦', color: 'var(--accent)', borderColor: 'var(--accent)' },
+            { label: 'Online', value: online, icon: '🟢', color: 'var(--success)', borderColor: 'var(--success)' },
+            { label: 'Offline', value: offline, icon: '🔴', color: 'var(--danger)', borderColor: 'var(--danger)' },
+            { label: 'Atenção / Manut.', value: warning, icon: '⚠️', color: 'var(--warning)', borderColor: 'var(--warning)' }
         ];
 
         container.innerHTML = stats.map(s => `
-            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center justify-between">
-                <div>
-                    <p class="text-slate-400 text-xs font-medium uppercase tracking-wider">${s.label}</p>
-                    <p class="text-2xl font-bold text-white mt-1">${s.value}</p>
-                </div>
-                <div class="p-3 rounded-lg ${s.bg} ${s.color}">
-                    <i data-lucide="${s.icon}" size="20"></i>
+            <div class="module-stat-card" style="border-left-color: ${s.borderColor};">
+                <div class="module-stat-icon" style="background: ${s.borderColor}15; color: ${s.borderColor};">${s.icon}</div>
+                <div class="module-stat-info">
+                    <span class="module-stat-label">${s.label}</span>
+                    <span class="module-stat-value" style="color: ${s.color};">${s.value}</span>
                 </div>
             </div>
-            `).join('');
-
-        if (window.lucide) window.lucide.createIcons();
+        `).join('');
     }
 
     // ===== SEARCH =====
@@ -525,7 +521,7 @@
 
             // Bind click events
             container.querySelectorAll('.nav-dynamic-module').forEach(btn => {
-                btn.addEventListener('click', function(e) {
+                btn.addEventListener('click', function (e) {
                     const modId = this.dataset.moduleId;
                     const modType = this.dataset.moduleType;
                     const modName = this.dataset.moduleName;

@@ -252,13 +252,14 @@
         const idField = document.getElementById('asset-id');
         const modTypeField = document.getElementById('asset-module-type');
 
-        // Se estivermos criando (asset=null) e temos prefillModuleId, guardamos isso no dataset do form
-        if (prefillModuleId) {
+        // Reset first, then set moduleId (reset clears dataset values)
+        if (form) form.reset();
+        if (modTypeField) modTypeField.value = type;
+
+        // Set moduleId AFTER reset so it doesn't get cleared
+        if (prefillModuleId && form) {
             form.dataset.moduleId = prefillModuleId;
         }
-
-        if (form) form.reset();
-        modTypeField.value = type;
 
         // Render dynamic fields
         renderAssetForm(type, asset);

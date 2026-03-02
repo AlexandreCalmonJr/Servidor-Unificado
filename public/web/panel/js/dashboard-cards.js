@@ -19,10 +19,7 @@ class DashboardCards {
 
   async loadModules() {
     try {
-      const response = await fetch('/api/modules', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      const data = await response.json();
+      const data = await API.get('/modules');
       this.modules = data.modules || [];
       console.log(`📊 ${this.modules.length} módulos carregados`);
     } catch (error) {
@@ -32,10 +29,7 @@ class DashboardCards {
 
   async getModuleStats(moduleId) {
     try {
-      const response = await fetch(`/api/modules/${moduleId}/stats`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      return await response.json();
+      return await API.get(`/modules/${moduleId}/stats`);
     } catch (error) {
       console.error(`❌ Erro ao buscar stats do módulo ${moduleId}:`, error);
       return null;
@@ -178,7 +172,7 @@ class DashboardCards {
 
   startAutoUpdate() {
     if (this.updateInterval) clearInterval(this.updateInterval);
-    
+
     // Atualizar a cada 30 segundos
     this.updateInterval = setInterval(() => {
       console.log('🔄 Atualizando dashboard cards...');
