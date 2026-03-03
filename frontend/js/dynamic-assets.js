@@ -98,27 +98,154 @@
         const tbody = document.getElementById('dynamic-table-body');
         if (!tbody) return;
 
+        renderTableHeaders(currentModuleType);
+
         if (assets.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><div class="empty-icon">📦</div><p>Nenhum ativo neste módulo.</p></td></tr>';
+            tbody.innerHTML = `<tr><td colspan="8" class="empty-state"><div class="empty-icon">📦</div><p>Nenhum ativo neste módulo.</p></td></tr>`;
             return;
         }
 
-        tbody.innerHTML = assets.map(a => `
-            <tr>
-                <td>${esc(a.asset_name || a.name || 'N/A')}</td>
-                <td class="mono">${esc(a.serial_number || 'N/A')}</td>
+        tbody.innerHTML = assets.map(a => renderAssetRow(a, currentModuleType)).join('');
+    }
+
+    // ===== DYNAMIC COLUMNS =====
+    function renderTableHeaders(type) {
+        const thead = document.getElementById('dynamic-table-head');
+        if (!thead) return;
+
+        let html = '';
+        if (['desktop', 'notebook', 'panel'].includes(type)) {
+            html = `<tr>
+                <th>Nome (Hostname)</th>
+                <th>IP</th>
+                <th>Localização</th>
+                <th>Status</th>
+                <th>Última Conexão</th>
+                <th>Ações</th>
+            </tr>`;
+        } else if (type === 'totem') {
+            html = `<tr>
+                <th>Nome (Hostname)</th>
+                <th>IP</th>
+                <th>Localização</th>
+                <th>Status</th>
+                <th>Impressoras</th>
+                <th>Última Conexão</th>
+                <th>Ações</th>
+            </tr>`;
+        } else if (type === 'mobile') {
+            html = `<tr>
+                <th>Nome</th>
+                <th>Serial</th>
+                <th>IMEI</th>
+                <th>Localidade</th>
+                <th>Setor / Andar</th>
+                <th>Status</th>
+                <th>Última Conexão</th>
+                <th>Ações</th>
+            </tr>`;
+        } else if (type === 'printer') {
+            html = `<tr>
+                <th>Nome</th>
+                <th>Status</th>
+                <th>Nível Toner</th>
+                <th>Localidade</th>
+                <th>Setor / Andar</th>
+                <th>Última Conexão</th>
+                <th>Ações</th>
+            </tr>`;
+        } else {
+            // Default
+            html = `<tr>
+                <th>Nome</th>
+                <th>Serial/ID</th>
+                <th>IP</th>
+                <th>Localização</th>
+                <th>Status</th>
+                <th>Última Conexão</th>
+                <th>Ações</th>
+            </tr>`;
+        }
+        thead.innerHTML = html;
+    }
+
+    function renderAssetRow(a, type) {
+        const actionsHtml = `
+            <td>
+                <button class="btn btn-ghost btn-sm" onclick="DynamicAssetManager.view('${a._id || a.id}')" title="Ver Detalhes">👁️</button>
+                <button class="btn btn-ghost btn-sm" onclick="DynamicAssetManager.edit('${a._id || a.id}')" title="Editar">✏️</button>
+                <button class="btn btn-ghost btn-sm" onclick="DynamicAssetManager.sendCommand('${a._id || a.id}', '${esc(a.asset_name || '')}')" title="Comando">⚡</button>
+                <button class="btn btn-danger btn-sm" onclick="DynamicAssetManager.remove('${a._id || a.id}', '${esc(a.asset_name || '')}')" title="Excluir">🗑</button>
+            </td>
+        `;
+
+        const lastConnHtml = `<td title="${new Date(a.last_seen || a.updatedAt).toLocaleString('pt-BR')}">${TimeFormatter.formatTimeAgo(a.last_seen || a.updatedAt)}</td>`;
+        const statusHtml = `<td>${statusBadgeWithIcon(a.status)}</td>`;
+
+        if (['desktop', 'notebook', 'panel'].includes(type)) {
+            const loc = type === 'notebook' && a.custom_data?.bssid ? `BSSID: ${a.custom_data.bssid}` : (a.location || 'N/A');
+            return `<tr>
+                <td>${esc(a.hostname || a.asset_name || 'N/A')}</td>
+                <td class="mono">${esc(a.ip_address || 'N/A')}</td>
+                <td>${esc(loc)}</td>
+                ${statusHtml}
+                ${lastConnHtml}
+                ${actionsHtml}
+            </tr>`;
+        } else if (type === 'totem') {
+            return `<tr>
+                <td>${esc(a.hostname || a.asset_name || 'N/A')}</td>
                 <td class="mono">${esc(a.ip_address || 'N/A')}</td>
                 <td>${esc(a.location || 'N/A')}</td>
-                <td>${statusBadgeWithIcon(a.status)}</td>
-                <td title="${new Date(a.last_seen || a.updatedAt).toLocaleString('pt-BR')}">${TimeFormatter.formatTimeAgo(a.last_seen || a.updatedAt)}</td>
-                <td>
-                    <button class="btn btn-ghost btn-sm" onclick="DynamicAssetManager.view('${a._id || a.id}')" title="Ver Detalhes">👁️</button>
-                    <button class="btn btn-ghost btn-sm" onclick="DynamicAssetManager.edit('${a._id || a.id}')" title="Editar">✏️</button>
-                    <button class="btn btn-ghost btn-sm" onclick="DynamicAssetManager.sendCommand('${a._id || a.id}', '${esc(a.asset_name || '')}')" title="Comando">⚡</button>
-                    <button class="btn btn-danger btn-sm" onclick="DynamicAssetManager.remove('${a._id || a.id}', '${esc(a.asset_name || '')}')" title="Excluir">🗑</button>
-                </td>
-            </tr>
-        `).join('');
+                ${statusHtml}
+                <td>${esc(a.custom_data?.printers ? a.custom_data.printers.join(', ') : 'N/A')}</td>
+                ${lastConnHtml}
+                ${actionsHtml}
+            </tr>`;
+        } else if (type === 'mobile') {
+            return `<tr>
+                <td>${esc(a.asset_name || 'N/A')}</td>
+                <td class="mono">${esc(a.serial_number || 'N/A')}</td>
+                <td class="mono">${esc(a.imei || 'N/A')}</td>
+                <td>${esc(a.location || 'N/A')}</td>
+                <td>${esc(a.sector || '-')} / ${esc(a.floor || '-')}</td>
+                ${statusHtml}
+                ${lastConnHtml}
+                ${actionsHtml}
+            </tr>`;
+        } else if (type === 'printer') {
+            // Parses toner object if exists
+            let tonerDisplay = 'N/A';
+            if (a.toner_levels) {
+                try {
+                    const toner = typeof a.toner_levels === 'string' ? JSON.parse(a.toner_levels) : a.toner_levels;
+                    const levels = Object.entries(toner).map(([k, v]) => `${k}: ${v}%`).join(', ');
+                    if (levels) tonerDisplay = levels;
+                } catch (e) {
+                    tonerDisplay = 'Erro json';
+                }
+            }
+            return `<tr>
+                <td>${esc(a.asset_name || 'N/A')}</td>
+                ${statusHtml}
+                <td>${esc(tonerDisplay)}</td>
+                <td>${esc(a.location || 'N/A')}</td>
+                <td>${esc(a.sector || '-')} / ${esc(a.floor || '-')}</td>
+                ${lastConnHtml}
+                ${actionsHtml}
+            </tr>`;
+        }
+
+        // Default
+        return `<tr>
+            <td>${esc(a.asset_name || a.name || 'N/A')}</td>
+            <td class="mono">${esc(a.serial_number || 'N/A')}</td>
+            <td class="mono">${esc(a.ip_address || 'N/A')}</td>
+            <td>${esc(a.location || 'N/A')}</td>
+            ${statusHtml}
+            ${lastConnHtml}
+            ${actionsHtml}
+        </tr>`;
     }
 
     function statusBadgeWithIcon(status) {

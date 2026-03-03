@@ -6,11 +6,7 @@
     "extends": [
         "eslint:recommended",
         "plugin:node/recommended",
-        "plugin:security/recommended",
         "prettier"
-    ],
-    "plugins": [
-        "security"
     ],
     "parserOptions": {
         "ecmaVersion": 2021,

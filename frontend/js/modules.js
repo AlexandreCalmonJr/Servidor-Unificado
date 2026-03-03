@@ -173,7 +173,7 @@
         const name = document.getElementById('form-module-name').value.trim();
         const type = document.getElementById('form-module-type').value;
         const description = document.getElementById('form-module-desc').value.trim();
-        
+
         // Verificar se elementos existem antes de acessá-los
         const isActiveEl = document.getElementById('form-module-active');
         const is_active = isActiveEl ? isActiveEl.checked : true;
@@ -183,7 +183,7 @@
         const colorEl = document.getElementById('form-module-color');
         const showDashEl = document.getElementById('form-module-show-dash');
         const tabsEl = document.getElementById('form-module-tabs');
-        
+
         const client_config = {
             icon: iconEl ? iconEl.value.trim() || 'box' : 'box',
             color: colorEl ? colorEl.value : '#3b82f6',
@@ -195,7 +195,7 @@
         const remoteCtrlEl = document.getElementById('flag-remote-control');
         const trackLocEl = document.getElementById('flag-track-location');
         const requireAuthEl = document.getElementById('flag-require-auth');
-        
+
         const feature_flags = {
             allow_remote_control: remoteCtrlEl ? remoteCtrlEl.checked : false,
             track_location: trackLocEl ? trackLocEl.checked : true,
@@ -402,11 +402,11 @@
             console.log('📋 Tipo de dados:', typeof data);
             console.log('📋 Data.assets:', data.assets);
             console.log('📋 É array?', Array.isArray(data.assets));
-            
+
             let assets = data.assets || data || [];
             console.log('📋 Assets após fallback:', assets);
             console.log('📋 Assets length:', assets.length);
-            
+
             if (!Array.isArray(assets)) {
                 console.warn('⚠️ Assets não é array, convertendo:', assets);
                 assets = [];
@@ -427,7 +427,7 @@
               <th>Serial</th>
               <th>Status</th>
               <th>Localização</th>
-              <th>Última Vez</th>
+              <th>Última Conexão</th>
               <th>Ações</th>
             </tr>
           </thead>
