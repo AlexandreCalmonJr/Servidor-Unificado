@@ -22,6 +22,7 @@
         { value: 'check_disk', label: 'Check Disk', icon: '💾', desc: 'Verificar disco' },
         { value: 'network_reset', label: 'Reset Rede', icon: '📡', desc: 'Resetar configuração de rede' },
         { value: 'custom_script', label: 'Script Customizado', icon: '📝', desc: 'Script personalizado' },
+        { value: 'install_exe', label: 'Instalar EXE (Silencioso)', icon: '📥', desc: 'Baixar e instalar um .exe em Background' },
         // Mobile / Totem Commands
         { value: 'reboot_device', label: 'Reiniciar (Mobile)', icon: '📱', desc: 'Reiniciar dispositivo Android' },
         { value: 'install_apk', label: 'Instalar APK', icon: '📥', desc: 'Instalar aplicativo via URL' },
@@ -200,7 +201,23 @@
 
                 // Logic for Mobile Params Group (Package, APK URL)
                 const isMobileParams = ['install_apk'].includes(val);
-                if (mobileGroup) mobileGroup.style.display = isMobileParams ? 'block' : 'none';
+                if (mobileGroup) {
+                    mobileGroup.style.display = (isMobileParams || val === 'install_exe') ? 'block' : 'none';
+                    if (val === 'install_exe') {
+                        // Hide package input, keep only URL
+                        const packageGroup = document.getElementById('form-cmd-package')?.closest('.form-group');
+                        if (packageGroup) packageGroup.style.display = 'none';
+
+                        const urlLabel = document.getElementById('form-cmd-apk-url')?.closest('.form-group')?.querySelector('label');
+                        if (urlLabel) urlLabel.textContent = 'URL do Arquivo (.exe)';
+                    } else {
+                        const packageGroup = document.getElementById('form-cmd-package')?.closest('.form-group');
+                        if (packageGroup) packageGroup.style.display = 'block';
+
+                        const urlLabel = document.getElementById('form-cmd-apk-url')?.closest('.form-group')?.querySelector('label');
+                        if (urlLabel) urlLabel.textContent = 'URL do APK (Opcional)';
+                    }
+                }
 
                 // Auto-fill command for predefined types (Desktop)
                 const cmdInput = document.getElementById('form-cmd-command');
@@ -256,6 +273,11 @@
             return;
         }
 
+        if (commandType === 'install_exe' && !apkUrl) {
+            showToast('Para instalar EXE, a URL do arquivo é obrigatória.', 'warning');
+            return;
+        }
+
         // Command text validation (only if visible/required)
         const isCustom = ['cmd_custom', 'powershell_custom', 'custom_script', 'send_message'].includes(commandType);
         if (isCustom && !command) {
@@ -269,8 +291,13 @@
             requiresElevation,
             timeout,
             packageName,
-            apkUrl
+            apkUrl,
+            parameters: {}
         };
+
+        if (commandType === 'install_exe') {
+            body.parameters.url = apkUrl;
+        }
 
         try {
             await API.post(`/modules/${selectedModule}/assets/${selectedAsset.id}/commands`, body);

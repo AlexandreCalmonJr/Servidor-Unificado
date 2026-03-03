@@ -24,8 +24,8 @@ class CommandExecutor {
   async execute(cmd) {
     // Suporte a ambos os formatos (novo: cmd.command / legado: cmd.command_text)
     const commandText = cmd.command || cmd.command_text || '';
-    const commandId   = cmd.id      || cmd._id          || '';
-    const elevated    = cmd.requiresElevation ?? cmd.requires_elevation ?? false;
+    const commandId = cmd.id || cmd._id || '';
+    const elevated = cmd.requiresElevation ?? cmd.requires_elevation ?? false;
     const commandType = cmd.command_type || 'cmd_custom';
 
     this._logger.info(`[CommandExecutor] Executando cmd ${commandId} (tipo: ${commandType}, elevado: ${elevated})`);
@@ -65,6 +65,7 @@ class CommandExecutor {
           break;
         }
 
+        case 'install_exe':
         case 'cmd_custom':
         default:
           result = await this._runShell(commandText, elevated);
@@ -94,19 +95,20 @@ class CommandExecutor {
 
   _runShell(command, elevated) {
     return new Promise((resolve, reject) => {
-      const finalCmd = elevated && os.platform() === 'win32'
-        ? `runas /user:Administrator "${command}"`
-        : command;
+      // NOTE: runas requires interactive password prompt in basic usage, which breaks silent MDM.
+      // If the service is running as SYSTEM/Admin, it doesn't need runas.
+      // If we use runas here, it will hang waiting for a password. Removing it for background service context.
+      const finalCmd = command;
 
-      exec(finalCmd, { timeout: 30_000 }, (error, stdout, stderr) => {
+      exec(finalCmd, { timeout: 600_000 }, (error, stdout, stderr) => { // 10 minutes timeout for installers
         if (error && !stdout) {
           reject(error);
           return;
         }
         resolve({
-          stdout:        stdout   || '',
-          stderr:        stderr   || '',
-          exitCode:      error ? error.code || 1 : 0,
+          stdout: stdout || '',
+          stderr: stderr || '',
+          exitCode: error ? error.code || 1 : 0,
           executionTime: 0,
         });
       });
@@ -118,7 +120,7 @@ class CommandExecutor {
       const args = [
         '-NonInteractive',
         '-NoProfile',
-        elevated ? '-ExecutionPolicy', 'Bypass' : '-ExecutionPolicy', 'RemoteSigned',
+        ...(elevated ? ['-ExecutionPolicy', 'Bypass'] : ['-ExecutionPolicy', 'RemoteSigned']),
         '-Command', script,
       ];
 
@@ -131,9 +133,9 @@ class CommandExecutor {
 
       ps.on('close', (code) => {
         resolve({
-          stdout:        stdout.trim(),
-          stderr:        stderr.trim(),
-          exitCode:      code ?? 0,
+          stdout: stdout.trim(),
+          stderr: stderr.trim(),
+          exitCode: code ?? 0,
           executionTime: 0,
         });
       });

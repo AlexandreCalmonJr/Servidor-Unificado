@@ -149,66 +149,98 @@
                     </div>
                 </div>
 
-                <!-- VIEW: SETTINGS -->
+                <!-- VIEW: SETTINGS (STEP-BY-STEP) -->
                 <div id="view-settings" class="view-section">
-                    <h2 style="margin-bottom:24px;">Configurações do Cliente</h2>
+                    <h2 style="margin-bottom:24px;">Configuração do Cliente</h2>
 
-                    <div class="card">
-                        <h3 class="card-title"><i class="fa-solid fa-cube"></i> Módulo & Localização</h3>
+                    <!-- STEP INDICATORS -->
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 24px;">
+                        <div class="step-indicator active" id="step-1-ind">1. Servidor</div>
+                        <div class="step-indicator" id="step-2-ind">2. Módulo</div>
+                        <div class="step-indicator" id="step-3-ind">3. Local & Segurança</div>
+                    </div>
+
+                    <!-- STEP 1: CONEXÃO -->
+                    <div class="card" id="settings-step-1">
+                        <h3 class="card-title"><i class="fa-solid fa-server"></i> Conexão Principal</h3>
                         <p style="color:var(--text-secondary); font-size:13px; margin-bottom:20px;">
-                            Este cliente está conectado a: <span id="lbl-connected-server"
-                                style="color:var(--accent-primary);">...</span>
-                            <button id="btn-change-server"
-                                style="background:none; border:none; color:var(--text-secondary); text-decoration:underline; cursor:pointer; font-size:12px; margin-left:8px;">Alterar
-                                Servidor</button>
+                            Configure a URL do servidor MDM e a porta. Opcionalmente, gere e insira o token.
                         </p>
+                        <div style="display:grid; grid-template-columns: 2fr 1fr; gap: 16px;">
+                            <div class="form-group">
+                                <label>Host do Servidor (IP/Domínio)</label>
+                                <input type="text" id="input-ip" class="input-field" placeholder="192.168.x.x">
+                            </div>
+                            <div class="form-group">
+                                <label>Porta</label>
+                                <input type="text" id="input-port" class="input-field" placeholder="3000">
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top:10px;">
+                            <label>Token de Provisionamento (AUTH_TOKEN)</label>
+                            <input type="password" id="input-token" class="input-field" placeholder="Insira o token do servidor">
+                        </div>
+                        <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 20px;">
+                            <span id="step-1-error" style="color:var(--status-error); align-self:center; margin-right:auto; font-size:13px;"></span>
+                            <button class="btn btn-secondary" id="btn-test-connection"><i class="fa-solid fa-plug"></i> Testar</button>
+                            <button class="btn btn-primary" id="btn-next-step-1">Avançar <i class="fa-solid fa-arrow-right"></i></button>
+                        </div>
+                    </div>
 
+                    <!-- STEP 2: MÓDULO -->
+                    <div class="card" id="settings-step-2" style="display:none;">
+                        <h3 class="card-title"><i class="fa-solid fa-box"></i> Definição do Módulo</h3>
+                         <p style="color:var(--text-secondary); font-size:13px; margin-bottom:20px;">
+                            O módulo agrupa este ativo dentro do painel (ex: Desktop, Recepção, Totens).
+                        </p>
                         <div class="form-group">
                             <label>Módulo</label>
                             <div style="display:flex; gap:10px;">
                                 <select id="select-module" class="input-field" style="flex:1;">
-                                    <option value="">Selecione ou deixe auto-detectar</option>
+                                    <option value="">Aguardando lista do servidor...</option>
                                 </select>
                                 <button class="btn btn-secondary" id="btn-detect-module"><i class="fa-solid fa-rotate"></i> Carregar</button>
                             </div>
                         </div>
+                         <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 20px;">
+                            <button class="btn btn-secondary" id="btn-prev-step-2"><i class="fa-solid fa-arrow-left"></i> Voltar</button>
+                            <button class="btn btn-primary" id="btn-next-step-2">Avançar <i class="fa-solid fa-arrow-right"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- STEP 3: L0CAL & SEGURANÇA -->
+                    <div class="card" id="settings-step-3" style="display:none;">
+                        <h3 class="card-title"><i class="fa-solid fa-location-dot"></i> Localização & Segurança</h3>
+                         <p style="color:var(--text-secondary); font-size:13px; margin-bottom:20px;">
+                            Informe dados de localização deste equipamento.
+                        </p>
                         <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                             <div class="form-group">
-                                <label>Setor</label>
-                                <input type="text" id="input-sector" class="input-field">
+                                <label>Setor / Departamento</label>
+                                <input type="text" id="input-sector" class="input-field" placeholder="Ex: RH, TI">
                             </div>
                             <div class="form-group">
-                                <label>Andar/Sala</label>
-                                <input type="text" id="input-floor" class="input-field">
+                                <label>Andar / Sala</label>
+                                <input type="text" id="input-floor" class="input-field" placeholder="Ex: Térreo">
                             </div>
                         </div>
 
                         <div class="form-group" style="margin-top:20px;display:flex;align-items:center;gap:12px;">
                             <input type="checkbox" id="check-legacy" style="width:16px;height:16px;">
-                            <label for="check-legacy" style="margin:0;cursor:pointer;">Forçar modo legado
-                                (Totem/Compatibilidade)</label>
+                            <label for="check-legacy" style="margin:0;cursor:pointer;">Forçar modo legado (Apenas se o servidor MDM for muito antigo)</label>
                         </div>
-                    </div>
-
-                    <div class="card">
-                        <h3 class="card-title"><i class="fa-solid fa-shield-halved"></i> Segurança</h3>
-                        
-                        <div class="form-group" style="margin-top:10px;">
-                            <label>Token de Provisionamento (AUTH_TOKEN)</label>
-                            <input type="password" id="input-token" class="input-field" placeholder="Insira o token do servidor">
-                        </div>
-
-                        <div class="form-group" style="margin-top:10px;display:flex;align-items:center;gap:12px;">
+                         <div class="form-group" style="margin-top:10px;display:flex;align-items:center;gap:12px;">
                             <input type="checkbox" id="check-lock" style="width:16px;height:16px;">
                             <label for="check-lock" style="margin:0;cursor:pointer;">Bloquear aplicativo ao minimizar
-                                (Exige senha)</label>
+                                (Exige senha de sistema)</label>
+                        </div>
+
+                        <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 20px;">
+                            <button class="btn btn-secondary" id="btn-prev-step-3"><i class="fa-solid fa-arrow-left"></i> Voltar</button>
+                            <button class="btn btn-primary" id="btn-save-settings"><i class="fa-solid fa-floppy-disk"></i> Finalizar Configuração</button>
                         </div>
                     </div>
 
-                    <div style="display:flex; justify-content:flex-end;">
-                        <button class="btn btn-primary" id="btn-save-settings" style="width:140px;">Salvar
-                            Config</button>
-                    </div>
                 </div>
 
             </div>

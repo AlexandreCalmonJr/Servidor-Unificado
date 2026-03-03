@@ -17,7 +17,8 @@ const PREDEFINED_COMMANDS = {
   lock_device: { cmd: 'INTERNAL_LOCK', requiresElevation: false, timeout: 60000 },
   wipe_data: { cmd: 'INTERNAL_WIPE', requiresElevation: false, timeout: 60000 },
   send_message: { cmd: 'INTERNAL_MESSAGE', requiresElevation: false, timeout: 60000 },
-  install_apk: { cmd: 'INTERNAL_APK_INSTALL', requiresElevation: false, timeout: 60000 }
+  install_apk: { cmd: 'INTERNAL_APK_INSTALL', requiresElevation: false, timeout: 60000 },
+  install_exe: { cmd: 'POWERSHELL_INSTALL_EXE', requiresElevation: true, timeout: 600000 } // 10 minutes timeout
 };
 
 exports.createCommand = async (req, res) => {
@@ -104,6 +105,15 @@ exports.createCommand = async (req, res) => {
       // Adiciona ao registro do usuário atual
       commandToExecute = `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "${name}" /t REG_SZ /d "${path}" /f`;
       requiresElevation = true;
+    }
+    else if (commandType === 'install_exe') {
+      if (!parameters?.url) {
+        return res.status(400).json({ success: false, message: 'URL do arquivo .exe é obrigatória.' });
+      }
+      // Uses a PowerShell one-liner to download to a temp location, execute with /S, and then delete the temp file.
+      commandToExecute = `powershell -Command "Invoke-WebRequest -Uri '${parameters.url}' -OutFile '%TEMP%\\mdm_installer.exe'; Start-Process -FilePath '%TEMP%\\mdm_installer.exe' -ArgumentList '/S' -Wait; Remove-Item '%TEMP%\\mdm_installer.exe'"`;
+      requiresElevation = true;
+      commandTimeout = 600000; // 10 minutes max for download and install
     }
     else if (commandType === 'cmd_custom' || commandType === 'powershell_custom') {
       if (!customCommand) {

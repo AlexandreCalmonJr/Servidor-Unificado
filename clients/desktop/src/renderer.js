@@ -50,37 +50,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         await ipcRenderer.invoke('clear-logs');
         refreshLogs();
     });
+    // Settings Config Steps Flow
+    document.getElementById('btn-test-connection').addEventListener('click', testConfigConnection);
+    document.getElementById('btn-next-step-1').addEventListener('click', () => switchSettingsStep(2));
+    document.getElementById('btn-prev-step-2').addEventListener('click', () => switchSettingsStep(1));
+    document.getElementById('btn-next-step-2').addEventListener('click', () => switchSettingsStep(3));
+    document.getElementById('btn-prev-step-3').addEventListener('click', () => switchSettingsStep(2));
+
+    document.getElementById('btn-detect-module')?.addEventListener('click', loadModulesForSettings);
+
     document.getElementById('btn-save-settings').addEventListener('click', saveClientSettings);
-    document.getElementById('btn-change-server').addEventListener('click', resetConnection);
-
-    document.getElementById('btn-detect-module')?.addEventListener('click', async () => {
-        const btn = document.getElementById('btn-detect-module');
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
-
-        // Use current settings (already saved in main store)
-        const settings = await ipcRenderer.invoke('get-settings');
-        const result = await ipcRenderer.invoke('fetch-modules', settings);
-
-        const select = document.getElementById('select-module');
-        if (result.success && result.modules.length > 0) {
-            const currentVal = select.value;
-            select.innerHTML = '<option value="">Selecione ou deixe auto-detectar</option>';
-            result.modules.forEach(m => {
-                const opt = document.createElement('option');
-                opt.value = m._id || m.id;
-                opt.textContent = `${m.name} (${m.type || 'N/A'})`;
-                select.appendChild(opt);
-            });
-            // Tenta restaurar a seleção anterior se ainda existir
-            if (Array.from(select.options).some(o => o.value === currentVal)) {
-                select.value = currentVal;
-            }
-            showToast(result.modules.length + ' módulos carregados.', 'success');
-        } else {
-            showToast('Nenhum módulo encontrado', 'error');
-        }
-        btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Carregar';
-    });
 
     // Navigation
     navItems.forEach(item => {
@@ -239,6 +218,9 @@ function switchView(viewName) {
 
 function updateUIWithSettings(settings) {
     // Populate Client Config Fields
+    document.getElementById('input-ip').value = settings.ip || '';
+    document.getElementById('input-port').value = settings.port || '';
+
     const select = document.getElementById('select-module');
     if (settings.moduleId && !Array.from(select.options).some(o => o.value === settings.moduleId)) {
         const opt = document.createElement('option');
@@ -251,7 +233,7 @@ function updateUIWithSettings(settings) {
     const tokenInput = document.getElementById('input-token');
     if (settings.token) {
         tokenInput.placeholder = '•••••••••••••••• (Salvo)';
-        tokenInput.value = ''; // Mantém vazio para não enviar acidentalmente
+        tokenInput.value = ''; // Keep empty to not resend accidentally if unchanged
     } else {
         tokenInput.placeholder = 'Insira o token do servidor';
         tokenInput.value = '';
@@ -261,19 +243,133 @@ function updateUIWithSettings(settings) {
     document.getElementById('check-legacy').checked = settings.forceLegacyMode || false;
     document.getElementById('check-lock').checked = settings.lockOnMinimize || false;
 
-    document.getElementById('lbl-connected-server').textContent = `${settings.ip}:${settings.port}`;
-
     // Populate Info Fields
     document.getElementById('info-ip').value = settings.ip || '---';
 }
 
+function switchSettingsStep(stepIndex) {
+    // Hide all steps
+    [1, 2, 3].forEach(i => {
+        document.getElementById(`settings-step-${i}`).style.display = 'none';
+        document.getElementById(`step-${i}-ind`).classList.remove('active');
+    });
+
+    // Show target step
+    document.getElementById(`settings-step-${stepIndex}`).style.display = 'block';
+    document.getElementById(`step-${stepIndex}-ind`).classList.add('active');
+
+    // Always attempt to load modules when entering step 2 if not loaded
+    if (stepIndex === 2) {
+        const select = document.getElementById('select-module');
+        if (select.options.length <= 1) { // Only has the default "Aguardando..." option
+            loadModulesForSettings();
+        }
+    }
+}
+
+async function testConfigConnection() {
+    const btn = document.getElementById('btn-test-connection');
+    const errSpan = document.getElementById('step-1-error');
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Testando...';
+    btn.disabled = true;
+    errSpan.textContent = '';
+    errSpan.style.color = 'var(--status-error)';
+
+    const ip = document.getElementById('input-ip').value.trim();
+    const port = document.getElementById('input-port').value.trim() || '3000';
+    let token = document.getElementById('input-token').value.trim();
+
+    if (!ip) {
+        errSpan.textContent = 'O IP/Domínio é obrigatório.';
+        btn.innerHTML = '<i class="fa-solid fa-plug"></i> Testar';
+        btn.disabled = false;
+        return;
+    }
+
+    // Try to get existing token if field is empty (user didn't change it)
+    if (!token) {
+        const existingSettings = await ipcRenderer.invoke('get-settings');
+        if (existingSettings.token) {
+            token = existingSettings.token;
+        } else {
+            errSpan.textContent = 'Token é obrigatório (nenhum salvo).';
+            btn.innerHTML = '<i class="fa-solid fa-plug"></i> Testar';
+            btn.disabled = false;
+            return;
+        }
+    }
+
+    const testRes = await ipcRenderer.invoke('test-connection', { ip, port, token });
+    if (testRes.success) {
+        errSpan.style.color = 'var(--status-success)';
+        errSpan.textContent = 'Conexão OK!';
+    } else {
+        errSpan.style.color = 'var(--status-error)';
+        errSpan.textContent = testRes.error || 'Falha na conexão.';
+    }
+
+    btn.innerHTML = '<i class="fa-solid fa-plug"></i> Testar';
+    btn.disabled = false;
+}
+
+async function loadModulesForSettings() {
+    const btn = document.getElementById('btn-detect-module');
+    if (!btn) return;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+    // To load modules dynamically, we need connection settings.
+    // We take them from the form itself, not from main store, since they might not be saved yet.
+    const ip = document.getElementById('input-ip').value.trim();
+    const port = document.getElementById('input-port').value.trim() || '3000';
+    let token = document.getElementById('input-token').value.trim();
+
+    if (!token) {
+        const existingSettings = await ipcRenderer.invoke('get-settings');
+        token = existingSettings.token || '';
+    }
+
+    if (!ip || !token) {
+        showToast('IP ou Token ausente.', 'warning');
+        btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Carregar';
+        return;
+    }
+
+    const tempSettings = { ip, port, token };
+    const result = await ipcRenderer.invoke('fetch-modules', tempSettings);
+
+    const select = document.getElementById('select-module');
+    if (result.success && result.modules.length > 0) {
+        const currentVal = select.value;
+        select.innerHTML = '<option value="">Selecione ou deixe auto-detectar</option>';
+        result.modules.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m._id || m.id;
+            opt.textContent = `${m.name} (${m.type || 'N/A'})`;
+            select.appendChild(opt);
+        });
+        if (Array.from(select.options).some(o => o.value === currentVal)) {
+            select.value = currentVal;
+        }
+        showToast(result.modules.length + ' módulos carregados.', 'success');
+    } else {
+        showToast('Nenhum módulo encontrado', 'error');
+    }
+    btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Carregar';
+}
+
 async function saveClientSettings() {
+    const btn = document.getElementById('btn-save-settings');
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Salvando...';
+    btn.disabled = true;
+
     const current = await ipcRenderer.invoke('get-settings');
     const tokenInputValue = document.getElementById('input-token').value.trim();
 
     // Mescla as configurações
     const newSettings = {
         ...current,
+        ip: document.getElementById('input-ip').value.trim(),
+        port: document.getElementById('input-port').value.trim() || '3000',
         moduleId: document.getElementById('select-module').value,
         sector: document.getElementById('input-sector').value,
         floor: document.getElementById('input-floor').value,
@@ -288,18 +384,26 @@ async function saveClientSettings() {
 
     const result = await ipcRenderer.invoke('save-settings', newSettings);
     if (result.success) {
-        showToast('Configurações do cliente salvas!', 'success');
+        showToast('Configurações do cliente salvas com sucesso!', 'success');
 
-        // Limpa o campo e atualiza o placeholder visualmente
         if (tokenInputValue !== '') {
             document.getElementById('input-token').value = '';
             document.getElementById('input-token').placeholder = '•••••••••••••••• (Salvo)';
         }
 
+        // Return to first step and go back to Dashboard
+        switchSettingsStep(1);
+        switchView('dashboard');
+
+        // Force sync with new settings immediately
+        forceSync();
         refreshStatus();
     } else {
         showToast('Erro ao salvar.', 'error');
     }
+
+    btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Finalizar Configuração';
+    btn.disabled = false;
 }
 
 async function refreshStatus() {

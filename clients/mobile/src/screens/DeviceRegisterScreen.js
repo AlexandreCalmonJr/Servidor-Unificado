@@ -251,12 +251,15 @@ export default function DeviceRegisterScreen({ navigation }) {
                         </View>
 
                         <TouchableOpacity
-                            style={styles.button}
+                            style={[styles.button, registering && styles.buttonDisabled]}
                             onPress={handleRegister}
                             disabled={registering}
                         >
                             {registering ? (
-                                <ActivityIndicator color="#fff" />
+                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <ActivityIndicator color="#fff" style={{ marginRight: 8 }} />
+                                    <Text style={styles.buttonText}>Registrando no MDM...</Text>
+                                </View>
                             ) : (
                                 <Text style={styles.buttonText}>Registrar Dispositivo</Text>
                             )}
@@ -306,4 +309,5 @@ const styles = StyleSheet.create({
         elevation: 4,
     },
     buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+    buttonDisabled: { backgroundColor: '#0ea5e9', opacity: 0.8 }
 });
