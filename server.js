@@ -161,7 +161,7 @@ app.use('/public', staticCacheMiddleware(86400), express.static(path.join(__dirn
 
 // View engine
 app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
+app.set('views', path.join(__dirname, 'frontend', 'views'));
 
 // ===== HEALTH / PROBES / MÉTRICAS =====
 
@@ -236,17 +236,17 @@ app.use('/api/filters', savedFilterRoutes(logger, modifyApiLimiter, auth));
 app.get('/provision/:token', provisioningRoutes.renderProvisioningPage(logger));
 app.get('/dashboard', auth, serverRoutes.renderDashboard(logger));
 
-app.use('/panel', express.static(path.join(__dirname, 'public', 'web', 'panel')));
+app.use('/panel', express.static(path.join(__dirname, 'frontend')));
 app.get('/panel', (req, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'web', 'panel', 'login.html'))
+  res.sendFile(path.join(__dirname, 'frontend', 'login.html'))
 );
 app.get('/panel/', (req, res) => {
   const token = req.headers.authorization?.substring(7) || req.query.token || req.headers.auth_token;
   const file = token ? 'index.html' : 'login.html';
-  res.sendFile(path.join(__dirname, 'public', 'web', 'panel', file));
+  res.sendFile(path.join(__dirname, 'frontend', file));
 });
 
-app.use(express.static(path.join(__dirname, 'public', 'web')));
+app.use(express.static(path.join(__dirname, 'frontend')));
 app.get('/', (req, res) => res.redirect('/panel'));
 
 // ===== 404 =====
