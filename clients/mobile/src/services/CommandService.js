@@ -61,13 +61,10 @@ class CommandService {
     // Reporta ao servidor
     await this._reportResult(commandId, {
       success,
-      result: {
-        stdout: resultData.output || '',
-        stderr: resultData.error_message || '',
-        exitCode: success ? 0 : 1,
-        executionTime: 0
-      },
-      executedAt: new Date().toISOString()
+      stdout: resultData.output || '',
+      stderr: resultData.error_message || '',
+      exitCode: success ? 0 : 1,
+      executionTime: 0,
     });
 
     return { success, ...resultData };
