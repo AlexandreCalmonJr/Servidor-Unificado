@@ -188,7 +188,7 @@
     }
 
     async function loadModuleStats() {
-        const grid = document.getElementById('module-stats-grid');
+        const grid = document.getElementById('dashboard-module-stats');
         if (!grid) return;
 
         try {
@@ -208,35 +208,27 @@
 
             const results = await Promise.all(statsPromises);
 
-            const iconMap = {
-                mobile: 'smartphone', totem: 'monitor', desktop: 'monitor', notebook: 'laptop',
-                panel: 'tv', printer: 'printer', scanner: 'scan', custom: 'settings',
+            const typeIcons = {
+                mobile: '📱', totem: '🖥️', desktop: '💻', notebook: '💻',
+                panel: '📺', printer: '🖨️', scanner: '📠', custom: '⚙️',
             };
 
             grid.innerHTML = results.map(item => {
                 const s = item.stats || { total: 0, online: 0, offline: 0 };
-                const iconName = iconMap[item.type] || 'box';
+                const icon = typeIcons[item.type] || '📦';
                 return `
-                <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl hover:border-slate-700 transition-colors group">
-                    <div class="flex justify-between items-start mb-3">
-                        <span class="text-slate-400 text-sm font-medium uppercase tracking-wider">${esc(item.name)}</span>
-                        <div class="p-2 rounded-lg bg-slate-800 text-slate-400 group-hover:text-white transition-colors">
-                            <i data-lucide="${iconName}" size="18"></i>
-                        </div>
+                <div class="module-stat-card" style="border-left-color: var(--accent);">
+                    <div class="module-stat-icon" style="background: var(--accent-dim); color: var(--accent);">${icon}</div>
+                    <div class="module-stat-info">
+                        <span class="module-stat-label">${esc(item.name)}</span>
+                        <span class="module-stat-value" style="color: var(--text-primary);">${s.total}</span>
                     </div>
-                    <div class="text-3xl font-bold text-white mb-3">${s.total}</div>
-                    <div class="flex items-center gap-3 text-xs font-medium">
-                        <span class="flex items-center gap-1 text-emerald-400">
-                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> ${s.online}
-                        </span>
-                        <span class="flex items-center gap-1 text-red-400">
-                            <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span> ${s.offline}
-                        </span>
+                    <div style="margin-left: auto; display: flex; gap: 10px; font-size: 0.75rem; font-weight: 600;">
+                        <span style="color: var(--success); display: flex; align-items: center; gap: 4px;">🟢 ${s.online}</span>
+                        <span style="color: var(--danger); display: flex; align-items: center; gap: 4px;">🔴 ${s.offline}</span>
                     </div>
                 </div>`;
             }).join('');
-
-            if (window.lucide) window.lucide.createIcons();
         } catch (err) {
             console.error('Erro ao carregar stats dos módulos:', err);
         }
