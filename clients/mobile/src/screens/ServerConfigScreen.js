@@ -7,10 +7,11 @@
 import React, { useState, useEffect, useContext } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity,
-    StyleSheet, Alert, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform
+    StyleSheet, Alert, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, Modal
 } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { LinearGradient } from 'expo-linear-gradient';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { AuthContext } from '../context/AuthContext';
 
 export default function ServerConfigScreen({ navigation }) {
@@ -22,6 +23,10 @@ export default function ServerConfigScreen({ navigation }) {
     const [loading, setLoading] = useState(false);
     const [testResult, setTestResult] = useState(null); // 'success' | 'error' | null
     const [testMessage, setTestMessage] = useState('');
+
+    // Scanner
+    const [isScanning, setIsScanning] = useState(false);
+    const [permission, requestPermission] = useCameraPermissions();
 
     useEffect(() => {
         // Carrega configurações salvas (main.dart → initialize)
@@ -97,6 +102,43 @@ export default function ServerConfigScreen({ navigation }) {
             Alert.alert('Erro', 'Falha ao salvar configurações: ' + e.message);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // QR Code Scanner Handlers
+    const openScanner = async () => {
+        if (!permission?.granted) {
+            const result = await requestPermission();
+            if (!result.granted) {
+                Alert.alert('Permissão negada', 'Autorize o uso da câmera para ler o QR Code.');
+                return;
+            }
+        }
+        setIsScanning(true);
+    };
+
+    const handleBarcodeScanned = ({ type, data }) => {
+        setIsScanning(false);
+        try {
+            // Esperado: {"provisioning_token": "...", "url": "http://IP:PORT/api/provisioning/enroll"}
+            const parsed = JSON.parse(data);
+            if (parsed.provisioning_token && parsed.url) {
+                const urlObj = new URL(parsed.url);
+                const host = urlObj.hostname;
+                const port = urlObj.port || '80';
+
+                setServerHost(host);
+                setServerPort(port);
+                setAuthToken(parsed.provisioning_token);
+
+                // Alert success via test messages
+                setTestResult('success');
+                setTestMessage('✅ QR Code LIDO! Teste ou Salve para continuar.');
+            } else {
+                throw new Error('Formato inválido');
+            }
+        } catch (e) {
+            Alert.alert('Erro no Leitor', 'QR Code inválido ou formato desconhecido.');
         }
     };
 
@@ -191,7 +233,32 @@ export default function ServerConfigScreen({ navigation }) {
                 <Text style={styles.hint}>
                     URL gerada: http://{serverHost || '...'}:{serverPort || '...'}
                 </Text>
+
+                <TouchableOpacity
+                    style={styles.qrButton}
+                    onPress={openScanner}
+                >
+                    <Text style={styles.qrButtonText}>📷 Escanear QR Code de Provisionamento</Text>
+                </TouchableOpacity>
+
             </ScrollView>
+
+            <Modal visible={isScanning} animationType="slide">
+                <View style={{ flex: 1, backgroundColor: 'black' }}>
+                    <CameraView
+                        style={{ flex: 1 }}
+                        facing="back"
+                        onBarcodeScanned={isScanning ? handleBarcodeScanned : undefined}
+                    >
+                        <View style={styles.scannerOverlay}>
+                            <Text style={styles.scannerText}>Posicione o QR Code MDM na tela</Text>
+                            <TouchableOpacity style={styles.scannerCancelBtn} onPress={() => setIsScanning(false)}>
+                                <Text style={styles.scannerCancelBtnText}>Cancelar</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </CameraView>
+                </View>
+            </Modal>
         </KeyboardAvoidingView>
     );
 }
@@ -226,4 +293,10 @@ const styles = StyleSheet.create({
     buttonText: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
     testButtonText: { color: '#cbd5e1', fontSize: 15 },
     hint: { color: '#475569', fontSize: 12, textAlign: 'center', marginTop: 16 },
+    qrButton: { marginTop: 20, backgroundColor: 'rgba(255,255,255,0.05)', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#334155', alignItems: 'center' },
+    qrButtonText: { color: '#38bdf8', fontSize: 14, fontWeight: 'bold' },
+    scannerOverlay: { flex: 1, justifyContent: 'space-between', alignItems: 'center', paddingVertical: 60, backgroundColor: 'rgba(0,0,0,0.5)' },
+    scannerText: { color: '#fff', fontSize: 18, fontWeight: 'bold', backgroundColor: 'rgba(0,0,0,0.7)', padding: 12, borderRadius: 8 },
+    scannerCancelBtn: { backgroundColor: '#ef4444', paddingVertical: 12, paddingHorizontal: 30, borderRadius: 25 },
+    scannerCancelBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' }
 });

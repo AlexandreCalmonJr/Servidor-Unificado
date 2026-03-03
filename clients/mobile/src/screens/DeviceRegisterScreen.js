@@ -89,7 +89,7 @@ export default function DeviceRegisterScreen({ navigation }) {
         }
     };
 
-    // handleRegister → POST /api/devices/data (DeviceService.sendDeviceData em main.dart)
+    // handleRegister → POST /api/provisioning/enroll ou /api/modules/mobile/assets
     const handleRegister = async () => {
         if (!deviceName || !serialNumber) {
             Alert.alert('Erro', 'Nome do dispositivo e número de série são obrigatórios.');
@@ -104,51 +104,88 @@ export default function DeviceRegisterScreen({ navigation }) {
             await SecureStore.setItemAsync('serial_number', serialNumber);
             await SecureStore.setItemAsync('imei', imei);
 
-            // Payload adaptado para Unified Schema (Mobile)
-            // Endpoint: POST /api/modules/mobile/assets
-            const payload = {
-                asset_name: deviceName,     // antes: device_name
-                model: model,          // antes: device_model
-                serial_number: serialNumber,
-                imei: imei || 'N/A',
-                // device_id: removido (redundante com serial)
-                battery_level: batteryLevel,   // antes: battery
-                ip_address: ipAddress,
-                mac_address: 'N/A',          // antes: mac_address_radio
-                // network movido para custom_data ou ignorado se não essencial
-                // host: removido (redundante com asset_name)
-                sector: sector || 'N/A',
-                floor: floor || 'N/A',
-                last_seen: new Date().toISOString(),
-                android_id: Application.androidId || serialNumber, // antes: secure_android_id
-                // operating_system: composto, mas o schema Mobile tem campo 'os_version'
-                os_version: Device.osVersion || 'N/A',
-                manufacturer: Device.manufacturer || 'N/A',
-                status: 'online',
-                // is_mobile: removido (implícito pelo endpoint)
+            const authToken = await SecureStore.getItemAsync('auth_token');
 
-                custom_data: {
-                    network: 'N/A',
-                    operating_system: `${Platform.OS} ${Device.osVersion || ''}`.trim()
+            let response;
+            let usedEnroll = false;
+
+            // Se o token parece ser um token de provisionamento via QRCode (ex: 64 chars) ou foi lido pelo leitor
+            // O ideal seria que a tela anterior marcasse isso, mas podemos sempre tentar a rota unificada primeiro se acharmos que é provisionamento.
+            if (authToken && authToken.length >= 32) { // Typically provisioning tokens are 64 hex strings
+                usedEnroll = true;
+                const enrollPayload = {
+                    provisioning_token: authToken,
+                    device_id: Application.androidId || serialNumber,
+                    device_name: deviceName,
+                    device_model: model,
+                    serial_number: serialNumber,
+                    imei: imei || 'N/A',
+                    android_id: Application.androidId || serialNumber,
+                    ip_address: ipAddress,
+                    mac_address_radio: 'N/A',
+                    wifi_ipv6: 'N/A',
+                    wifi_gateway_ip: 'N/A',
+                    wifi_broadcast: 'N/A',
+                    wifi_submask: 'N/A'
+                };
+
+                // Enviando para a rota unificada de provisionamento
+                response = await api.post('/provisioning/enroll', enrollPayload);
+
+            } else {
+                // Endpoint antigo/direto: POST /api/modules/mobile/assets (se não for provisionamento zero-touch)
+                const payload = {
+                    asset_name: deviceName,
+                    model: model,
+                    serial_number: serialNumber,
+                    imei: imei || 'N/A',
+                    battery_level: batteryLevel,
+                    ip_address: ipAddress,
+                    mac_address: 'N/A',
+                    sector: sector || 'N/A',
+                    floor: floor || 'N/A',
+                    last_seen: new Date().toISOString(),
+                    android_id: Application.androidId || serialNumber,
+                    os_version: Device.osVersion || 'N/A',
+                    manufacturer: Device.manufacturer || 'N/A',
+                    status: 'online',
+                    custom_data: {
+                        network: 'N/A',
+                        operating_system: `${Platform.OS} ${Device.osVersion || ''}`.trim()
+                    }
+                };
+
+                response = await api.post('/modules/mobile/assets', payload);
+            }
+
+            if (response.data?.success || response.status === 200 || response.status === 201 || response.data?.message?.includes('sucesso')) {
+                // Unified API retorna { success: true, asset: { id: ... } } ou o Provisionamento retorna device_id
+                const deviceId = response.data?.asset?.id || response.data?.asset?._id || response.data?.device_id || serialNumber;
+
+                // Finaliza o provisionamento na API (opcional, dependendo do design, mas o enroll já cria o dispositivo)
+                if (usedEnroll) {
+                    try {
+                        await api.post('/provisioning/complete', {
+                            device_id: deviceId,
+                            serial_number: serialNumber,
+                            success: true
+                        });
+                    } catch (err) {
+                        console.log('Aviso ao completar provisionamento:', err);
+                    }
                 }
-            };
 
-            const response = await api.post('/modules/mobile/assets', payload);
-
-            if (response.data?.success || response.status === 200 || response.status === 201) {
-                // Unified API retorna { success: true, asset: { id: ... } }
-                const deviceId = response.data?.asset?.id || response.data?.asset?._id || serialNumber;
                 await finishRegistration(deviceId);
-                Alert.alert('✅ Sucesso', 'Dispositivo registrado com sucesso!', [
+                Alert.alert('✅ Sucesso', 'Dispositivo configurado e registrado com sucesso!', [
                     { text: 'OK', onPress: () => navigation.replace('Login') }
                 ]);
             } else {
-                Alert.alert('Erro', 'Falha no registro: ' + (response.data?.message || 'Resposta inválida'));
+                Alert.alert('Erro', 'Falha no registro: ' + (response.data?.message || response.data?.error || 'Resposta inválida'));
             }
 
         } catch (error) {
             console.error('[DeviceRegister] Erro:', error);
-            const msg = error.response?.data?.message || error.message || 'Erro desconhecido';
+            const msg = error.response?.data?.message || error.response?.data?.error || error.message || 'Erro desconhecido';
             Alert.alert('Erro de Conexão', `Não foi possível registrar o dispositivo.\n${msg}`);
         } finally {
             setRegistering(false);

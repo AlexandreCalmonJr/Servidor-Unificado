@@ -14,19 +14,36 @@ const logger = require('./src/services/Logger'); // Integrated Logger
 const store = new Store();
 
 // --- AUTO-PROVISIONAMENTO (EXTRAÇÃO DE TOKEN DO NOME DO ARQUIVO) ---
-// Formato esperado: "UnifiedDesktop-<TOKEN>.exe"
+// Formato esperado: "UnifiedAgent_192.168.0.1_3000_<TOKEN>.exe"
 const fileName = path.basename(process.execPath);
 logger.info(`Starting execution from: ${fileName}`);
-const tokenMatch = fileName.match(/UnifiedDesktop-([a-fA-F0-9]{64})\.exe/); // Token has 64 hex chars
 
-if (tokenMatch && tokenMatch[1]) {
-    const extractedToken = tokenMatch[1];
-    const currentToken = store.get('settings.token');
+// Aceita "UnifiedAgent_", "UnifiedDesktop-", IP (pode conter traços se ipv6), porta e token 64/32 chars
+const autoProvMatch = fileName.match(/Unified(?:Agent|Desktop)[_-]+([a-zA-Z0-9.-]+)_(\d+)_([a-fA-F0-9]{32,64})\.exe/i) ||
+    fileName.match(/UnifiedDesktop-([a-fA-F0-9]{64})\.exe/i); // Fallback to older format
 
-    if (currentToken !== extractedToken) {
-        logger.info(`Token detected in filename. Auto-provisioning: ${extractedToken.substring(0, 10)}...`);
-        store.set('settings.token', extractedToken);
-        // Force sync logic will pick this up on initialization
+if (autoProvMatch) {
+    if (autoProvMatch.length === 4) {
+        // Formato Completo: [1]=IP, [2]=Port, [3]=Token
+        const extractedIp = autoProvMatch[1].replace(/-/g, ':'); // Restore IPv6 colons if they were replaced
+        const extractedPort = autoProvMatch[2];
+        const extractedToken = autoProvMatch[3];
+
+        const prevToken = store.get('settings.token');
+        if (prevToken !== extractedToken) {
+            logger.info(`Zero-Touch Provisioning detected: IP=${extractedIp}, Port=${extractedPort}, Token=${extractedToken.substring(0, 10)}...`);
+            store.set('settings.ip', extractedIp);
+            store.set('settings.port', extractedPort);
+            store.set('settings.token', extractedToken);
+            store.set('settings.zeroTouch', true); // Marcação para a interface saber
+        }
+    } else if (autoProvMatch.length === 2) {
+        // Formato Antigo: Apenas Token
+        const extractedToken = autoProvMatch[1];
+        if (store.get('settings.token') !== extractedToken) {
+            logger.info(`Legacy Token Provisioning detected: ${extractedToken.substring(0, 10)}...`);
+            store.set('settings.token', extractedToken);
+        }
     }
 }
 // -------------------------------------------------------------------
@@ -108,7 +125,8 @@ function createWindow() {
             interval: 300,
             forceLegacyMode: false,
             lockOnMinimize: true, // Default true for security
-            adminPassword: 'admin123' // Simple local storage for now
+            adminPassword: 'admin123', // Simple local storage for now
+            zeroTouch: false
         });
     });
 

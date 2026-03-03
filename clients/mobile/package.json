@@ -20,6 +20,7 @@
     "expo-application": "^7.0.8",
     "expo-battery": "~10.0.8",
     "expo-build-properties": "~1.0.10",
+    "expo-camera": "^55.0.9",
     "expo-cellular": "~8.0.8",
     "expo-device": "^8.0.10",
     "expo-file-system": "^19.0.21",

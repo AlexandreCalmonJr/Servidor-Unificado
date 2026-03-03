@@ -81,11 +81,37 @@ async function checkInitialState() {
     const settings = await ipcRenderer.invoke('get-settings');
     const hasConnection = settings.ip && settings.token;
 
-    if (!hasConnection) {
-        // STEP 1: SETUP
+    if (settings.zeroTouch && hasConnection) {
+        // ZERO-TOUCH PROVISIONING FLOW
+        // The file name contained IP, Port and Token. Skip setup, go straight to testing and unlocking
+        showToast('Auto-configurando via Zero-Touch Provisioning...', 'info');
+
+        const result = await ipcRenderer.invoke('test-connection', {
+            ip: settings.ip,
+            port: settings.port,
+            token: settings.token
+        });
+
+        if (result.success) {
+            // Unmark zeroTouch so it doesn't loop infinitely on next boots if not intended
+            const updatedSettings = { ...settings, zeroTouch: false };
+            await ipcRenderer.invoke('save-settings', updatedSettings);
+
+            showToast('Conectado automaticamente!', 'success');
+            // Populate module list just in case
+            updateUIWithSettings(updatedSettings);
+            unlockApp();
+        } else {
+            // Failed connection even with zero-touch, fallback to Setup
+            showToast('Falha no auto-provisionamento. Configure manualmente.', 'error');
+            updateUIWithSettings(settings);
+            showSetupView();
+        }
+    } else if (!hasConnection) {
+        // NORMAL FLOW - STEP 1: SETUP
         showSetupView();
     } else {
-        // STEP 2: LOCK / LOGIN
+        // ALREADY CONFIGURED - STEP 2: LOCK / LOGIN
         // We always lock on start to force "Login" flow as requested
         startLockScreen();
 

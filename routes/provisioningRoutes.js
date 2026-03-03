@@ -32,7 +32,7 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
       await provisioningToken.save();
 
       logger.info(`Token de provisionamento gerado: ${token} para ${organization}`);
-      
+
       // 🔔 Notificar via WebSocket
       notificationService.notifyTokenCreated(token, organization, config_profile);
 
@@ -202,7 +202,7 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
       }
 
       logger.info(`Dispositivo provisionado: ${serial_number} para ${token.organization}`);
-      
+
       // 🔔 Notificar via WebSocket
       notificationService.notifyDeviceEnrolled(device_name, serial_number, token.organization);
 
@@ -283,7 +283,12 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
         return res.status(404).send('Instalador não encontrado no servidor.');
       }
 
-      res.download(filePath, `UnifiedDesktop-${req.params.token}.exe`);
+      const serverIp = getLocalIPAddress();
+      const serverPort = process.env.PORT || 3000;
+
+      const fileName = `UnifiedAgent_${serverIp}_${serverPort}_${req.params.token}.exe`.replace(/:/g, '-'); // replace colon in IPv6 cases if any
+
+      res.download(filePath, fileName);
     } catch (err) {
       logger.error(`Erro no download desktop: ${err.message}`);
       res.status(500).send('Erro interno');
