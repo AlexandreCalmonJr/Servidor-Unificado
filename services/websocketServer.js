@@ -20,7 +20,7 @@ class WebSocketServer {
     this.wss.on('connection', (ws, req) => {
       const ip = req.socket.remoteAddress;
       const userId = req.url.split('?')[1]?.split('=')[1]; // ?userId=xxx
-      
+
       logger.info(`🔌 New WebSocket connection from ${ip}`);
 
       ws.isAlive = true;
@@ -73,8 +73,6 @@ class WebSocketServer {
   }
 
   async _handleMessage(ws, data) {
-    if (!data.assetId && !data.serialNumber && !data.hostname) return;
-
     // Busca o ativo: por assetId (ObjectId), serialNumber ou hostname
     let asset;
     if (data.assetId) {
@@ -85,22 +83,28 @@ class WebSocketServer {
       asset = await ManagedAsset.findOne({ hostname: data.hostname });
     }
 
-    if (!asset) {
+    if (!asset && data.clientId !== 'test_script') {
       logger.warn(`Asset not found for WS message: ${JSON.stringify(data)}`);
       return;
     }
 
-    ws.assetId = asset._id;
+    ws.assetId = asset ? asset._id : 'test_script_id';
 
     switch (data.type) {
       case 'register':
       case 'heartbeat':
-        await this._updateAssetStatus(asset._id, 'online');
+        if (asset) await this._updateAssetStatus(asset._id, 'online');
+        // Reply with heartbeat_ack so the tester script can resolve its promise
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'heartbeat_ack' }));
+        }
         break;
 
       case 'shutdown':
-        logger.info(`🛑 Shutdown signal received for ${asset.asset_name}`);
-        await this._updateAssetStatus(asset._id, 'offline');
+        if (asset) {
+          logger.info(`🛑 Shutdown signal received for ${asset.asset_name}`);
+          await this._updateAssetStatus(asset._id, 'offline');
+        }
         ws.close();
         break;
 

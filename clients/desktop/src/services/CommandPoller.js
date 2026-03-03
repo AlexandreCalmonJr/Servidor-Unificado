@@ -112,7 +112,7 @@ class CommandPollerManager extends EventEmitter {
 
     this.lastRunTime = new Date();
     this._logger.info('[CommandPoller] Iniciando runCycle (Coletando dados da máquina)...');
-    
+
     // ✅ DEBUG: Log das configurações
     const config = this._getConfig();
     this._logger.info(`[CommandPoller] Configuração: serverIp=${config.serverIp}, serverPort=${config.serverPort}, moduleId=${config.moduleId}`);
@@ -137,11 +137,11 @@ class CommandPollerManager extends EventEmitter {
         // ao invés de hardcodar 'desktop'
         let moduleType = 'desktop'; // Padrão se falhar
         this._logger.info(`[CommandPoller] 🔍 Buscando tipo do módulo ${this._settings.moduleId}...`);
-        
+
         try {
           const moduleInfo = await APIClient.getModuleInfo(baseUrl, this._settings.moduleId, token);
           this._logger.debug(`[CommandPoller] Resposta do GET /api/modules/{moduleId}:`, JSON.stringify(moduleInfo));
-          
+
           if (moduleInfo && moduleInfo.module && moduleInfo.module.type) {
             moduleType = moduleInfo.module.type;
             this._logger.info(`[CommandPoller] ✅ Tipo do módulo obtido com sucesso: ${moduleType}`);
@@ -235,7 +235,7 @@ class CommandPollerManager extends EventEmitter {
     const serial = this._serialNumber;
     if (!serial) return [];
 
-    const url = `${this._getBaseUrl()}/api/modules/${moduleId}/assets/commands/pending?serial_number=${encodeURIComponent(serial)}`;
+    const url = `${this._getBaseUrl()}/api/modules/${moduleId}/assets/commands/pending?serialNumber=${encodeURIComponent(serial)}`;
     const data = await this._request('GET', url);
     return data?.commands || [];
   }

@@ -28,6 +28,9 @@ const RUN_TESTS = RUN_ALL || ARGS.includes('--tests');
 const RUN_HISTORY = RUN_ALL || ARGS.includes('--history');
 const RUN_DESKTOP = RUN_ALL || ARGS.includes('--desktop');
 const RUN_MOBILE = RUN_ALL || ARGS.includes('--mobile');
+const RUN_PROFILES = RUN_ALL || ARGS.includes('--profiles');
+const RUN_COMMANDS = RUN_ALL || ARGS.includes('--commands');
+const RUN_DASHBOARD = RUN_ALL || ARGS.includes('--dashboard');
 const HEARTBEAT = ARGS.includes('--heartbeat');
 
 const countArgIndex = ARGS.indexOf('--count');
@@ -41,7 +44,7 @@ async function request(method, path, body, headers = {}) {
         const url = new URL(path, BASE);
         const data = body ? JSON.stringify(body) : null;
         const opts = {
-            hostname: url.hostname, port: url.port, path: url.pathname, method,
+            hostname: url.hostname, port: url.port, path: url.pathname + url.search, method,
             headers: { 'Content-Type': 'application/json', ...headers, ...(data ? { 'Content-Length': Buffer.byteLength(data) } : {}) },
         };
         const req = http.request(opts, (res) => {
@@ -57,6 +60,8 @@ async function request(method, path, body, headers = {}) {
         req.end();
     });
 }
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function login() {
     const res = await request('POST', '/api/auth/login', { username: 'admin', password: 'admin123' });
@@ -149,6 +154,8 @@ async function runHistoryAndLocationTests(jwt) {
         mac_address: macPrefix, ip_address: '192.168.100.50', unit: 'Hospital Central - Teste', sector: 'UTI Neonatal', floor: '3º Andar', location: 'Auto-Loc'
     }, headers);
 
+    console.log(`[DEBUG] History Create response: ${JSON.stringify(assetRes)}`);
+
     const assetId = assetRes.data.asset?._id || assetRes.data.asset?.id;
     logTest('Histórico: Criar Ativo', !!assetId);
 
@@ -218,10 +225,136 @@ async function runMobileSimulation(jwt) {
         const res = await request('POST', `/api/modules/${moduleId}/assets`, {
             serial_number: serial, asset_name: `Smartphone-${serial.slice(-4)}`, asset_type: 'mobile', status: 'online'
         }, headers);
-        if (res.status <= 201) registered.push(serial);
+        if (res.status <= 201) {
+            const createdId = res.data.asset?._id || res.data.asset?.id;
+            registered.push({ serial, id: createdId, moduleId });
+        }
     }
     logTest('Mobile Sim: Registrar Ativos', registered.length === DEVICE_COUNT, `${registered.length} registrados`);
     return registered;
+}
+
+// ============================================================================
+// 5. TESTE DE PERFIS DE CONFIGURAÇÃO (PROFILES)
+// ============================================================================
+async function runProfileTests(jwt) {
+    console.log(`\n${colors.blue}⚙️  INICIANDO TESTES DE PERFIL DE CONFIGURAÇÃO${colors.reset}`);
+    const headers = { Authorization: `Bearer ${jwt}` };
+
+    const profileData = {
+        name: `Teste Automatizado - Bloqueio de Câmera ${Date.now()}`,
+        description: 'Perfil gerado pelo unified_tester para verificar a engine de políticas.',
+        platform: 'all',
+        category: 'security',
+        configurations: {
+            allowCamera: false,
+            allowScreenCapture: false,
+            requirePassword: true,
+            passwordMinLength: 8
+        },
+        priority: 10
+    };
+
+    const res = await request('POST', '/api/config-profiles', profileData, headers);
+    logTest('Profiles: Criar Perfil de Seguranca', res.status === 201 || res.status === 200, `ID: ${res.data._id || res.data.id || 'N/A'}`);
+}
+
+// ============================================================================
+// 6. SIMULAÇÃO BIDIRECIONAL DE COMANDOS (Mock Device x Controller)
+// ============================================================================
+async function runCommandSimulation(jwt, devicesList) {
+    console.log(`\n${colors.blue}⚡ INICIANDO SIMULAÇÃO DE COMANDOS BIDIRECIONAL${colors.reset}`);
+    const headers = { Authorization: `Bearer ${jwt}` };
+    const deviceAuth = { Authorization: `Bearer ${AUTH_TOKEN}` };
+
+    if (!devicesList || devicesList.length === 0) {
+        console.log(`${colors.cyan}Nenhum ativo disponível para testar comandos. Pulando...${colors.reset}`);
+        return;
+    }
+
+    const testDevice = devicesList[0]; // Pega o primeiro device mockado
+
+    // 6.1 Painel Admin cria um comando
+    // Verifica se temos o ID. No Desktop retorna string serial, no Mobile retorna objeto {serial, id, moduleId}.
+    // Vamos garantir o formato:
+    const tgtSerial = typeof testDevice === 'string' ? testDevice : testDevice.serial;
+    const tgtModule = typeof testDevice === 'string' ? 'desktop' : testDevice.moduleId;
+    const tgtAssetId = typeof testDevice === 'string' ? tgtSerial : testDevice.id; // Se for string apenas tenta enviar pro ID sendo o serial (fallback server controller tentará buscar, mas no ideal precisamos do objectID do mongo)
+
+    // Como getPending puxa pelo Serial (baseado no controller analisado), a gente primeiro descobre o Object Id real chamando /api/assets se necessário, mas o createCommand pede ModuleId e AssetId.
+    // Vamos procurar listando se não tiver.
+    let resolvedModuleId = tgtModule;
+    let resolvedAssetId = tgtAssetId;
+
+    if (typeof testDevice === 'string') {
+        const listRes = await request('GET', '/api/modules', null, headers);
+        const deskMod = listRes.data?.modules?.find(m => m.type === 'desktop');
+        if (deskMod) {
+            resolvedModuleId = deskMod._id;
+            const astRes = await request('GET', `/api/modules/${resolvedModuleId}/assets`, null, headers);
+            const ast = astRes.data?.assets?.find(a => a.serial_number === tgtSerial || a.serialNumber === tgtSerial);
+            if (ast) resolvedAssetId = ast._id;
+        }
+    }
+
+    logTest('Comandos: Resolvendo alvos do comando', resolvedModuleId && resolvedAssetId !== tgtSerial);
+
+    if (resolvedModuleId && resolvedAssetId !== tgtSerial) {
+        // Envia comando (Admin)
+        const cmdRes = await request('POST', `/api/modules/${resolvedModuleId}/assets/${resolvedAssetId}/commands`, {
+            commandType: 'lock_device',
+            timeout: 30000
+        }, headers);
+        logTest('Comandos: Enviar "Lock Device" via Painel', cmdRes.status === 201 || cmdRes.status === 200);
+
+        // Aguarda 1 segundo para garantir que o BD persista o comando e indexe
+        await sleep(1000);
+
+        // Dispositivo checa payload pendente (Mock Device Agent)
+        const pendRes = await request('GET', `/api/modules/${resolvedModuleId}/assets/commands/pending?serialNumber=${tgtSerial}`, null, deviceAuth);
+
+        console.log(`[DEBUG] pending commands response: ${JSON.stringify(pendRes)}`);
+
+        let foundCmd = pendRes.data?.commands?.[0];
+        logTest('Comandos: Dispositivo recebe comando (Push/Poll)', pendRes.status === 200 && !!foundCmd, `Comando recebido: ${foundCmd?.commandType || 'N/A'}`);
+
+        if (foundCmd) {
+            // Dispositivo reporta resultado da execução
+            const repRes = await request('POST', `/api/modules/${resolvedModuleId}/assets/commands/${foundCmd.id}/result`, {
+                success: true,
+                stdout: 'Device locked successfully by automation script',
+                exitCode: 0,
+                executionTime: 120
+            }, deviceAuth);
+            logTest('Comandos: Dispositivo reporta sucesso (ACK)', repRes.status === 200);
+
+            // Admin checa o histórico (Painel Admin)
+            const histRes = await request('GET', `/api/modules/${resolvedModuleId}/assets/${resolvedAssetId}/commands`, null, headers);
+            const verifiedCmd = histRes.data?.commands?.find(c => c.id === foundCmd.id);
+            logTest('Comandos: Validação do Histórico e Status = "completed"', histRes.status === 200 && verifiedCmd?.status === 'completed');
+        }
+    } else {
+        console.log(`${colors.red}❌ Falha ao encontrar Object IDs válidos para o teste de comando bidirecional.${colors.reset}`);
+    }
+}
+
+
+// ============================================================================
+// 7. VALIDAÇÃO DE DASHBOARD / SERVER STATUS
+// ============================================================================
+async function runDashboardValidation(jwt) {
+    console.log(`\n${colors.blue}📊 INICIANDO VALIDAÇÃO DE MÉTRICAS DO PAINEL${colors.reset}`);
+    const headers = { Authorization: `Bearer ${jwt}` };
+
+    const statusRes = await request('GET', '/api/server/status', null, headers);
+    const data = statusRes.data;
+
+    const valid = statusRes.status === 200 && typeof data.device_count === 'number' && typeof data.pending_commands === 'number';
+
+    logTest('Dashboard: Rota /api/server/status operante', valid, `Total Dispositivos: ${data.device_count} | Comandos Pendentes: ${data.pending_commands}`);
+    if (valid) {
+        console.log(`    ${colors.cyan}↳ CPU Usage: ${data.cpu_usage || 0}% | RAM: ${data.memory_usage || 0}%${colors.reset}`);
+    }
 }
 
 // ============================================================================
@@ -238,7 +371,16 @@ async function main() {
         if (RUN_TESTS) await runApiAndWsTests(jwt);
         if (RUN_HISTORY) await runHistoryAndLocationTests(jwt);
         if (RUN_DESKTOP) allDevices.push(...await runDesktopSimulation(jwt));
-        if (RUN_MOBILE) allDevices.push(...await runMobileSimulation(jwt));
+        // DesktopSim handles strings (serials), but mobile outputs objects now. Let's map for heartbeat compatibility!
+        const mobileSims = await (RUN_MOBILE ? runMobileSimulation(jwt) : Promise.resolve([]));
+        allDevices.push(...mobileSims.map(m => typeof m === 'string' ? m : m.serial));
+
+        if (RUN_PROFILES) await runProfileTests(jwt);
+
+        let cmdMocks = mobileSims.length > 0 ? mobileSims : allDevices; // Prefere objeto formatado do mobile
+        if (RUN_COMMANDS) await runCommandSimulation(jwt, cmdMocks);
+
+        if (RUN_DASHBOARD) await runDashboardValidation(jwt);
 
         console.log(`\n${colors.green}🎉 TODAS AS ROTINAS FORAM EXECUTADAS COM SUCESSO!${colors.reset}`);
 

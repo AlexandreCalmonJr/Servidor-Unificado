@@ -15,14 +15,14 @@ import DeviceInfo from 'react-native-device-info';
 class CommandService {
   constructor(config) {
     // config: { baseUrl, authToken }
-    this._baseUrl   = config.baseUrl;
+    this._baseUrl = config.baseUrl;
     this._authToken = config.authToken;
 
     this._client = axios.create({
       baseURL: this._baseUrl,
       timeout: 15_000,
       headers: {
-        'Content-Type':  'application/json',
+        'Content-Type': 'application/json',
         'Authorization': `Bearer ${this._authToken}`,
       },
     });
@@ -36,7 +36,7 @@ class CommandService {
     const serial = await DeviceInfo.getSerialNumber();
     const response = await this._client.get(
       `/api/modules/mobile/assets/commands/pending`,
-      { params: { serial_number: serial } }
+      { params: { serialNumber: serial } }
     );
     return response.data?.commands || [];
   }
@@ -48,36 +48,37 @@ class CommandService {
   // ──────────────────────────────────────────────────────────────────────────
   async executeCommand(cmd) {
     const commandId = cmd.id || cmd._id || '';
-    const serial    = await DeviceInfo.getSerialNumber();
-    let success     = false;
-    let resultData  = {};
+    let success = false;
+    let resultData = {};
 
     try {
       resultData = await this._dispatchCommand(cmd);
-      success    = true;
+      success = true;
     } catch (error) {
       resultData = { error_message: error.message };
     }
 
     // Reporta ao servidor
-    await this._reportResult({
-      command_id:    commandId,
-      serial_number: serial,
+    await this._reportResult(commandId, {
       success,
-      result:        resultData.output || '',
-      error_message: resultData.error_message || '',
-      executed_at:   new Date().toISOString(),
+      result: {
+        stdout: resultData.output || '',
+        stderr: resultData.error_message || '',
+        exitCode: success ? 0 : 1,
+        executionTime: 0
+      },
+      executedAt: new Date().toISOString()
     });
 
     return { success, ...resultData };
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // POST /api/devices/command-result
+  // POST /api/modules/mobile/assets/commands/:commandId/result
   // ──────────────────────────────────────────────────────────────────────────
-  async _reportResult(payload) {
+  async _reportResult(commandId, payload) {
     try {
-      await this._client.post('/api/devices/command-result', payload);
+      await this._client.post(`/api/modules/mobile/assets/commands/${commandId}/result`, payload);
     } catch (err) {
       console.warn('[CommandService] Falha ao reportar resultado:', err.message);
     }
@@ -186,11 +187,11 @@ class CommandService {
   }
 
   async _collectDeviceInfo() {
-    const brand       = await DeviceInfo.getBrand();
-    const model       = await DeviceInfo.getModel();
-    const osVersion   = await DeviceInfo.getSystemVersion();
-    const serial      = await DeviceInfo.getSerialNumber();
-    const totalMem    = await DeviceInfo.getTotalMemory();
+    const brand = await DeviceInfo.getBrand();
+    const model = await DeviceInfo.getModel();
+    const osVersion = await DeviceInfo.getSystemVersion();
+    const serial = await DeviceInfo.getSerialNumber();
+    const totalMem = await DeviceInfo.getTotalMemory();
     return { output: JSON.stringify({ brand, model, osVersion, serial, totalMem }) };
   }
 }
