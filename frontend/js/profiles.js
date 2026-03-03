@@ -2,14 +2,37 @@
 
 (() => {
     let allProfiles = [];
+    let allModules = [];
     let editingId = null;
 
-    function loadProfiles() {
+    async function loadProfiles() {
+        await fetchModulesForProfile();
         fetchProfiles();
         setupProfileModal();
     }
 
     // ===== FETCH =====
+    async function fetchModulesForProfile() {
+        try {
+            const data = await API.get('/modules');
+            allModules = data.modules || [];
+
+            const select = document.getElementById('form-profile-module');
+            if (!select) return;
+
+            select.innerHTML = '<option value="" disabled selected>Selecione um módulo alvo...</option>';
+            allModules.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m._id || m.id;
+                opt.dataset.type = m.type;
+                opt.textContent = `${m.name} (${m.type})`;
+                select.appendChild(opt);
+            });
+        } catch (err) {
+            console.error('Erro ao buscar módulos', err);
+        }
+    }
+
     async function fetchProfiles() {
         const grid = document.getElementById('profile-grid');
         if (!grid) return;
@@ -29,11 +52,16 @@
                 const s = p.settings || {};
                 const restrictions = s.restrictions || {};
 
+                // Find matching module name
+                const linkedModule = allModules.find(m => (m._id || m.id) === p.module_id);
+                const moduleDisplay = linkedModule ? linkedModule.name : (p.module_type || 'desktop');
+
                 return `
           <div class="profile-card">
             <div style="display:flex;justify-content:space-between;align-items:start;">
               <div>
                 <strong style="font-size:1rem;">${esc(p.name)}</strong>
+                <span class="status-badge" style="margin-left:8px;background:var(--bg-tertiary);color:var(--text-secondary);font-size:0.75rem;padding:2px 6px;">${esc(moduleDisplay)}</span>
                 ${p.description ? `<div style="color:var(--text-secondary);font-size:0.85rem;margin-top:4px;">${esc(p.description)}</div>` : ''}
               </div>
               <div style="display:flex;gap:4px;">
@@ -92,6 +120,7 @@
 
         document.getElementById('form-profile-name').value = profile?.name || '';
         document.getElementById('form-profile-desc').value = profile?.description || '';
+        document.getElementById('form-profile-module').value = profile?.module_id || '';
 
         const s = profile?.settings || {};
         const r = s.restrictions || {};
@@ -111,7 +140,13 @@
         const name = document.getElementById('form-profile-name')?.value.trim();
         const description = document.getElementById('form-profile-desc')?.value.trim();
 
+        const moduleSelect = document.getElementById('form-profile-module');
+        const module_id = moduleSelect?.value;
+        const selectedOption = moduleSelect?.selectedOptions[0];
+        const module_type = selectedOption?.dataset?.type || 'desktop';
+
         if (!name) { showToast('Nome é obrigatório.', 'warning'); return; }
+        if (!module_id) { showToast('O módulo vinculado é obrigatório.', 'warning'); return; }
 
         const wifiText = document.getElementById('form-profile-wifi')?.value.trim();
         const wifi_configs = wifiText ? wifiText.split('\n').filter(l => l.trim()).map(line => {
@@ -128,6 +163,8 @@
         const body = {
             name,
             description,
+            module_id,
+            module_type,
             settings: {
                 wifi_configs,
                 app_whitelist,

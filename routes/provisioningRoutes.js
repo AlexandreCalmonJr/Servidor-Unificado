@@ -120,8 +120,11 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
       });
 
       const targetType = configProfile.module_type || 'desktop';
+      const targetModuleId = configProfile.module_id;
+
       const assetData = {
         asset_type: targetType,
+        module_id: targetModuleId,
         asset_name: device_name,
         serial_number: serial_number || 'N/A',
         model: device_model,

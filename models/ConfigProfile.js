@@ -9,6 +9,10 @@ const ConfigProfileSchema = new mongoose.Schema({
     default: 'desktop',
     enum: ['desktop', 'notebook', 'totem', 'panel', 'printer', 'mobile', 'scanner', 'custom']
   },
+  module_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'AssetModuleConfig'
+  },
   settings: {
     wifi_configs: [{
       ssid: String,

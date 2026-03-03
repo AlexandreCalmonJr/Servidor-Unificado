@@ -45,7 +45,8 @@
               <span>⏰ ${formatDate(t.expires_at)}</span>
             </div>
             <div style="margin-top: 12px; display:flex; gap:8px;">
-              <button class="btn btn-ghost btn-sm" onclick="ProvisionManager.copyUrl('${esc(t.token)}')">📋 Copiar URL</button>
+              <button class="btn btn-ghost btn-sm" onclick="ProvisionManager.showQrCode('${esc(t.token)}', '${esc(t.provisioning_url)}')">📷 Ver QR</button>
+              <button class="btn btn-ghost btn-sm" onclick="ProvisionManager.copyUrl('${esc(t.provisioning_url)}')">📋 Copiar URL</button>
               <button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="ProvisionManager.deleteToken('${t._id || t.id}')">🗑️</button>
             </div>
           </div>
@@ -84,7 +85,20 @@
         const cancelBtn = document.getElementById('provision-modal-cancel');
         const saveBtn = document.getElementById('provision-modal-save');
 
-        if (addBtn) addBtn.addEventListener('click', () => modal.classList.add('active'));
+        if (addBtn) {
+            addBtn.addEventListener('click', () => {
+                // Reset views before showing
+                document.getElementById('provision-form-content').classList.remove('hidden');
+                document.getElementById('provision-result-content').classList.add('hidden');
+                document.getElementById('provision-modal-cancel').classList.remove('hidden');
+                document.getElementById('provision-modal-save').classList.remove('hidden');
+                document.getElementById('btn-close-result').classList.add('hidden');
+                document.getElementById('form-provision-org').value = '';
+
+                modal.classList.add('active');
+            });
+        }
+
         [closeBtn, cancelBtn].forEach(b => {
             if (b) b.addEventListener('click', () => modal.classList.remove('active'));
         });
@@ -107,9 +121,12 @@
             });
             showToast('Token gerado com sucesso!', 'success');
 
-            // Hide Form, Show Result
+            // Hide Form and Action buttons, Show Result and Concluir button
             document.getElementById('provision-form-content').classList.add('hidden');
             document.getElementById('provision-result-content').classList.remove('hidden');
+            document.getElementById('provision-modal-cancel').classList.add('hidden');
+            document.getElementById('provision-modal-save').classList.add('hidden');
+            document.getElementById('btn-close-result').classList.remove('hidden');
 
             // Generate QR
             const qrContainer = document.getElementById('modal-qrcode');
@@ -150,17 +167,13 @@
             showToast('URL copiada!', 'success');
         };
 
-        document.getElementById('btn-close-result').onclick = (e) => {
-            e.preventDefault();
-            document.getElementById('provision-modal').classList.remove('active');
-            // Reset modal state after transition
-            setTimeout(() => {
-                document.getElementById('provision-form-content').classList.remove('hidden');
-                document.getElementById('provision-result-content').classList.add('hidden');
-                // Optional: reset form
-                document.getElementById('form-provision-org').value = '';
-            }, 300);
-        };
+        const closeResultBtn = document.getElementById('btn-close-result');
+        if (closeResultBtn) {
+            closeResultBtn.onclick = (e) => {
+                e.preventDefault();
+                document.getElementById('provision-modal').classList.remove('active');
+            };
+        }
     }
 
     // ===== HELPERS =====
@@ -170,11 +183,51 @@
         });
     }
 
-    function copyUrl(token) {
-        const url = `${window.location.protocol}//${window.location.hostname}:${window.location.port || 3000}/provision/${token}`;
+    function copyUrl(url) {
+        // Fallback for old structure where url might just be the token
+        if (!url.startsWith('http')) {
+            url = `${window.location.protocol}//${window.location.hostname}:${window.location.port || 3000}/provision/${url}`;
+        }
         navigator.clipboard.writeText(url).then(() => {
             showToast('URL copiada!', 'success');
         });
+    }
+
+    function showQrCode(token, url) {
+        const modal = document.getElementById('provision-modal');
+
+        // Ensure URLs are Absolute
+        if (!url || !url.startsWith('http')) {
+            url = `${window.location.protocol}//${window.location.hostname}:${window.location.port || 3000}/api/provisioning/download/desktop/${token}`;
+        }
+
+        // Set UI State for View Mode
+        document.getElementById('provision-form-content').classList.add('hidden');
+        document.getElementById('provision-result-content').classList.remove('hidden');
+        document.getElementById('provision-modal-cancel').classList.add('hidden');
+        document.getElementById('provision-modal-save').classList.add('hidden');
+        document.getElementById('btn-close-result').classList.remove('hidden');
+
+        // Render QR
+        const qrContainer = document.getElementById('modal-qrcode');
+        qrContainer.innerHTML = '';
+        const provisioningPayload = JSON.stringify({
+            provisioning_token: token,
+            url: `${window.location.protocol}//${window.location.host}/api/provisioning/enroll`
+        });
+
+        new QRCode(qrContainer, {
+            text: provisioningPayload,
+            width: 200,
+            height: 200
+        });
+
+        // Update Inputs
+        document.getElementById('modal-token-url').value = url;
+        document.getElementById('modal-token-code').innerText = token;
+
+        setupResultActions(url);
+        modal.classList.add('active');
     }
 
     async function deleteToken(id) {
@@ -188,6 +241,6 @@
         }
     }
 
-    window.ProvisionManager = { copyToken, copyUrl, deleteToken };
+    window.ProvisionManager = { copyToken, copyUrl, deleteToken, showQrCode };
     App.onPageLoad('provisioning', loadProvisioning);
 })();
