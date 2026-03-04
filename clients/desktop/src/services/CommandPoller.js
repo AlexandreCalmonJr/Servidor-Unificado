@@ -3,10 +3,10 @@ const https = require('https');
 const http = require('http');
 const { EventEmitter } = require('events');
 
-// Importação dos seus outros módulos que enviam os dados!
 const DataCollector = require('./DataCollector');
 const PayloadBuilder = require('./PayloadBuilder');
 const APIClient = require('./APIClient');
+const CommandExecutor = require('./CommandExecutor'); // ✅ ADICIONADO
 
 const DEFAULT_POLL_INTERVAL = 10_000; // 10 segundos
 
@@ -18,8 +18,8 @@ class CommandPollerManager extends EventEmitter {
     this._pollingTimer = null;
     this._running = false;
     this._serialNumber = null;
+    this._executor = null; // ✅ ADICIONADO
 
-    // Variáveis de estado esperadas pelo main.js para mostrar na interface
     this.lastRunTime = null;
     this.lastRunStatus = 'Aguardando inicialização...';
     this.syncCount = 0;
@@ -28,11 +28,16 @@ class CommandPollerManager extends EventEmitter {
 
   setLogger(logger) {
     this._logger = logger || console;
+    // ✅ Repassa o logger ao executor se já existir
+    if (this._executor) {
+      this._executor._logger = this._logger;
+    }
   }
 
-  // Esperado pelo main.js ao iniciar o app
   async initialize() {
     this._logger.info('[CommandPoller] Inicializando serviço de background...');
+    // ✅ Cria o executor uma vez
+    this._executor = new CommandExecutor(this._logger);
     this.lastRunStatus = 'Inicializado';
   }
 
@@ -41,10 +46,7 @@ class CommandPollerManager extends EventEmitter {
   // ──────────────────────────────────────────────────────────────────────────
 
   configure(settings = {}) {
-    // Mescla as configurações para não perder o token ao salvar só o setor
     this._settings = { ...(this._settings || {}), ...settings };
-
-    // Normaliza
     this._settings.serverIp = this._settings.ip || this._settings.serverIp || '127.0.0.1';
     this._settings.serverPort = this._settings.port || this._settings.serverPort || 3000;
 
@@ -58,7 +60,6 @@ class CommandPollerManager extends EventEmitter {
     }
   }
 
-  // O main.js chama isso quando clica em "Salvar Config"
   updateSettings(settings = {}) {
     this.configure(settings);
     return Promise.resolve();
@@ -68,7 +69,6 @@ class CommandPollerManager extends EventEmitter {
     this._serialNumber = serial;
   }
 
-  // Transforma em Getter para o main.js acessar como "commandPoller.isRunning"
   get isRunning() {
     return this._running;
   }
@@ -97,34 +97,31 @@ class CommandPollerManager extends EventEmitter {
     return {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${this._getConfig().token}`,
+      'AUTH_TOKEN': this._getConfig().token,
     };
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // CICLO PRINCIPAL (O QUE ENVIA OS DADOS AO SERVIDOR)
+  // CICLO PRINCIPAL — Sincronização de inventário
   // ──────────────────────────────────────────────────────────────────────────
 
-  // O main.js chama isso no "Sincronizar Agora" ou ao iniciar
   async runCycle() {
     if (!this._settings || !this._settings.serverIp) {
       throw new Error('Servidor não configurado ou IP ausente.');
     }
 
     this.lastRunTime = new Date();
-    this._logger.info('[CommandPoller] Iniciando runCycle (Coletando dados da máquina)...');
+    this._logger.info('[CommandPoller] Iniciando runCycle...');
 
-    // ✅ DEBUG: Log das configurações
     const config = this._getConfig();
     this._logger.info(`[CommandPoller] Configuração: serverIp=${config.serverIp}, serverPort=${config.serverPort}, moduleId=${config.moduleId}`);
 
     try {
-      // 1. Coleta dados reais da máquina
       const coreInfo = await DataCollector.getCoreSystemInfo();
       if (coreInfo.serial_number) {
         this.setSerialNumber(coreInfo.serial_number);
       }
 
-      // 2. Constrói Payload (Módulo ou Legado)
       const baseUrl = this._getBaseUrl();
       const token = this._settings.token;
 
@@ -133,54 +130,46 @@ class CommandPollerManager extends EventEmitter {
         const payload = PayloadBuilder.buildLegacyPayload(coreInfo, this._settings.assetName);
         result = await APIClient.sendLegacyData(baseUrl, payload, token);
       } else {
-        // 🔥 CRITICAL FIX: Buscar o tipo correto do módulo no servidor
-        // ao invés de hardcodar 'desktop'
-        let moduleType = 'desktop'; // Padrão se falhar
+        let moduleType = 'desktop';
         this._logger.info(`[CommandPoller] 🔍 Buscando tipo do módulo ${this._settings.moduleId}...`);
 
         try {
           const moduleInfo = await APIClient.getModuleInfo(baseUrl, this._settings.moduleId, token);
-          this._logger.debug(`[CommandPoller] Resposta do GET /api/modules/{moduleId}:`, JSON.stringify(moduleInfo));
-
-          if (moduleInfo && moduleInfo.module && moduleInfo.module.type) {
+          if (moduleInfo && moduleInfo.type) {
+            moduleType = moduleInfo.type;
+          } else if (moduleInfo && moduleInfo.module && moduleInfo.module.type) {
             moduleType = moduleInfo.module.type;
-            this._logger.info(`[CommandPoller] ✅ Tipo do módulo obtido com sucesso: ${moduleType}`);
-          } else {
-            this._logger.warn(`[CommandPoller] ⚠️  GET retornou mas sem module.type. Resposta:`, JSON.stringify(moduleInfo));
-            this._logger.warn(`[CommandPoller] Usando fallback 'desktop'`);
           }
+          this._logger.info(`[CommandPoller] ✅ Tipo do módulo: ${moduleType}`);
         } catch (e) {
-          this._logger.error(`[CommandPoller] ❌ Falha ao obter tipo do módulo: ${e.message}`);
-          this._logger.debug(`[CommandPoller] Erro completo:`, e);
-          this._logger.warn(`[CommandPoller] Usando fallback 'desktop'`);
+          this._logger.warn(`[CommandPoller] ⚠️ Falha ao obter tipo do módulo: ${e.message}. Usando 'desktop'.`);
         }
 
         const payload = PayloadBuilder.buildModulePayload(
           coreInfo,
-          moduleType, // ✅ Agora usa o tipo REAL do módulo
+          moduleType,
           this._settings.sector,
           this._settings.floor,
           this._settings.assetName
         );
-        this._logger.info(`[CommandPoller] 📤 Enviando para moduleId: ${this._settings.moduleId} com asset_type: ${moduleType}`);
         result = await APIClient.sendAssetToModule(baseUrl, this._settings.moduleId, payload, token);
       }
 
       this.lastRunStatus = 'Online / Sincronizado';
       this.syncCount++;
-      this._logger.info('[CommandPoller] Sincronização concluída com sucesso!');
+      this._logger.info('[CommandPoller] ✅ Sincronização concluída!');
 
       return { success: true, result };
     } catch (error) {
       this.lastRunStatus = `Erro: ${error.message}`;
       this.errorCount++;
-      this._logger.error(`[CommandPoller] Falha no runCycle: ${error.message}`);
+      this._logger.error(`[CommandPoller] ❌ Falha no runCycle: ${error.message}`);
       throw error;
     }
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Start / Stop e Polling de Comandos
+  // Start / Stop
   // ──────────────────────────────────────────────────────────────────────────
 
   async start(serialNumber) {
@@ -189,10 +178,14 @@ class CommandPollerManager extends EventEmitter {
     if (this._running) return;
     if (!this._settings) return;
 
-    this._running = true;
-    this._logger.info(`[CommandPoller] Iniciando serviço para serial: ${this._serialNumber || 'Desconhecido'}`);
+    // ✅ Garante que o executor existe antes de começar
+    if (!this._executor) {
+      this._executor = new CommandExecutor(this._logger);
+    }
 
-    // Roda a primeira sincronização de inventário ao iniciar
+    this._running = true;
+    this._logger.info(`[CommandPoller] Iniciando para serial: ${this._serialNumber || 'Desconhecido'}`);
+
     try {
       await this.runCycle();
     } catch (e) {
@@ -212,17 +205,26 @@ class CommandPollerManager extends EventEmitter {
     this._logger.info('[CommandPoller] Parado');
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // POLLING DE COMANDOS + EXECUÇÃO  ← CORREÇÃO PRINCIPAL
+  // ──────────────────────────────────────────────────────────────────────────
+
   async _poll() {
     if (!this._running) return;
 
     try {
       const commands = await this._fetchPendingCommands();
+
       if (commands && commands.length > 0) {
-        this._logger.info(`[CommandPoller] Detectados ${commands.length} comando(s) pendente(s). Tipos: ${commands.map(c => c.commandType).join(', ')}`);
-        this.emit('commands', commands);
+        this._logger.info(`[CommandPoller] 📥 ${commands.length} comando(s) recebido(s)`);
+
+        // ✅ EXECUTA cada comando sequencialmente
+        for (const cmd of commands) {
+          await this._executeCommand(cmd);
+        }
       }
     } catch (err) {
-      // Falha silenciosa para não spammar os logs em caso de rede oscilando
+      this._logger.warn(`[CommandPoller] Erro no poll: ${err.message}`);
     }
 
     if (this._running) {
@@ -230,14 +232,87 @@ class CommandPollerManager extends EventEmitter {
     }
   }
 
+  // ✅ NOVO: Executa um único comando e reporta o resultado
+  async _executeCommand(cmd) {
+    const commandId = cmd.id || cmd._id;
+    const commandType = cmd.commandType || cmd.command_type || 'cmd_custom';
+
+    this._logger.info(`[CommandPoller] ▶️  Executando comando ${commandId} (tipo: ${commandType})`);
+
+    const startTime = Date.now();
+
+    try {
+      // Garante que executor existe
+      if (!this._executor) {
+        this._executor = new CommandExecutor(this._logger);
+      }
+
+      const execResult = await this._executor.execute(cmd);
+      const executionTime = Date.now() - startTime;
+
+      this._logger.info(
+        `[CommandPoller] ✅ Comando ${commandId} concluído em ${executionTime}ms — sucesso: ${execResult.success}`
+      );
+
+      // Reporta resultado ao servidor
+      await this.reportCommandResult(commandId, execResult.success, {
+        stdout: execResult.result?.stdout || '',
+        stderr: execResult.result?.stderr || '',
+        exitCode: execResult.result?.exitCode ?? (execResult.success ? 0 : 1),
+        executionTime,
+      });
+
+      // Emite evento para UI (opcional)
+      this.emit('command_executed', {
+        commandId,
+        commandType,
+        success: execResult.success,
+        executionTime,
+      });
+
+    } catch (error) {
+      const executionTime = Date.now() - startTime;
+      this._logger.error(`[CommandPoller] ❌ Erro ao executar comando ${commandId}: ${error.message}`);
+
+      // Reporta falha ao servidor
+      try {
+        await this.reportCommandResult(commandId, false, {
+          stdout: '',
+          stderr: error.message,
+          exitCode: 1,
+          executionTime,
+        });
+      } catch (reportErr) {
+        this._logger.error(`[CommandPoller] ❌ Falha ao reportar resultado: ${reportErr.message}`);
+      }
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Comunicação com servidor
+  // ──────────────────────────────────────────────────────────────────────────
+
   async _fetchPendingCommands() {
     const { moduleId } = this._getConfig();
     const serial = this._serialNumber;
-    if (!serial) return [];
 
+    if (!serial) {
+      this._logger.warn('[CommandPoller] Serial number não disponível, pulando poll de comandos');
+      return [];
+    }
+
+    // ✅ CORRIGIDO: usa 'serialNumber' (camelCase) que é o que o servidor espera
     const url = `${this._getBaseUrl()}/api/modules/${moduleId}/assets/commands/pending?serialNumber=${encodeURIComponent(serial)}`;
+    this._logger.debug(`[CommandPoller] 🔍 Buscando comandos para serial: ${serial}`);
+
     const data = await this._request('GET', url);
-    return data?.commands || [];
+    const commands = data?.commands || [];
+
+    if (commands.length > 0) {
+      this._logger.info(`[CommandPoller] 📬 ${commands.length} comando(s) pendente(s) encontrado(s)`);
+    }
+
+    return commands;
   }
 
   async reportCommandResult(commandId, success, result = {}) {
@@ -245,15 +320,14 @@ class CommandPollerManager extends EventEmitter {
     const url = `${this._getBaseUrl()}/api/modules/${moduleId}/assets/commands/${commandId}/result`;
     const payload = {
       success,
-      result: {
-        stdout: result.stdout || '',
-        stderr: result.stderr || '',
-        exitCode: result.exitCode ?? (success ? 0 : 1),
-        executionTime: result.executionTime || 0,
-      },
+      stdout: result.stdout || '',
+      stderr: result.stderr || '',
+      exitCode: result.exitCode ?? (success ? 0 : 1),
+      executionTime: result.executionTime || 0,
       executedAt: new Date().toISOString(),
     };
-    this._logger.info(`[CommandPoller] Reportando resultado do comando ${commandId} -> Sucesso: ${success}`);
+
+    this._logger.info(`[CommandPoller] 📤 Reportando resultado do comando ${commandId} → sucesso: ${success}`);
     return this._request('POST', url, payload);
   }
 
@@ -269,6 +343,7 @@ class CommandPollerManager extends EventEmitter {
         path: parsedUrl.pathname + parsedUrl.search,
         method,
         headers: this._getHeaders(),
+        timeout: 15000,
       };
 
       if (reqBody) options.headers['Content-Length'] = Buffer.byteLength(reqBody);
@@ -280,6 +355,11 @@ class CommandPollerManager extends EventEmitter {
           try { resolve(JSON.parse(raw)); }
           catch { resolve({ raw }); }
         });
+      });
+
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error(`Timeout na requisição para ${url}`));
       });
 
       req.on('error', reject);

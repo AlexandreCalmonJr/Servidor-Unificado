@@ -227,19 +227,41 @@ exports.reportCommandResult = async (req, res) => {
   const logger = req.logger || console;
   try {
     const { commandId } = req.params;
-    const { success, stdout, stderr, exitCode, error, executionTime } = req.body;
 
-    const command = await AssetCommand.findById(commandId);
+    // ✅ CORREÇÃO: suporta payload flat (novo CommandPoller) e aninhado (legado)
+    // Novo formato:  { success, stdout, stderr, exitCode, executionTime, executedAt }
+    // Legado:        { success, result: { stdout, stderr, exitCode }, executionTime }
+    const {
+      success,
+      // flat (novo)
+      stdout: flatStdout,
+      stderr: flatStderr,
+      exitCode: flatExitCode,
+      executionTime: flatExecTime,
+      // aninhado (legado)
+      result: nestedResult,
+      executionTime: legacyExecTime,
+      error,
+    } = req.body;
+
+    const stdout = flatStdout ?? nestedResult?.stdout ?? '';
+    const stderr = flatStderr ?? nestedResult?.stderr ?? error ?? '';
+    const exitCode = flatExitCode ?? nestedResult?.exitCode ?? null;
+    const executionTime = flatExecTime ?? nestedResult?.executionTime ?? legacyExecTime ?? 0;
+
+    const command = await require('../models/AssetCommand').findById(commandId);
     if (!command) return res.status(404).json({ success: false, message: 'Comando não encontrado' });
 
     command.status = success ? 'completed' : 'failed';
-    command.result = { stdout: stdout || '', stderr: stderr || '', exitCode: exitCode || null, error: error || '', executionTime: executionTime || 0 };
+    command.result = { stdout, stderr, exitCode, executionTime };
     command.completedAt = new Date();
 
     await command.save();
+
+    logger.info?.(`✅ Resultado registrado: comando ${commandId} — ${command.status}`);
     res.json({ success: true, message: 'Resultado registrado' });
   } catch (error) {
-    logger.error('❌ Erro ao reportar resultado:', error);
+    logger.error?.('❌ Erro ao reportar resultado:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
