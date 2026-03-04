@@ -188,6 +188,18 @@ exports.getPendingCommands = async (req, res) => {
 
     logger.info(`[DEBUG] getPendingCommands -> Buscando comandos pendentes para: "${serialNumber}"`);
 
+    // ✅ Mantém o ativo online ao receber o polling
+    try {
+      const ManagedAsset = require('../models/ManagedAsset');
+      // Atualiza o ativo para status 'online' e last_seen = agora
+      await ManagedAsset.updateOne(
+        { serial_number: serialNumber, module_id: req.params.moduleId },
+        { $set: { status: 'online', last_seen: new Date() } }
+      );
+    } catch (err) {
+      logger.warn(`[DEBUG] getPendingCommands -> Erro ao atualizar status do ativo para online: ${err.message}`);
+    }
+
     // Busca detalhada para debug
     const allPending = await AssetCommand.find({ serialNumber, status: 'pending' }).lean();
     logger.info(`[DEBUG] total pending para este serial (independente de expiresAt): ${allPending.length}`);
