@@ -482,6 +482,27 @@ app.whenReady().then(async () => {
     });
 
     const commandPoller = require('./src/services/CommandPoller');
+    const CommandExecutor = require('./src/services/CommandExecutor');
+    const executor = new CommandExecutor(logger);
+
+    // ✅ CORREÇÃO: Escutar os comandos que chegam do Poller e executá-los
+    commandPoller.on('commands', async (commands) => {
+        logger.info(`[main] Recebidos ${commands.length} comando(s) do servidor.`);
+        for (const cmd of commands) {
+            try {
+                // Executa o comando localmente
+                const result = await executor.execute(cmd);
+                logger.info(`[main] Comando ${cmd.id} executado. Sucesso: ${result.success}`);
+
+                // Reporta o resultado de volta para o servidor
+                await commandPoller.reportCommandResult(cmd.id, result.success, result.result);
+            } catch (err) {
+                logger.error(`[main] Erro ao executar comando ${cmd.id}: ${err.message}`);
+                await commandPoller.reportCommandResult(cmd.id, false, { stderr: err.message, exitCode: 1 });
+            }
+        }
+    });
+
     await commandPoller.initialize();
     logger.info('App started');
 });

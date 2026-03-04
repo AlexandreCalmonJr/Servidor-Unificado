@@ -186,10 +186,15 @@ exports.getPendingCommands = async (req, res) => {
 
     if (!serialNumber) return res.status(400).json({ success: false, message: 'serialNumber obrigatório' });
 
+    logger.info(`[DEBUG] getPendingCommands -> Buscando comandos pendentes para: "${serialNumber}"`);
+
+    // Busca detalhada para debug
+    const allPending = await AssetCommand.find({ serialNumber, status: 'pending' }).lean();
+    logger.info(`[DEBUG] total pending para este serial (independente de expiresAt): ${allPending.length}`);
+
     const commands = await AssetCommand.find({
       serialNumber,
-      status: 'pending',
-      expiresAt: { $gte: new Date() }
+      status: 'pending'
     }).sort({ createdAt: 1 }).limit(10);
 
     if (commands.length > 0) {

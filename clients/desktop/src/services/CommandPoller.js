@@ -218,7 +218,7 @@ class CommandPollerManager extends EventEmitter {
     try {
       const commands = await this._fetchPendingCommands();
       if (commands && commands.length > 0) {
-        this._logger.info(`[CommandPoller] ${commands.length} comando(s) pendente(s)`);
+        this._logger.info(`[CommandPoller] Detectados ${commands.length} comando(s) pendente(s). Tipos: ${commands.map(c => c.commandType).join(', ')}`);
         this.emit('commands', commands);
       }
     } catch (err) {
@@ -253,6 +253,7 @@ class CommandPollerManager extends EventEmitter {
       },
       executedAt: new Date().toISOString(),
     };
+    this._logger.info(`[CommandPoller] Reportando resultado do comando ${commandId} -> Sucesso: ${success}`);
     return this._request('POST', url, payload);
   }
 
