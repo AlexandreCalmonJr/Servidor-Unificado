@@ -3,6 +3,7 @@
 // O asset_type é determinado pelo campo enviado no body (ou padrão 'totem')
 
 const ManagedAsset = require('../models/ManagedAsset');
+const AssetModuleConfig = require('../models/AssetModuleConfig');
 const locationService = require('../services/locationService');
 
 function cleanIpAddress(rawIp) {
@@ -19,11 +20,56 @@ const _calculateStatus = ({ printer_status, last_seen }) => {
   return 'online';
 };
 
+/**
+ * Resolve o module_id a partir do asset_type.
+ * Busca o AssetModuleConfig ativo correspondente ao tipo.
+ * Retorna null se não encontrado — o chamador deve decidir o que fazer.
+ */
+async function resolveModuleId(assetType, logger) {
+  try {
+    const config = await AssetModuleConfig.findOne({
+      type: assetType,
+      is_active: true,
+    }).lean();
+
+    if (!config) {
+      logger.warn(
+        `[agentController] Nenhum módulo ativo encontrado para asset_type="${assetType}". ` +
+        'O ativo não será salvo sem um module_id válido.'
+      );
+      return null;
+    }
+
+    return config._id;
+  } catch (err) {
+    logger.error(`[agentController] Erro ao resolver module_id: ${err.message}`);
+    return null;
+  }
+}
+
 exports.handleAgentData = async (req, res) => {
   const logger = req.logger || console;
   try {
     const data = req.body;
     const cleanIp = cleanIpAddress(req.ip || req.connection.remoteAddress);
+
+    // asset_type pode vir no body; se não, assume 'totem' para compatibilidade
+    const assetType = data.asset_type || 'totem';
+
+    // ─── CORREÇÃO CRÍTICA ────────────────────────────────────────────
+    // O schema ManagedAsset exige module_id obrigatório e possui índice
+    // único composto {module_id, serial_number}. Sem module_id o upsert
+    // anterior falhava silenciosamente ou criava documentos inválidos.
+    const moduleId = await resolveModuleId(assetType, logger);
+
+    if (!moduleId) {
+      return res.status(422).json({
+        success: false,
+        error: `Nenhum módulo ativo configurado para o tipo "${assetType}". ` +
+          'Crie o módulo no painel antes de enviar dados do agente.',
+      });
+    }
+    // ────────────────────────────────────────────────────────────────
 
     const locationResult = await locationService.mapDeviceLocation({
       ip_address: cleanIp,
@@ -31,10 +77,8 @@ exports.handleAgentData = async (req, res) => {
       device_name: data.hostname || data.serialNumber,
     });
 
-    // asset_type pode vir no body; se não, assume 'totem' para compatibilidade
-    const assetType = data.asset_type || 'totem';
-
     const assetData = {
+      module_id: moduleId,           // ← obrigatório, resolvido acima
       asset_type: assetType,
       serial_number: data.serialNumber,
       asset_name: data.hostname || `${assetType}-${data.serialNumber}`,
@@ -64,8 +108,13 @@ exports.handleAgentData = async (req, res) => {
       },
     };
 
+    // Upsert seguro: filtra pelo par {module_id, serial_number} garantindo
+    // que o índice único composto seja respeitado.
     const asset = await ManagedAsset.findOneAndUpdate(
-      { serial_number: assetData.serial_number },
+      {
+        module_id: moduleId,
+        serial_number: assetData.serial_number,
+      },
       assetData,
       { upsert: true, new: true }
     );
@@ -74,6 +123,7 @@ exports.handleAgentData = async (req, res) => {
       serialNumber: data.serialNumber,
       hostname: data.hostname,
       asset_type: assetType,
+      module_id: moduleId,
       ip: cleanIp,
     });
 

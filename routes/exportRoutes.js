@@ -4,6 +4,7 @@
  */
 
 const express = require('express');
+const mongoose = require('mongoose'); // ← CORREÇÃO: estava ausente, causava ReferenceError em runtime
 const { Parser } = require('json2csv');
 const { getModelByType } = require('../utils/assetFactory');
 const AssetModuleConfig = require('../models/AssetModuleConfig');
@@ -82,18 +83,22 @@ module.exports = (logger, getApiLimiter, auth) => {
         return res.status(400).json({ success: false, message: 'Tipo não suportado' });
       }
 
-      // Contar status
+      // ─── CORREÇÃO: mongoose agora importado — ObjectId funciona corretamente ───
       const stats = await Model.aggregate([
-        { $match: { module_id: mongoose.Types.ObjectId(req.params.moduleId) } },
+        {
+          $match: {
+            module_id: new mongoose.Types.ObjectId(req.params.moduleId),
+          },
+        },
         {
           $group: {
             _id: null,
             total: { $sum: 1 },
             online: { $sum: { $cond: [{ $eq: ['$status', 'online'] }, 1, 0] } },
             offline: { $sum: { $cond: [{ $eq: ['$status', 'offline'] }, 1, 0] } },
-            maintenance: { $sum: { $cond: [{ $eq: ['$status', 'maintenance'] }, 1, 0] } }
-          }
-        }
+            maintenance: { $sum: { $cond: [{ $eq: ['$status', 'maintenance'] }, 1, 0] } },
+          },
+        },
       ]);
 
       const data = stats[0] || { total: 0, online: 0, offline: 0, maintenance: 0 };

@@ -12,7 +12,7 @@ module.exports = (logger, modifyApiLimiter, getApiLimiter, deviceAuth) => {
   router.post('/heartbeat', deviceAuth, modifyApiLimiter, async (req, res) => {
     const log = req.logger || logger;
     try {
-      const { device_id, serial_number, battery, last_seen } = req.body;
+      const { device_id, serial_number, module_id, battery, last_seen } = req.body;
       const serialNum = serial_number || device_id;
 
       if (!serialNum) {
@@ -32,9 +32,19 @@ module.exports = (logger, modifyApiLimiter, getApiLimiter, deviceAuth) => {
         update.battery_level = Number(battery);
       }
 
+      // ─── CORREÇÃO CRÍTICA ──────────────────────────────────────────
+      // O índice único é {module_id, serial_number}. Buscar só por
+      // serial_number pode bater no ativo errado quando o mesmo serial
+      // existe em módulos diferentes (ex: mesmo hardware re-provisionado
+      // em outro módulo). Se module_id vier no body, usa-o como filtro.
+      const filter = module_id
+        ? { module_id, serial_number: serialNum }
+        : { serial_number: serialNum };
+      // ─────────────────────────────────────────────────────────────
+
       const asset = await ManagedAsset.findOneAndUpdate(
-        { serial_number: serialNum },
-        { $set: update }, // Usar $set explicitamente é mais seguro em Mongoose
+        filter,
+        { $set: update },
         { new: true }
       );
 
@@ -93,14 +103,24 @@ module.exports = (logger, modifyApiLimiter, getApiLimiter, deviceAuth) => {
     const log = req.logger || logger;
     try {
       const { serialNumber } = req.params;
-      const asset = await ManagedAsset.findOne({ serial_number: serialNumber }).lean();
+      const { module_id } = req.query; // opcional, mas recomendado
+
+      // ─── CORREÇÃO: usa module_id como filtro adicional se fornecido ───
+      const filter = module_id
+        ? { serial_number: serialNumber, module_id }
+        : { serial_number: serialNumber };
+
+      const asset = await ManagedAsset.findOne(filter).lean();
 
       if (!asset) {
         return res.status(404).json({ success: false, message: 'Dispositivo não encontrado' });
       }
 
       // Normalização do acesso ao custom_data (suporta Map ou Object literal)
-      const data = asset.custom_data || {};
+      const data = asset.custom_data instanceof Map
+        ? Object.fromEntries(asset.custom_data)
+        : (asset.custom_data || {});
+
       const allowedApps = data.allowed_apps || [];
 
       log.info(`📱 Apps permitidos para ${serialNumber}: ${allowedApps.length}`);
