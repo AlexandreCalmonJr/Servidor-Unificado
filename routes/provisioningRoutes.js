@@ -169,12 +169,13 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
       if (configProfile.settings?.mandatory_apps?.length) {
         for (const app of configProfile.settings.mandatory_apps) {
           initialCommands.push({
-            moduleId: targetType,
+            moduleId: targetModuleId?.toString() || targetType,
             assetId: asset._id.toString(),
             serialNumber: serial_number,
             assetName: device_name,
             commandType: 'install_apk',
             command: 'INTERNAL_APK_INSTALL',
+            // Converter para objeto puro para evitar Cast to Map error
             parameters: {
               package_name: app.package_name,
               apk_url: app.apk_url,
@@ -187,14 +188,19 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
       }
 
       if (configProfile.settings?.restrictions) {
+        // .toObject() converte o subdocumento Mongoose para JS puro (evita Cast to Map error)
+        const restrictionsPlain = configProfile.settings.restrictions.toObject
+          ? configProfile.settings.restrictions.toObject()
+          : { ...configProfile.settings.restrictions };
+
         initialCommands.push({
-          moduleId: targetType,
+          moduleId: targetModuleId?.toString() || targetType,
           assetId: asset._id.toString(),
           serialNumber: serial_number,
           assetName: device_name,
           commandType: 'cmd_custom',
           command: 'INTERNAL_APPLY_RESTRICTIONS',
-          parameters: configProfile.settings.restrictions,
+          parameters: restrictionsPlain,
           requiresElevation: false,
           createdBy: 'provisioning',
         });
@@ -214,6 +220,10 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
         device_id, serial_number,
         organization: token.organization,
         config_profile: token.config_profile,
+        module_id: configProfile.module_id?.toString() || null,
+        module_type: configProfile.module_type || 'desktop',
+        // Token de autenticação para uso contínuo pelo agente após enrollment
+        device_token: process.env.AUTH_TOKEN,
         commands_count: initialCommands.length,
       });
     } catch (err) {

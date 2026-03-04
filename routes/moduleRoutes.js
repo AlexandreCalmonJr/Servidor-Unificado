@@ -77,7 +77,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
         modules.map(async (m) => {
           const Model = getModelByType(m.type);
           // ✅ CORREÇÃO: filtra por module_id e ignora deletados
-          const count = Model ? await Model.countDocuments({ 
+          const count = Model ? await Model.countDocuments({
             module_id: m._id,
             is_deleted: { $ne: true }
           }) : 0;
@@ -101,7 +101,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
 
       const Model = getModelByType(module.type);
       // ✅ CORREÇÃO: conta apenas ativos deste módulo específico ignorando deletados
-      const assetCount = Model ? await Model.countDocuments({ 
+      const assetCount = Model ? await Model.countDocuments({
         module_id: module._id,
         is_deleted: { $ne: true }
       }) : 0;
@@ -133,7 +133,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       }
 
       // ✅ CORREÇÃO: stats isolados por module_id e ignorando deletados
-      const moduleFilter = { 
+      const moduleFilter = {
         module_id: module._id,
         is_deleted: { $ne: true }
       };
@@ -308,9 +308,9 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       const { status, search } = req.query;
 
       // ✅ Filtro base com module_id previnindo soft delete
-      let query = Model.find({ 
+      let query = Model.find({
         module_id: module._id,
-        is_deleted: { $ne: true } 
+        is_deleted: { $ne: true }
       });
 
       if (status) query = query.where('status').equals(status);
@@ -326,7 +326,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       const result = await cursorPaginate(query, cursor, limit, sortBy, sortOrder);
 
       const transformed = result.items.map(transformAssetForOutput);
-      
+
       logger.info(`Ativos com cursor: ${result.items.length} do módulo ${module.name}`);
       res.json(formatCursorResponse({ ...result, items: transformed }));
     } catch (error) {
@@ -416,11 +416,24 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
   );
 
   // PUT /api/modules/:moduleId/assets/:assetId
+  // Validação leniente: campos são opcionais numa atualização parcial
+  const validatePartialUpdate = async (req, res, next) => {
+    try {
+      const module = await findModuleParam(req.params.moduleId);
+      if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
+      req.moduleType = module.type;
+      req.module = module;
+      next();
+    } catch (e) {
+      res.status(500).json({ success: false, message: 'Erro na validação', error: e.message });
+    }
+  };
+
   router.put(
     '/:moduleId/assets/:assetId',
     auth,
     modifyApiLimiter,
-    validateByModuleId,
+    validatePartialUpdate,
     async (req, res) => {
       try {
         const moduleType = req.moduleType;

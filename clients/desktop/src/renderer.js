@@ -1,32 +1,25 @@
 const { ipcRenderer } = require('electron');
 
 // ──────────────────────────────────────────────────
-// STATE MANAGEMENT
+// STATE
 // ──────────────────────────────────────────────────
 let isLocked = true;
 let logInterval = null;
 let statusInterval = null;
 
+// Dados temporários durante o onboarding
+let _obSettings = {}; // acumulados durante o wizard
+
 // ──────────────────────────────────────────────────
-// DOM ELEMENTS
+// DOM REFS
 // ──────────────────────────────────────────────────
 const views = document.querySelectorAll('.view-section');
 const navItems = document.querySelectorAll('.nav-item');
 const sidebar = document.getElementById('app-sidebar');
-
-// Lock/Login Screen Elements
 const lockScreen = document.getElementById('lock-screen');
 const loginPass = document.getElementById('login-password');
 const loginBtn = document.getElementById('btn-login');
 const loginError = document.getElementById('login-error');
-
-// Setup Elements
-const setupView = document.getElementById('view-setup-connection');
-const setupIp = document.getElementById('setup-ip');
-const setupPort = document.getElementById('setup-port');
-const setupToken = document.getElementById('setup-token');
-const setupBtn = document.getElementById('btn-test-save-connection');
-const setupError = document.getElementById('setup-error');
 
 // ──────────────────────────────────────────────────
 // INITIALIZATION
@@ -37,158 +30,338 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('max-btn').addEventListener('click', () => ipcRenderer.send('maximize-window'));
     document.getElementById('close-btn').addEventListener('click', () => ipcRenderer.send('close-window'));
 
-    // Setup Flow
-    setupBtn.addEventListener('click', handleSetupConnection);
-
-    // Login Flow
+    // Lock / Login
     loginBtn.addEventListener('click', attemptUnlock);
     loginPass.addEventListener('keypress', (e) => { if (e.key === 'Enter') attemptUnlock(); });
 
-    // Dashboard & Settings Events
+    // Dashboard & Settings
     document.getElementById('btn-force-sync').addEventListener('click', forceSync);
     document.getElementById('btn-clear-logs').addEventListener('click', async () => {
         await ipcRenderer.invoke('clear-logs');
         refreshLogs();
     });
-    // Settings Config Steps Flow
+
+    // Settings view (post-login)
     document.getElementById('btn-test-connection').addEventListener('click', testConfigConnection);
     document.getElementById('btn-next-step-1').addEventListener('click', () => switchSettingsStep(2));
     document.getElementById('btn-prev-step-2').addEventListener('click', () => switchSettingsStep(1));
     document.getElementById('btn-next-step-2').addEventListener('click', () => switchSettingsStep(3));
     document.getElementById('btn-prev-step-3').addEventListener('click', () => switchSettingsStep(2));
-
     document.getElementById('btn-detect-module')?.addEventListener('click', loadModulesForSettings);
-
     document.getElementById('btn-save-settings').addEventListener('click', saveClientSettings);
+
+    // ── Onboarding Wizard ──────────────────────────────────────
+    document.getElementById('btn-ob-verify').addEventListener('click', handleObVerify);
+
+    // Step 2a — provisioning confirm
+    document.getElementById('btn-ob-enroll').addEventListener('click', handleObEnroll);
+    document.getElementById('btn-ob-back-2a').addEventListener('click', () => showOnboardStep(1));
+
+    // Step 2b — admin module select
+    document.getElementById('btn-ob-load-modules').addEventListener('click', loadObModules);
+    document.getElementById('btn-ob-save-admin').addEventListener('click', handleObSaveAdmin);
+    document.getElementById('btn-ob-back-2b').addEventListener('click', () => showOnboardStep(1));
+
+    // Zero-touch retry
+    document.getElementById('zt-retry-btn').addEventListener('click', showOnboarding);
 
     // Navigation
     navItems.forEach(item => {
-        item.addEventListener('click', () => {
-            const viewId = item.dataset.view;
-            switchView(viewId);
-        });
+        item.addEventListener('click', () => switchView(item.dataset.view));
     });
 
-    // STARTUP LOGIC
     await checkInitialState();
 });
 
-// ──────────────────────────────────────────────────
+// ══════════════════════════════════════════════════
 // FLOW MANAGEMENT
-// ──────────────────────────────────────────────────
+// ══════════════════════════════════════════════════
 
 async function checkInitialState() {
     const settings = await ipcRenderer.invoke('get-settings');
     const hasConnection = settings.ip && settings.token;
+    const isFullyConfigured = hasConnection && settings.moduleId;
 
     if (settings.zeroTouch && hasConnection) {
-        // ZERO-TOUCH PROVISIONING FLOW
-        // The file name contained IP, Port and Token. Skip setup, go straight to testing and unlocking
-        showToast('Auto-configurando via Zero-Touch Provisioning...', 'info');
-
-        const result = await ipcRenderer.invoke('test-connection', {
-            ip: settings.ip,
-            port: settings.port,
-            token: settings.token
-        });
-
-        if (result.success) {
-            // Unmark zeroTouch so it doesn't loop infinitely on next boots if not intended
-            const updatedSettings = { ...settings, zeroTouch: false };
-            await ipcRenderer.invoke('save-settings', updatedSettings);
-
-            showToast('Conectado automaticamente!', 'success');
-            // Populate module list just in case
-            updateUIWithSettings(updatedSettings);
-            unlockApp();
-        } else {
-            // Failed connection even with zero-touch, fallback to Setup
-            showToast('Falha no auto-provisionamento. Configure manualmente.', 'error');
-            updateUIWithSettings(settings);
-            showSetupView();
-        }
-    } else if (!hasConnection) {
-        // NORMAL FLOW - STEP 1: SETUP
-        showSetupView();
-    } else {
-        // ALREADY CONFIGURED - STEP 2: LOCK / LOGIN
-        // We always lock on start to force "Login" flow as requested
-        startLockScreen();
-
-        // Also load sidebar data for when we unlock
+        // ── Zero-Touch: provisionar automaticamente ──
+        showZeroTouchScreen();
+        await performZeroTouchEnrollment(settings);
+    } else if (isFullyConfigured) {
+        // ── Já configurado: ir para lock screen ──
         updateUIWithSettings(settings);
+        startLockScreen();
+    } else {
+        // ── Primeira vez / configuração incompleta ──
+        showOnboarding();
     }
 }
 
-function showSetupView() {
-    // Hide sidebar, show setup
+// ─── Zero-Touch ──────────────────────────────────
+
+function showZeroTouchScreen() {
     sidebar.style.display = 'none';
     views.forEach(v => v.style.display = 'none');
-    setupView.style.display = 'flex';
+    const ztView = document.getElementById('view-zero-touch');
+    ztView.style.display = 'flex';
+    setZtStatus('Coletando informações do dispositivo...', 15);
 }
 
+function setZtStatus(text, progress) {
+    const el = document.getElementById('zt-status-text');
+    const bar = document.getElementById('zt-progress-bar');
+    if (el) el.textContent = text;
+    if (bar) bar.style.width = `${progress}%`;
+}
+
+async function performZeroTouchEnrollment(settings) {
+    try {
+        setZtStatus('Conectando ao servidor MDM...', 30);
+        const testResult = await ipcRenderer.invoke('test-connection', {
+            ip: settings.ip, port: settings.port, token: settings.token,
+        });
+        if (!testResult.success) throw new Error(testResult.error || 'Servidor inacessível');
+
+        setZtStatus('Verificando token de provisionamento...', 50);
+        const tokenCheck = await ipcRenderer.invoke('check-provisioning-token', {
+            ip: settings.ip, port: settings.port, token: settings.token,
+        });
+
+        let moduleId = settings.moduleId;
+
+        if (tokenCheck.isProvisioningToken) {
+            setZtStatus('Registrando dispositivo no servidor...', 70);
+            const enrollResult = await ipcRenderer.invoke('enroll-device', {
+                ip: settings.ip, port: settings.port, token: settings.token,
+            });
+            if (!enrollResult.success) throw new Error(enrollResult.error || 'Falha no provisionamento');
+            moduleId = enrollResult.module_id;
+            // Troca o provisioning token pelo AUTH_TOKEN permanente do servidor
+            if (enrollResult.device_token) settings = { ...settings, token: enrollResult.device_token };
+            setZtStatus(`Configurado! Perfil: ${enrollResult.config_profile}`, 90);
+        } else {
+            // Token já é JWT admin (legado) mas tem zero-touch flag
+            setZtStatus('Conexão configurada!', 90);
+        }
+
+        const updatedSettings = { ...settings, zeroTouch: false, moduleId: moduleId || settings.moduleId };
+        await ipcRenderer.invoke('save-settings', updatedSettings);
+
+        setZtStatus('Pronto! Iniciando...', 100);
+        setTimeout(() => {
+            updateUIWithSettings(updatedSettings);
+            startLockScreen();
+        }, 1200);
+
+    } catch (error) {
+        const errEl = document.getElementById('zt-error');
+        const retryBtn = document.getElementById('zt-retry-btn');
+        setZtStatus('Falha no provisionamento automático', 0);
+        if (errEl) { errEl.style.display = 'block'; errEl.textContent = error.message; }
+        if (retryBtn) retryBtn.style.display = 'block';
+
+        // Desativa zero-touch para não travar em loop
+        const settings = await ipcRenderer.invoke('get-settings');
+        await ipcRenderer.invoke('save-settings', { ...settings, zeroTouch: false });
+    }
+}
+
+// ─── Onboarding Wizard ───────────────────────────
+
+function showOnboarding(errorMsg = '') {
+    sidebar.style.display = 'none';
+    views.forEach(v => v.style.display = 'none');
+    const obView = document.getElementById('view-onboarding');
+    obView.style.display = 'flex';
+    showOnboardStep(1);
+    if (errorMsg) {
+        const el = document.getElementById('ob-error-1');
+        if (el) el.textContent = errorMsg;
+    }
+}
+
+function showOnboardStep(step) {
+    ['ob-step-1', 'ob-step-2a', 'ob-step-2b'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+    ['ob-ind-1', 'ob-ind-2'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('active');
+    });
+
+    if (step === 1) {
+        document.getElementById('ob-step-1').style.display = 'block';
+        document.getElementById('ob-ind-1').classList.add('active');
+    } else if (step === '2a') {
+        document.getElementById('ob-step-2a').style.display = 'block';
+        document.getElementById('ob-ind-2').classList.add('active');
+    } else if (step === '2b') {
+        document.getElementById('ob-step-2b').style.display = 'block';
+        document.getElementById('ob-ind-2').classList.add('active');
+        loadObModules();
+    }
+}
+
+async function handleObVerify() {
+    const btn = document.getElementById('btn-ob-verify');
+    const errEl = document.getElementById('ob-error-1');
+    const ip = document.getElementById('ob-ip').value.trim();
+    const port = document.getElementById('ob-port').value.trim() || '3000';
+    const token = document.getElementById('ob-token').value.trim();
+
+    errEl.textContent = '';
+
+    if (!ip || !token) {
+        errEl.textContent = 'IP do servidor e Token são obrigatórios.';
+        return;
+    }
+
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verificando...';
+    btn.disabled = true;
+
+    try {
+        // PASSO 1: Verificar se é token de provisionamento (endpoint público — sem JWT)
+        // É OBRIGATÓRIO fazer isto ANTES de test-connection, pois test-connection
+        // usa o token como JWT no header Authorization, e um prov-token não é JWT.
+        const tokenCheck = await ipcRenderer.invoke('check-provisioning-token', { ip, port, token });
+
+        if (tokenCheck.networkError) {
+            // Servidor completamente inacessível
+            errEl.textContent = `Servidor inacessível (${ip}:${port}): ${tokenCheck.networkError}`;
+            btn.innerHTML = '<i class="fa-solid fa-plug"></i> Verificar e Continuar';
+            btn.disabled = false;
+            return;
+        }
+
+        _obSettings = { ip, port, token };
+
+        if (tokenCheck.isProvisioningToken) {
+            if (tokenCheck.valid) {
+                // ✅ Token de provisionamento VÁLIDO → exibir card de confirmação
+                document.getElementById('prov-org').textContent = tokenCheck.organization || '—';
+                document.getElementById('prov-profile').textContent = tokenCheck.config_profile || '—';
+                document.getElementById('prov-uses').textContent = tokenCheck.uses_remaining ?? '—';
+                document.getElementById('prov-expires').textContent =
+                    tokenCheck.minutes_remaining != null ? `${tokenCheck.minutes_remaining} min` : '—';
+                showOnboardStep('2a');
+            } else {
+                // ❌ Token de provisionamento EXPIRADO ou ESGOTADO
+                errEl.textContent = `⚠️ ${tokenCheck.message || 'Token expirado ou sem usos restantes'}. Gere um novo token no painel MDM.`;
+            }
+        } else {
+            // Não é token de provisionamento → testar como JWT admin
+            const connResult = await ipcRenderer.invoke('test-connection', { ip, port, token });
+            if (!connResult.success) {
+                errEl.textContent = connResult.error || 'Token de admin inválido ou servidor inacessível.';
+                btn.innerHTML = '<i class="fa-solid fa-plug"></i> Verificar e Continuar';
+                btn.disabled = false;
+                return;
+            }
+            // ✅ Token admin válido → seleção de módulo
+            showOnboardStep('2b');
+        }
+
+    } catch (e) {
+        errEl.textContent = 'Erro inesperado: ' + e.message;
+    }
+
+    btn.innerHTML = '<i class="fa-solid fa-plug"></i> Verificar e Continuar';
+    btn.disabled = false;
+}
+
+async function handleObEnroll() {
+    const btn = document.getElementById('btn-ob-enroll');
+    const errEl = document.getElementById('ob-error-2a');
+    errEl.textContent = '';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Provisionando...';
+    btn.disabled = true;
+
+    try {
+        const result = await ipcRenderer.invoke('enroll-device', _obSettings);
+        if (!result.success) {
+            errEl.textContent = result.error || 'Falha no provisionamento.';
+            btn.innerHTML = '<i class="fa-solid fa-rocket"></i> Confirmar e Provisionar';
+            btn.disabled = false;
+            return;
+        }
+
+        // Salva config completa: usa device_token (AUTH_TOKEN do servidor) para chamadas futuras
+        // O provisioning token é de uso único; o device_token é o token de autenticação permanente
+        await ipcRenderer.invoke('save-settings', {
+            ..._obSettings,
+            token: result.device_token || _obSettings.token, // troca prov token pelo AUTH_TOKEN
+            moduleId: result.module_id || '',
+            zeroTouch: false,
+        });
+
+        showToast(`✅ Provisionado! Organização: ${result.organization}`, 'success');
+        setTimeout(() => startLockScreen(), 1500);
+
+    } catch (e) {
+        errEl.textContent = 'Erro: ' + e.message;
+        btn.innerHTML = '<i class="fa-solid fa-rocket"></i> Confirmar e Provisionar';
+        btn.disabled = false;
+    }
+}
+
+async function loadObModules() {
+    const btn = document.getElementById('btn-ob-load-modules');
+    const select = document.getElementById('ob-module');
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+    const result = await ipcRenderer.invoke('fetch-modules', _obSettings);
+    if (result.success && result.modules.length > 0) {
+        select.innerHTML = '<option value="">Selecione um módulo...</option>';
+        result.modules.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m._id || m.id;
+            opt.textContent = `${m.name} (${m.type || 'N/A'})`;
+            select.appendChild(opt);
+        });
+        showToast(`${result.modules.length} módulos carregados`, 'success');
+    } else {
+        select.innerHTML = '<option value="">Nenhum módulo encontrado</option>';
+    }
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-rotate"></i>';
+}
+
+async function handleObSaveAdmin() {
+    const btn = document.getElementById('btn-ob-save-admin');
+    const errEl = document.getElementById('ob-error-2b');
+    const moduleId = document.getElementById('ob-module').value;
+
+    errEl.textContent = '';
+    if (!moduleId) {
+        errEl.textContent = 'Selecione um módulo antes de continuar.';
+        return;
+    }
+
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Salvando...';
+    btn.disabled = true;
+
+    await ipcRenderer.invoke('save-settings', { ..._obSettings, moduleId, zeroTouch: false });
+    showToast('Configuração salva!', 'success');
+    setTimeout(() => startLockScreen(), 1000);
+
+    btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Salvar e Continuar';
+    btn.disabled = false;
+}
+
+// ──────────────────────────────────────────────────
+// LOCK SYSTEM
+// ──────────────────────────────────────────────────
+ipcRenderer.on('lock-app', () => startLockScreen());
+
 function startLockScreen() {
-    sidebar.style.display = 'none'; // Hide sidebar while locked
+    sidebar.style.display = 'none';
     views.forEach(v => v.style.display = 'none');
     lockScreen.style.display = 'flex';
     loginPass.value = '';
     loginPass.focus();
 }
 
-async function handleSetupConnection() {
-    setupBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Testando...';
-    setupBtn.disabled = true;
-    setupError.textContent = '';
-
-    const ip = setupIp.value.trim();
-    const port = setupPort.value.trim() || '3000';
-    const token = setupToken.value.trim();
-
-    if (!ip || !token) {
-        setupError.textContent = 'IP e Token são obrigatórios.';
-        setupBtn.innerHTML = '<i class="fa-solid fa-plug"></i> Conectar & Salvar';
-        setupBtn.disabled = false;
-        return;
-    }
-
-    try {
-        const result = await ipcRenderer.invoke('test-connection', { ip, port, token });
-
-        if (result.success) {
-            setupError.style.color = 'var(--status-success)';
-            setupError.textContent = 'Conectado! Salvando...';
-
-            // Save settings
-            await ipcRenderer.invoke('save-settings', { ip, port, token });
-
-            // Proceed to Step 2 (Login/Lock)
-            setTimeout(() => {
-                showToast('Configuração salva com sucesso!', 'success');
-                startLockScreen(); // Transition to Lock Screen
-            }, 1000);
-
-        } else {
-            setupError.style.color = 'var(--status-error)';
-            setupError.textContent = result.error || 'Falha na conexão.';
-            setupBtn.innerHTML = '<i class="fa-solid fa-plug"></i> Conectar & Salvar';
-            setupBtn.disabled = false;
-        }
-    } catch (e) {
-        setupError.textContent = 'Erro inesperado: ' + e.message;
-        setupBtn.disabled = false;
-    }
-}
-
-// ──────────────────────────────────────────────────
-// LOCK SYSTEM
-// ──────────────────────────────────────────────────
-ipcRenderer.on('lock-app', () => {
-    startLockScreen();
-});
-
 async function attemptUnlock() {
     const password = loginPass.value;
-    // Verify admin password
     const isValid = await ipcRenderer.invoke('verify-admin', password);
 
     if (isValid) {
@@ -201,49 +374,39 @@ async function attemptUnlock() {
     }
 }
 
-function unlockApp() {
+async function unlockApp() {
     isLocked = false;
-    lockScreen.style.display = 'none'; // Hide lock overlay
-
-    // STEP 3: DASHBOARD / CLIENT CONFIG
-    sidebar.style.display = 'flex'; // Show Sidebar
-    switchView('dashboard');        // Go to Dashboard
-
-    // Start background loops
+    lockScreen.style.display = 'none';
+    sidebar.style.display = 'flex';
+    switchView('dashboard');
     startStatusLoop();
     startLogLoop();
 
-    // Refresh data
+    const settings = await ipcRenderer.invoke('get-settings');
+    updateUIWithSettings(settings);
     refreshStatus();
 }
 
-function resetConnection() {
-    if (confirm('Deseja redefinir a conexão com o servidor?')) {
-        showSetupView();
-    }
-}
-
 // ──────────────────────────────────────────────────
-// DASHBOARD & CLIENT CONFIG
+// NAVIGATION
 // ──────────────────────────────────────────────────
-
 function switchView(viewName) {
     views.forEach(v => {
-        if (v.id !== 'view-setup-connection') v.style.display = 'none';
-        v.classList.remove('active'); // Remove active class
+        v.style.display = 'none';
+        v.classList.remove('active');
         if (v.id === `view-${viewName}`) {
             v.style.display = 'block';
-            v.classList.add('active'); // Add active for logic checks
+            v.classList.add('active');
         }
     });
-
     navItems.forEach(n => n.classList.remove('active'));
-    const targetNav = document.querySelector(`.nav-item[data-view="${viewName}"]`);
-    if (targetNav) targetNav.classList.add('active');
+    document.querySelector(`.nav-item[data-view="${viewName}"]`)?.classList.add('active');
 }
 
+// ──────────────────────────────────────────────────
+// SETTINGS VIEW (POST-LOGIN)
+// ──────────────────────────────────────────────────
 function updateUIWithSettings(settings) {
-    // Populate Client Config Fields
     document.getElementById('input-ip').value = settings.ip || '';
     document.getElementById('input-port').value = settings.port || '';
 
@@ -257,112 +420,72 @@ function updateUIWithSettings(settings) {
     select.value = settings.moduleId || '';
 
     const tokenInput = document.getElementById('input-token');
-    if (settings.token) {
-        tokenInput.placeholder = '•••••••••••••••• (Salvo)';
-        tokenInput.value = ''; // Keep empty to not resend accidentally if unchanged
-    } else {
-        tokenInput.placeholder = 'Insira o token do servidor';
-        tokenInput.value = '';
-    }
+    tokenInput.placeholder = settings.token ? '•••••••••••••••• (Salvo)' : 'Insira o token';
+    tokenInput.value = '';
+
     document.getElementById('input-sector').value = settings.sector || '';
     document.getElementById('input-floor').value = settings.floor || '';
     document.getElementById('check-legacy').checked = settings.forceLegacyMode || false;
     document.getElementById('check-lock').checked = settings.lockOnMinimize || false;
 
-    // Populate Info Fields
     document.getElementById('info-ip').value = settings.ip || '---';
 }
 
 function switchSettingsStep(stepIndex) {
-    // Hide all steps
     [1, 2, 3].forEach(i => {
         document.getElementById(`settings-step-${i}`).style.display = 'none';
         document.getElementById(`step-${i}-ind`).classList.remove('active');
     });
-
-    // Show target step
     document.getElementById(`settings-step-${stepIndex}`).style.display = 'block';
     document.getElementById(`step-${stepIndex}-ind`).classList.add('active');
-
-    // Always attempt to load modules when entering step 2 if not loaded
     if (stepIndex === 2) {
         const select = document.getElementById('select-module');
-        if (select.options.length <= 1) { // Only has the default "Aguardando..." option
-            loadModulesForSettings();
-        }
+        if (select.options.length <= 1) loadModulesForSettings();
     }
 }
 
 async function testConfigConnection() {
     const btn = document.getElementById('btn-test-connection');
-    const errSpan = document.getElementById('step-1-error');
+    const errEl = document.getElementById('step-1-error');
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Testando...';
     btn.disabled = true;
-    errSpan.textContent = '';
-    errSpan.style.color = 'var(--status-error)';
+    errEl.textContent = '';
+    errEl.style.color = 'var(--status-error)';
 
     const ip = document.getElementById('input-ip').value.trim();
     const port = document.getElementById('input-port').value.trim() || '3000';
     let token = document.getElementById('input-token').value.trim();
-
-    if (!ip) {
-        errSpan.textContent = 'O IP/Domínio é obrigatório.';
-        btn.innerHTML = '<i class="fa-solid fa-plug"></i> Testar';
-        btn.disabled = false;
-        return;
-    }
-
-    // Try to get existing token if field is empty (user didn't change it)
     if (!token) {
-        const existingSettings = await ipcRenderer.invoke('get-settings');
-        if (existingSettings.token) {
-            token = existingSettings.token;
-        } else {
-            errSpan.textContent = 'Token é obrigatório (nenhum salvo).';
-            btn.innerHTML = '<i class="fa-solid fa-plug"></i> Testar';
-            btn.disabled = false;
-            return;
-        }
+        const s = await ipcRenderer.invoke('get-settings');
+        token = s.token || '';
     }
+    if (!ip) { errEl.textContent = 'IP obrigatório.'; btn.innerHTML = '<i class="fa-solid fa-plug"></i> Testar'; btn.disabled = false; return; }
 
-    const testRes = await ipcRenderer.invoke('test-connection', { ip, port, token });
-    if (testRes.success) {
-        errSpan.style.color = 'var(--status-success)';
-        errSpan.textContent = 'Conexão OK!';
+    const res = await ipcRenderer.invoke('test-connection', { ip, port, token });
+    if (res.success) {
+        errEl.style.color = 'var(--status-success)';
+        errEl.textContent = 'Conexão OK!';
     } else {
-        errSpan.style.color = 'var(--status-error)';
-        errSpan.textContent = testRes.error || 'Falha na conexão.';
+        errEl.textContent = res.error || 'Falha.';
     }
-
     btn.innerHTML = '<i class="fa-solid fa-plug"></i> Testar';
     btn.disabled = false;
 }
 
 async function loadModulesForSettings() {
     const btn = document.getElementById('btn-detect-module');
-    if (!btn) return;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
-    // To load modules dynamically, we need connection settings.
-    // We take them from the form itself, not from main store, since they might not be saved yet.
     const ip = document.getElementById('input-ip').value.trim();
     const port = document.getElementById('input-port').value.trim() || '3000';
     let token = document.getElementById('input-token').value.trim();
-
     if (!token) {
-        const existingSettings = await ipcRenderer.invoke('get-settings');
-        token = existingSettings.token || '';
+        const s = await ipcRenderer.invoke('get-settings');
+        token = s.token || '';
     }
+    if (!ip || !token) { showToast('IP ou Token ausente.', 'warning'); if (btn) btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Carregar'; return; }
 
-    if (!ip || !token) {
-        showToast('IP ou Token ausente.', 'warning');
-        btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Carregar';
-        return;
-    }
-
-    const tempSettings = { ip, port, token };
-    const result = await ipcRenderer.invoke('fetch-modules', tempSettings);
-
+    const result = await ipcRenderer.invoke('fetch-modules', { ip, port, token });
     const select = document.getElementById('select-module');
     if (result.success && result.modules.length > 0) {
         const currentVal = select.value;
@@ -373,14 +496,12 @@ async function loadModulesForSettings() {
             opt.textContent = `${m.name} (${m.type || 'N/A'})`;
             select.appendChild(opt);
         });
-        if (Array.from(select.options).some(o => o.value === currentVal)) {
-            select.value = currentVal;
-        }
+        if (Array.from(select.options).some(o => o.value === currentVal)) select.value = currentVal;
         showToast(result.modules.length + ' módulos carregados.', 'success');
     } else {
-        showToast('Nenhum módulo encontrado', 'error');
+        showToast('Nenhum módulo encontrado.', 'error');
     }
-    btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Carregar';
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Carregar';
 }
 
 async function saveClientSettings() {
@@ -391,7 +512,6 @@ async function saveClientSettings() {
     const current = await ipcRenderer.invoke('get-settings');
     const tokenInputValue = document.getElementById('input-token').value.trim();
 
-    // Mescla as configurações
     const newSettings = {
         ...current,
         ip: document.getElementById('input-ip').value.trim(),
@@ -400,28 +520,19 @@ async function saveClientSettings() {
         sector: document.getElementById('input-sector').value,
         floor: document.getElementById('input-floor').value,
         forceLegacyMode: document.getElementById('check-legacy').checked,
-        lockOnMinimize: document.getElementById('check-lock').checked
+        lockOnMinimize: document.getElementById('check-lock').checked,
     };
-
-    // Só sobrescreve o token no payload se o input não estiver vazio
-    if (tokenInputValue !== '') {
-        newSettings.token = tokenInputValue;
-    }
+    if (tokenInputValue) newSettings.token = tokenInputValue;
 
     const result = await ipcRenderer.invoke('save-settings', newSettings);
     if (result.success) {
-        showToast('Configurações do cliente salvas com sucesso!', 'success');
-
-        if (tokenInputValue !== '') {
+        showToast('Configurações salvas!', 'success');
+        if (tokenInputValue) {
             document.getElementById('input-token').value = '';
             document.getElementById('input-token').placeholder = '•••••••••••••••• (Salvo)';
         }
-
-        // Return to first step and go back to Dashboard
         switchSettingsStep(1);
         switchView('dashboard');
-
-        // Force sync with new settings immediately
         forceSync();
         refreshStatus();
     } else {
@@ -432,11 +543,13 @@ async function saveClientSettings() {
     btn.disabled = false;
 }
 
+// ──────────────────────────────────────────────────
+// DASHBOARD
+// ──────────────────────────────────────────────────
 async function refreshStatus() {
     const status = await ipcRenderer.invoke('get-service-status');
     const settings = await ipcRenderer.invoke('get-settings');
 
-    // Global Badge
     const badgeText = document.getElementById('global-status-text');
     const badgeDot = document.getElementById('global-status-dot');
 
@@ -448,7 +561,6 @@ async function refreshStatus() {
         badgeDot.className = 'status-indicator error';
     }
 
-    // Stats
     setText('stat-last-sync', formatTime(status.lastRunTime));
     setText('stat-status-text', status.lastRunStatus || 'N/A');
     setText('stat-module', settings.moduleId || (settings.forceLegacyMode ? 'Legado' : 'Não Configurado'));
@@ -477,19 +589,16 @@ async function forceSync() {
 // LOGS
 // ──────────────────────────────────────────────────
 async function refreshLogs() {
-    // Only if view is visible
     const logsView = document.getElementById('view-logs');
     if (!logsView || logsView.style.display === 'none') return;
-
     const logs = await ipcRenderer.invoke('get-logs');
     const container = document.getElementById('log-container');
-
     container.innerHTML = logs.map(log => `
         <div class="log-entry">
             <span class="log-ts">${formatTime(log.timestamp)}</span>
             <span class="log-level ${log.level}">${log.level}</span>
             <span class="log-msg">${escapeHtml(log.message)}</span>
-             ${log.data ? `<span style="color:#555">${JSON.stringify(log.data)}</span>` : ''}
+            ${log.data ? `<span style="color:#555">${JSON.stringify(log.data)}</span>` : ''}
         </div>
     `).join('');
 }
@@ -519,22 +628,24 @@ function formatTime(iso) {
 
 function escapeHtml(text) {
     if (!text) return '';
-    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 
 function showToast(msg, type = 'info') {
+    const colors = { success: '#10b981', error: '#ef4444', warning: '#f59e0b', info: '#06b6d4' };
     const toast = document.createElement('div');
     toast.style.cssText = `
-        position: fixed; bottom: 20px; right: 20px;
-        background: ${type === 'success' ? '#10b981' : '#ef4444'};
-        color: white; padding: 12px 24px; border-radius: 8px;
-        z-index: 10000; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        animation: fadeInSlide 0.3s forwards;
+        position:fixed; bottom:20px; right:20px;
+        background:${colors[type] || colors.info};
+        color:white; padding:12px 24px; border-radius:8px;
+        z-index:10000; box-shadow:0 4px 12px rgba(0,0,0,0.3);
+        animation:fadeInSlide 0.3s forwards;
     `;
     toast.textContent = msg;
     document.body.appendChild(toast);
     setTimeout(() => {
         toast.style.opacity = '0';
         setTimeout(() => toast.remove(), 300);
-    }, 3000);
+    }, 3500);
 }

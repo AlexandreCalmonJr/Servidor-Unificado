@@ -7,10 +7,17 @@
     <title>Unified Agent</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes pulse-icon { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.15);opacity:0.7} }
+        @keyframes progress-glow { 0%,100%{box-shadow:0 0 6px var(--accent-primary)} 50%{box-shadow:0 0 16px var(--accent-primary)} }
+        .pulsing { animation: pulse-icon 1.4s ease-in-out infinite; }
+        .progress-bar-fill { animation: progress-glow 1.4s ease-in-out infinite; }
+        .prov-info-row { display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.06); }
+        .prov-info-row:last-child { border-bottom:none; }
+    </style>
 </head>
 
 <body>
-
     <div class="app-container">
         <!-- TITLE BAR -->
         <div class="title-bar">
@@ -29,7 +36,7 @@
         <div class="main-content">
 
             <!-- SIDEBAR -->
-            <nav class="sidebar" id="app-sidebar" style="display:none;"> <!-- Hidden until logged in -->
+            <nav class="sidebar" id="app-sidebar" style="display:none;">
                 <div class="nav-item active" data-view="dashboard">
                     <i class="fa-solid fa-chart-pie"></i> Painel
                 </div>
@@ -53,40 +60,156 @@
             <!-- VIEWS -->
             <div class="view-container">
 
-                <!-- VIEW: SETUP CONNECTION (STEP 1) -->
-                <div id="view-setup-connection" class="view-section"
-                    style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%;">
-                    <div class="login-card" style="width: 400px;">
+                <!-- ═══════════════════════════════════════════════════ -->
+                <!-- VIEW: ZERO-TOUCH AUTO-PROVISIONING                  -->
+                <!-- ═══════════════════════════════════════════════════ -->
+                <div id="view-zero-touch" class="view-section"
+                    style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%;">
+                    <div class="login-card" style="width: 440px; text-align:center;">
                         <div class="login-icon">
-                            <i class="fa-solid fa-network-wired"></i>
+                            <i class="fa-solid fa-satellite-dish pulsing" style="color:var(--accent-primary);"></i>
                         </div>
-                        <h2 style="margin:0 0 8px 0;">Conexão Servidor</h2>
-                        <p style="color:var(--text-secondary); margin-bottom:24px;">Configure o servidor base para
-                            continuar.</p>
+                        <h2 style="margin:0 0 8px 0;">Provisionamento Automático</h2>
+                        <p id="zt-status-text" style="color:var(--text-secondary); margin-bottom:24px;">Iniciando...</p>
 
-                        <div class="form-group" style="text-align:left;">
-                            <label>URL do Servidor</label>
-                            <div style="display:flex; gap:10px;">
-                                <input type="text" id="setup-ip" class="input-field" placeholder="192.168.0.x">
-                                <input type="text" id="setup-port" class="input-field" placeholder="3000"
-                                    style="width:80px;">
+                        <div style="width:100%; background:rgba(255,255,255,0.08); border-radius:8px; height:8px; overflow:hidden; margin-bottom:8px;">
+                            <div id="zt-progress-bar" class="progress-bar-fill"
+                                style="height:100%; width:0%; background:var(--accent-primary); transition:width 0.6s ease; border-radius:8px;">
                             </div>
                         </div>
 
-                        <div class="form-group" style="text-align:left;">
-                            <label>Token de Autenticação</label>
-                            <input type="password" id="setup-token" class="input-field" placeholder="Token do Servidor">
-                        </div>
-
-                        <button class="btn btn-primary btn-full" id="btn-test-save-connection">
-                            <i class="fa-solid fa-plug"></i> Conectar & Salvar
+                        <p id="zt-error"
+                            style="color:var(--status-error); font-size:13px; margin-top:16px; display:none;"></p>
+                        <button id="zt-retry-btn" class="btn btn-secondary btn-full"
+                            style="margin-top:16px; display:none;">
+                            <i class="fa-solid fa-arrow-left"></i> Configurar Manualmente
                         </button>
-                        <p id="setup-error"
-                            style="color:var(--status-error); font-size:13px; margin-top:16px; min-height:20px;"></p>
                     </div>
                 </div>
 
-                <!-- VIEW: DASHBOARD -->
+                <!-- ═══════════════════════════════════════════════════ -->
+                <!-- VIEW: ONBOARDING WIZARD (PRIMEIRA VEZ)             -->
+                <!-- ═══════════════════════════════════════════════════ -->
+                <div id="view-onboarding" class="view-section"
+                    style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%;">
+                    <div style="width: 460px;">
+
+                        <!-- Step Indicators -->
+                        <div style="display:flex; justify-content:center; gap:16px; margin-bottom:24px;">
+                            <div class="step-indicator active" id="ob-ind-1">1. Servidor</div>
+                            <div class="step-indicator" id="ob-ind-2">2. Configuração</div>
+                        </div>
+
+                        <!-- ─── STEP 1: IP + TOKEN ─────────────────── -->
+                        <div class="login-card" id="ob-step-1" style="width:100%;">
+                            <div class="login-icon"><i class="fa-solid fa-network-wired"></i></div>
+                            <h2 style="margin:0 0 6px 0;">Conectar ao Servidor</h2>
+                            <p style="color:var(--text-secondary); font-size:13px; margin-bottom:22px;">
+                                Insira o endereço do servidor MDM e o token de provisionamento gerado no painel.
+                            </p>
+
+                            <div class="form-group" style="text-align:left;">
+                                <label>Servidor MDM</label>
+                                <div style="display:flex; gap:10px;">
+                                    <input type="text" id="ob-ip" class="input-field" placeholder="192.168.0.x"
+                                        style="flex:1;">
+                                    <input type="text" id="ob-port" class="input-field" placeholder="3000"
+                                        style="width:80px;">
+                                </div>
+                            </div>
+                            <div class="form-group" style="text-align:left; margin-top:14px;">
+                                <label>Token de Provisionamento</label>
+                                <input type="password" id="ob-token" class="input-field"
+                                    placeholder="Cole o token gerado no painel MDM">
+                            </div>
+
+                            <button class="btn btn-primary btn-full" id="btn-ob-verify" style="margin-top:20px;">
+                                <i class="fa-solid fa-plug"></i> Verificar e Continuar
+                            </button>
+                            <p id="ob-error-1"
+                                style="color:var(--status-error); font-size:13px; margin-top:12px; min-height:18px;">
+                            </p>
+                        </div>
+
+                        <!-- ─── STEP 2A: PROVISIONING CONFIRM ─────── -->
+                        <div class="login-card" id="ob-step-2a" style="width:100%; display:none;">
+                            <div class="login-icon">
+                                <i class="fa-solid fa-circle-check" style="color:var(--status-success);"></i>
+                            </div>
+                            <h2 style="margin:0 0 6px 0;">Perfil Detectado</h2>
+                            <p style="color:var(--text-secondary); font-size:13px; margin-bottom:20px;">
+                                Este dispositivo será configurado automaticamente com o perfil abaixo:
+                            </p>
+
+                            <div
+                                style="background:rgba(255,255,255,0.05); border-radius:12px; padding:16px; text-align:left; margin-bottom:20px;">
+                                <div class="prov-info-row">
+                                    <span style="color:var(--text-secondary);">Organização</span>
+                                    <span id="prov-org" style="color:var(--text-primary); font-weight:600;">—</span>
+                                </div>
+                                <div class="prov-info-row">
+                                    <span style="color:var(--text-secondary);">Perfil</span>
+                                    <span id="prov-profile"
+                                        style="color:var(--accent-primary); font-weight:600;">—</span>
+                                </div>
+                                <div class="prov-info-row">
+                                    <span style="color:var(--text-secondary);">Usos Restantes</span>
+                                    <span id="prov-uses" style="color:var(--text-primary);">—</span>
+                                </div>
+                                <div class="prov-info-row">
+                                    <span style="color:var(--text-secondary);">Expira em</span>
+                                    <span id="prov-expires" style="color:var(--text-primary);">—</span>
+                                </div>
+                            </div>
+
+                            <button class="btn btn-primary btn-full" id="btn-ob-enroll">
+                                <i class="fa-solid fa-rocket"></i> Confirmar e Provisionar
+                            </button>
+                            <button class="btn btn-secondary btn-full" id="btn-ob-back-2a" style="margin-top:8px;">
+                                <i class="fa-solid fa-arrow-left"></i> Voltar
+                            </button>
+                            <p id="ob-error-2a"
+                                style="color:var(--status-error); font-size:13px; margin-top:12px; min-height:18px;">
+                            </p>
+                        </div>
+
+                        <!-- ─── STEP 2B: ADMIN TOKEN → SELECT MODULE ─ -->
+                        <div class="login-card" id="ob-step-2b" style="width:100%; display:none;">
+                            <div class="login-icon"><i class="fa-solid fa-box"></i></div>
+                            <h2 style="margin:0 0 6px 0;">Selecionar Módulo</h2>
+                            <p style="color:var(--text-secondary); font-size:13px; margin-bottom:20px;">
+                                Token de administrador detectado. Escolha o módulo para este dispositivo.
+                            </p>
+
+                            <div class="form-group" style="text-align:left;">
+                                <label>Módulo</label>
+                                <div style="display:flex; gap:10px;">
+                                    <select id="ob-module" class="input-field" style="flex:1;">
+                                        <option value="">Selecione um módulo...</option>
+                                    </select>
+                                    <button class="btn btn-secondary" id="btn-ob-load-modules" title="Recarregar">
+                                        <i class="fa-solid fa-rotate"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <button class="btn btn-primary btn-full" id="btn-ob-save-admin" style="margin-top:20px;">
+                                <i class="fa-solid fa-floppy-disk"></i> Salvar e Continuar
+                            </button>
+                            <button class="btn btn-secondary btn-full" id="btn-ob-back-2b" style="margin-top:8px;">
+                                <i class="fa-solid fa-arrow-left"></i> Voltar
+                            </button>
+                            <p id="ob-error-2b"
+                                style="color:var(--status-error); font-size:13px; margin-top:12px; min-height:18px;">
+                            </p>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════════════ -->
+                <!-- VIEW: DASHBOARD                                      -->
+                <!-- ═══════════════════════════════════════════════════ -->
                 <div id="view-dashboard" class="view-section">
                     <div class="header"
                         style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
@@ -135,7 +258,9 @@
                     </div>
                 </div>
 
-                <!-- VIEW: LOGS -->
+                <!-- ═══════════════════════════════════════════════════ -->
+                <!-- VIEW: LOGS                                           -->
+                <!-- ═══════════════════════════════════════════════════ -->
                 <div id="view-logs" class="view-section">
                     <div class="header"
                         style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
@@ -149,7 +274,9 @@
                     </div>
                 </div>
 
-                <!-- VIEW: SETTINGS (STEP-BY-STEP) -->
+                <!-- ═══════════════════════════════════════════════════ -->
+                <!-- VIEW: SETTINGS (POST-LOGIN CONFIG)                  -->
+                <!-- ═══════════════════════════════════════════════════ -->
                 <div id="view-settings" class="view-section">
                     <h2 style="margin-bottom:24px;">Configuração do Cliente</h2>
 
@@ -164,7 +291,7 @@
                     <div class="card" id="settings-step-1">
                         <h3 class="card-title"><i class="fa-solid fa-server"></i> Conexão Principal</h3>
                         <p style="color:var(--text-secondary); font-size:13px; margin-bottom:20px;">
-                            Configure a URL do servidor MDM e a porta. Opcionalmente, gere e insira o token.
+                            Configure a URL do servidor MDM e a porta.
                         </p>
                         <div style="display:grid; grid-template-columns: 2fr 1fr; gap: 16px;">
                             <div class="form-group">
@@ -177,20 +304,24 @@
                             </div>
                         </div>
                         <div class="form-group" style="margin-top:10px;">
-                            <label>Token de Provisionamento (AUTH_TOKEN)</label>
-                            <input type="password" id="input-token" class="input-field" placeholder="Insira o token do servidor">
+                            <label>Token de Autenticação (AUTH_TOKEN)</label>
+                            <input type="password" id="input-token" class="input-field"
+                                placeholder="Insira o token do servidor">
                         </div>
                         <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 20px;">
-                            <span id="step-1-error" style="color:var(--status-error); align-self:center; margin-right:auto; font-size:13px;"></span>
-                            <button class="btn btn-secondary" id="btn-test-connection"><i class="fa-solid fa-plug"></i> Testar</button>
-                            <button class="btn btn-primary" id="btn-next-step-1">Avançar <i class="fa-solid fa-arrow-right"></i></button>
+                            <span id="step-1-error"
+                                style="color:var(--status-error); align-self:center; margin-right:auto; font-size:13px;"></span>
+                            <button class="btn btn-secondary" id="btn-test-connection"><i
+                                    class="fa-solid fa-plug"></i> Testar</button>
+                            <button class="btn btn-primary" id="btn-next-step-1">Avançar <i
+                                    class="fa-solid fa-arrow-right"></i></button>
                         </div>
                     </div>
 
                     <!-- STEP 2: MÓDULO -->
                     <div class="card" id="settings-step-2" style="display:none;">
                         <h3 class="card-title"><i class="fa-solid fa-box"></i> Definição do Módulo</h3>
-                         <p style="color:var(--text-secondary); font-size:13px; margin-bottom:20px;">
+                        <p style="color:var(--text-secondary); font-size:13px; margin-bottom:20px;">
                             O módulo agrupa este ativo dentro do painel (ex: Desktop, Recepção, Totens).
                         </p>
                         <div class="form-group">
@@ -199,19 +330,22 @@
                                 <select id="select-module" class="input-field" style="flex:1;">
                                     <option value="">Aguardando lista do servidor...</option>
                                 </select>
-                                <button class="btn btn-secondary" id="btn-detect-module"><i class="fa-solid fa-rotate"></i> Carregar</button>
+                                <button class="btn btn-secondary" id="btn-detect-module"><i
+                                        class="fa-solid fa-rotate"></i> Carregar</button>
                             </div>
                         </div>
-                         <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 20px;">
-                            <button class="btn btn-secondary" id="btn-prev-step-2"><i class="fa-solid fa-arrow-left"></i> Voltar</button>
-                            <button class="btn btn-primary" id="btn-next-step-2">Avançar <i class="fa-solid fa-arrow-right"></i></button>
+                        <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 20px;">
+                            <button class="btn btn-secondary" id="btn-prev-step-2"><i
+                                    class="fa-solid fa-arrow-left"></i> Voltar</button>
+                            <button class="btn btn-primary" id="btn-next-step-2">Avançar <i
+                                    class="fa-solid fa-arrow-right"></i></button>
                         </div>
                     </div>
 
-                    <!-- STEP 3: L0CAL & SEGURANÇA -->
+                    <!-- STEP 3: LOCAL & SEGURANÇA -->
                     <div class="card" id="settings-step-3" style="display:none;">
                         <h3 class="card-title"><i class="fa-solid fa-location-dot"></i> Localização & Segurança</h3>
-                         <p style="color:var(--text-secondary); font-size:13px; margin-bottom:20px;">
+                        <p style="color:var(--text-secondary); font-size:13px; margin-bottom:20px;">
                             Informe dados de localização deste equipamento.
                         </p>
                         <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px;">
@@ -225,22 +359,23 @@
                             </div>
                         </div>
 
-                        <div class="form-group" style="margin-top:20px;display:flex;align-items:center;gap:12px;">
+                        <div class="form-group"
+                            style="margin-top:20px;display:flex;align-items:center;gap:12px;">
                             <input type="checkbox" id="check-legacy" style="width:16px;height:16px;">
-                            <label for="check-legacy" style="margin:0;cursor:pointer;">Forçar modo legado (Apenas se o servidor MDM for muito antigo)</label>
+                            <label for="check-legacy" style="margin:0;cursor:pointer;">Forçar modo legado</label>
                         </div>
-                         <div class="form-group" style="margin-top:10px;display:flex;align-items:center;gap:12px;">
+                        <div class="form-group" style="margin-top:10px;display:flex;align-items:center;gap:12px;">
                             <input type="checkbox" id="check-lock" style="width:16px;height:16px;">
-                            <label for="check-lock" style="margin:0;cursor:pointer;">Bloquear aplicativo ao minimizar
-                                (Exige senha de sistema)</label>
+                            <label for="check-lock" style="margin:0;cursor:pointer;">Bloquear ao minimizar</label>
                         </div>
 
                         <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 20px;">
-                            <button class="btn btn-secondary" id="btn-prev-step-3"><i class="fa-solid fa-arrow-left"></i> Voltar</button>
-                            <button class="btn btn-primary" id="btn-save-settings"><i class="fa-solid fa-floppy-disk"></i> Finalizar Configuração</button>
+                            <button class="btn btn-secondary" id="btn-prev-step-3"><i
+                                    class="fa-solid fa-arrow-left"></i> Voltar</button>
+                            <button class="btn btn-primary" id="btn-save-settings"><i
+                                    class="fa-solid fa-floppy-disk"></i> Finalizar Configuração</button>
                         </div>
                     </div>
-
                 </div>
 
             </div>
@@ -248,7 +383,7 @@
     </div>
 
     <!-- LOCK / LOGIN OVERLAY -->
-    <div id="lock-screen" class="overlay" style="display:none;"> <!-- Start hidden, managed by renderer -->
+    <div id="lock-screen" class="overlay" style="display:none;">
         <div class="login-card">
             <div class="login-icon">
                 <i class="fa-solid fa-lock"></i>

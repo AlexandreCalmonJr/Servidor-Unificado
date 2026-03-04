@@ -327,6 +327,84 @@ function createWindow() {
         const adminPass = settings.adminPassword || process.env.ADMIN_PASSWORD || 'admin123';
         return password === adminPass;
     });
+
+    // ──────────────────────────────────────────────────
+    // PROVISIONING IPC
+    // ──────────────────────────────────────────────────
+
+    // Verifica se o token informado é um token de provisionamento
+    ipcMain.handle('check-provisioning-token', async (event, { ip, port, token }) => {
+        try {
+            const serverUrl = `http://${ip}:${port}`;
+            const response = await axios.get(
+                `${serverUrl}/api/provisioning/tokens/${token}/status`,
+                { timeout: 10000, proxy: false }
+            );
+            // 200 → token válido e ativo
+            return { isProvisioningToken: true, valid: true, ...response.data };
+        } catch (e) {
+            const status = e.response?.status;
+            const body = e.response?.data || {};
+
+            // 410 = É um token de provisionamento, porém expirado ou esgotado
+            if (status === 410) {
+                return {
+                    isProvisioningToken: true,
+                    valid: false,
+                    message: body.message || 'Token expirado ou esgotado',
+                    ...body,
+                };
+            }
+
+            // 404 = O token não existe no banco (pode ser um JWT admin)
+            if (status === 404 || status === 400) {
+                return { isProvisioningToken: false };
+            }
+
+            // Erro de rede ou inesperado
+            return { isProvisioningToken: false, networkError: e.message };
+        }
+    });
+
+    // Enrola este dispositivo usando token de provisionamento
+    ipcMain.handle('enroll-device', async (event, { ip, port, token }) => {
+        try {
+            const DataCollector = require('./src/services/DataCollector');
+            const info = await DataCollector.getCoreSystemInfo();
+            const serverUrl = `http://${ip}:${port}`;
+            const payload = {
+                provisioning_token: token,
+                device_id: info.serial_number,
+                device_name: info.asset_name || info.hostname,
+                device_model: info.model || os.hostname(),
+                serial_number: info.serial_number,
+                ip_address: info.ip_address,
+                mac_address_radio: (info.mac_address_radio && info.mac_address_radio !== 'N/A')
+                    ? info.mac_address_radio : null,
+            };
+
+            logger.info(`[Enroll] Provisionando: ${payload.device_name} (${payload.serial_number})`);
+            const response = await axios.post(
+                `${serverUrl}/api/provisioning/enroll`,
+                payload,
+                { timeout: 30000, proxy: false }
+            );
+
+            return {
+                success: true,
+                organization: response.data.organization,
+                config_profile: response.data.config_profile,
+                module_id: response.data.module_id,
+                module_type: response.data.module_type,
+                // Token de autenticação para uso contínuo pós-enrollment
+                device_token: response.data.device_token,
+                commands_count: response.data.commands_count,
+            };
+        } catch (e) {
+            logger.error(`[Enroll] Erro: ${e.message}`);
+            return { success: false, error: e.response?.data?.error || e.message };
+        }
+    });
 }
 
 // ──────────────────────────────────────────────────
