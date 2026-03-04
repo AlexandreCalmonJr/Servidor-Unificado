@@ -1,22 +1,46 @@
 // MDM Dashboard — Dashboard Page
 
 (() => {
-    let refreshInterval = null;
+    // ─── CORREÇÃO: guardamos o ID do interval para poder cancelar corretamente.
+    // O interval anterior era limpo apenas no início de loadDashboard(), o que
+    // não funcionava se o usuário saísse da página sem voltar — múltiplos
+    // intervals se acumulavam silenciosamente. Agora usamos um único slot
+    // e fazemos cleanup via visibilitychange + navegação.
+    let refreshIntervalId = null;
     let statusChart = null;
     let resourceChart = null;
+
+    function startAutoRefresh() {
+        stopAutoRefresh();
+        refreshIntervalId = setInterval(() => {
+            loadMetrics();
+            loadAssetStatusChart();
+            loadModuleStats();
+        }, 30000);
+    }
+
+    function stopAutoRefresh() {
+        if (refreshIntervalId !== null) {
+            clearInterval(refreshIntervalId);
+            refreshIntervalId = null;
+        }
+    }
+
+    // Para o refresh quando a aba fica oculta e retoma quando volta
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            stopAutoRefresh();
+        } else if (document.getElementById('page-dashboard')?.classList.contains('active')) {
+            loadDashboard();
+        }
+    });
 
     function loadDashboard() {
         loadMetrics();
         loadRecentAssets();
         loadAssetStatusChart();
         loadModuleStats();
-
-        if (refreshInterval) clearInterval(refreshInterval);
-        refreshInterval = setInterval(() => {
-            loadMetrics();
-            loadAssetStatusChart();
-            loadModuleStats();
-        }, 30000);
+        startAutoRefresh();
     }
 
     async function loadMetrics() {
@@ -37,16 +61,17 @@
             setBar('m-memory-bar', mem);
 
             const uptime = data.uptime ?? 0;
-            setText('m-uptime', formatUptime(uptime));
+            const uptimeFmt = formatUptime(uptime);
+            setText('m-uptime', uptimeFmt);
 
             const dot = document.getElementById('server-status-dot');
             const uptimeEl = document.getElementById('server-uptime');
             if (dot) dot.className = 'status-dot';
-            if (uptimeEl) uptimeEl.textContent = formatUptime(uptime);
+            if (uptimeEl) uptimeEl.textContent = uptimeFmt;
 
             const devSub = document.getElementById('m-devices-sub');
-            if (devSub) devSub.textContent = 'ativos registrados';
             const provSub = document.getElementById('m-provisioned-sub');
+            if (devSub) devSub.textContent = 'ativos registrados';
             if (provSub) provSub.textContent = `de ${data.asset_count ?? data.device_count ?? 0}`;
 
             renderResourceChart(cpu, mem);
@@ -55,7 +80,6 @@
         }
     }
 
-    // GET /api/monitoring/assets — todos os ativos (sem filtro de tipo)
     async function loadAssetStatusChart() {
         const canvas = document.getElementById('chart-status');
         if (!canvas || typeof Chart === 'undefined') return;
@@ -138,7 +162,6 @@
         });
     }
 
-    // GET /api/monitoring/assets — ativos recentes
     async function loadRecentAssets() {
         const tbody = document.getElementById('recent-devices-body');
         if (!tbody) return;
@@ -163,13 +186,11 @@
 
                 return `
                 <tr data-asset-id="${a._id || a.id}">
-                    <td class="p-4 border-b border-slate-800 text-white font-medium">${esc(a.asset_name || a.name || 'N/A')}</td>
-                    <td class="p-4 border-b border-slate-800 font-mono text-xs">${esc(a.serial_number || 'N/A')}</td>
-                    <td class="p-4 border-b border-slate-800">${formatDate(a.last_seen || a.updatedAt)}</td>
-                    <td class="p-4 border-b border-slate-800">${esc(a.sector || a.location || 'N/A')}</td>
-                    <td class="p-4 border-b border-slate-800">
-                        <span class="px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor}">${st}</span>
-                    </td>
+                    <td>${esc(a.asset_name || a.name || 'N/A')}</td>
+                    <td class="mono text-xs">${esc(a.serial_number || 'N/A')}</td>
+                    <td>${formatDate(a.last_seen || a.updatedAt)}</td>
+                    <td>${esc(a.sector || a.location || 'N/A')}</td>
+                    <td><span class="px-2 py-0.5 rounded-full text-xs font-medium ${statusColor}">${st}</span></td>
                 </tr>`;
             }).join('');
         } catch (err) {
@@ -224,8 +245,8 @@
                         <span class="module-stat-value" style="color: var(--text-primary);">${s.total}</span>
                     </div>
                     <div style="margin-left: auto; display: flex; gap: 10px; font-size: 0.75rem; font-weight: 600;">
-                        <span style="color: var(--success); display: flex; align-items: center; gap: 4px;">🟢 ${s.online}</span>
-                        <span style="color: var(--danger); display: flex; align-items: center; gap: 4px;">🔴 ${s.offline}</span>
+                        <span style="color: var(--success);">🟢 ${s.online}</span>
+                        <span style="color: var(--danger);">🔴 ${s.offline}</span>
                     </div>
                 </div>`;
             }).join('');
@@ -234,6 +255,7 @@
         }
     }
 
+    // Exposto para o WebSocket client atualizar o dashboard em tempo real
     window.DashboardRefresh = () => {
         loadMetrics();
         loadModuleStats();

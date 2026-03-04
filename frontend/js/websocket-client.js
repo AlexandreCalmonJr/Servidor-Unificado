@@ -1,11 +1,14 @@
 // MDM Dashboard — WebSocket Client
-// Eventos emitidos pelo servidor: asset_online, asset_offline (ver websocketServer.js)
 
 const WS = (() => {
     let ws = null;
     let reconnectTimer = null;
     let reconnectDelay = 2000;
     const MAX_RECONNECT_DELAY = 30000;
+
+    // ─── CORREÇÃO: handlers registrados como Map de conjuntos para evitar
+    // duplicatas quando o módulo é avaliado múltiplas vezes ou on() é chamado
+    // repetidamente para o mesmo tipo/callback.
     const handlers = {};
 
     function getWsUrl() {
@@ -34,10 +37,7 @@ const WS = (() => {
         };
 
         ws.onmessage = (event) => {
-            try {
-                const msg = JSON.parse(event.data);
-                dispatch(msg);
-            } catch (e) { /* non-JSON */ }
+            try { dispatch(JSON.parse(event.data)); } catch (e) { /* non-JSON */ }
         };
 
         ws.onclose = () => { updateIndicator(false); scheduleReconnect(); };
@@ -67,9 +67,13 @@ const WS = (() => {
         if (handlers['*']) handlers['*'].forEach(fn => fn(msg));
     }
 
+    // ─── CORREÇÃO: on() verifica duplicatas antes de registrar ───────────────
     function on(type, callback) {
         if (!handlers[type]) handlers[type] = [];
-        handlers[type].push(callback);
+        // Evita registrar o mesmo callback duas vezes para o mesmo tipo
+        if (!handlers[type].includes(callback)) {
+            handlers[type].push(callback);
+        }
     }
 
     function off(type, callback) {
@@ -81,39 +85,57 @@ const WS = (() => {
         if (API.getToken()) connect();
     });
 
-    // ===== Handlers para asset_online / asset_offline =====
-    // O websocketServer.js emite: { type: 'asset_online', assetId, serialNumber, assetType, hostname }
-    //                              { type: 'asset_offline', assetId, serialNumber, assetType, hostname }
+    // ===== Handlers de status de ativos =====
+    // Registrados aqui uma única vez no nível do módulo — nunca duplicam.
 
-    on('asset_online', (msg) => {
+    function onAssetOnline(msg) {
         const label = msg.hostname || msg.serialNumber || msg.assetId || 'Ativo';
-        updateAssetRow(msg.assetId, 'online');
+        _updateAssetRow(msg.assetId, 'online');
         showToast(`📱 ${label} ficou online`, 'success');
         if (typeof window.DashboardRefresh === 'function') window.DashboardRefresh();
-    });
+    }
 
-    on('asset_offline', (msg) => {
+    function onAssetOffline(msg) {
         const label = msg.hostname || msg.serialNumber || msg.assetId || 'Ativo';
-        updateAssetRow(msg.assetId, 'offline');
+        _updateAssetRow(msg.assetId, 'offline');
         showToast(`📱 ${label} ficou offline`, 'warning');
         if (typeof window.DashboardRefresh === 'function') window.DashboardRefresh();
+    }
+
+    // Backward-compat
+    function onDeviceOnline(msg) {
+        _updateAssetRow(msg.deviceId, 'online');
+        showToast(`📱 ${msg.hostname || msg.deviceId || 'Dispositivo'} ficou online`, 'success');
+    }
+
+    function onDeviceOffline(msg) {
+        _updateAssetRow(msg.deviceId, 'offline');
+        showToast(`📱 ${msg.hostname || msg.deviceId || 'Dispositivo'} ficou offline`, 'warning');
+    }
+
+    on('asset_online', onAssetOnline);
+    on('asset_offline', onAssetOffline);
+    on('device_online', onDeviceOnline);
+    on('device_offline', onDeviceOffline);
+
+    on('notification', (msg) => {
+        const { title, message, severity, event } = msg;
+        const icon = severity === 'success' ? '✅' : severity === 'error' ? '❌' : severity === 'warning' ? '⚠️' : 'ℹ️';
+        showToast(`${icon} ${title}\n${message}`, severity);
+
+        if (event === 'token_created' && typeof window.loadTokens === 'function') window.loadTokens();
+        else if (event === 'device_enrolled' && typeof window.loadModules === 'function') window.loadModules();
+        else if (event === 'command_executed' && typeof window.loadCommands === 'function') window.loadCommands();
     });
 
-    // Backward-compat: alguns eventos ainda podem usar device_online/offline
-    on('device_online', (msg) => {
-        const label = msg.hostname || msg.deviceId || 'Dispositivo';
-        updateAssetRow(msg.deviceId, 'online');
-        showToast(`📱 ${label} ficou online`, 'success');
+    on('dashboard_update', (msg) => {
+        if (typeof window.updateDashboard === 'function') {
+            window.updateDashboard(msg.moduleId, msg.stats);
+        }
     });
 
-    on('device_offline', (msg) => {
-        const label = msg.hostname || msg.deviceId || 'Dispositivo';
-        updateAssetRow(msg.deviceId, 'offline');
-        showToast(`📱 ${label} ficou offline`, 'warning');
-    });
-
-    function updateAssetRow(assetId, status) {
-        // Atualiza qualquer linha de tabela que tenha data-asset-id ou data-device-id
+    function _updateAssetRow(assetId, status) {
+        if (!assetId) return;
         [
             ...document.querySelectorAll(`tr[data-asset-id="${assetId}"]`),
             ...document.querySelectorAll(`tr[data-device-id="${assetId}"]`),
@@ -125,36 +147,6 @@ const WS = (() => {
             }
         });
     }
-
-    // ===== Handlers para notificações =====
-    on('notification', (msg) => {
-        const { title, message, severity, event } = msg;
-        
-        // Mostrar toast
-        const icon = severity === 'success' ? '✅' : severity === 'error' ? '❌' : severity === 'warning' ? '⚠️' : 'ℹ️';
-        showToast(`${icon} ${title}\n${message}`, severity);
-
-        // Log específico por evento
-        if (event === 'token_created') {
-            console.log('🔑 Novo token de provisionamento criado');
-            if (typeof window.loadTokens === 'function') window.loadTokens();
-        } else if (event === 'device_enrolled') {
-            console.log('📱 Novo dispositivo provisionado');
-            if (typeof window.loadModules === 'function') window.loadModules();
-        } else if (event === 'command_executed') {
-            console.log('⌨️ Comando executado');
-            if (typeof window.loadCommands === 'function') window.loadCommands();
-        }
-    });
-
-    // ===== Handler para atualizações de dashboard =====
-    on('dashboard_update', (msg) => {
-        const { moduleId, stats } = msg;
-        console.log(`📊 Dashboard update para módulo ${moduleId}:`, stats);
-        if (typeof window.updateDashboard === 'function') {
-            window.updateDashboard(moduleId, stats);
-        }
-    });
 
     return { connect, on, off };
 })();

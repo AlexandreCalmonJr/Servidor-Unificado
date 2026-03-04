@@ -1,14 +1,24 @@
 // MDM Dashboard — API Client Module
 
 const API = (() => {
+    // ─── CORREÇÃO: BASE_URL calculada corretamente para dev e produção ───
+    // Em produção (Railway, Heroku, etc.) window.location.port é "" — não
+    // adicionar porta nenhuma. Em dev local usa a porta atual ou 3000.
+    function buildBaseUrl() {
+        const { protocol, hostname, port } = window.location;
+        const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
 
-    // Detecta se está em localhost ou em produção
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    // Em produção, não usamos porta no BASE_URL (o Railway cuida do roteamento)
-    const port = isLocalhost ? (window.location.port || 3000) : '';
-    const colon = port ? `:${port}` : '';
-    // Auto-detect base URL from current location
-    const BASE_URL = `${window.location.protocol}//${window.location.hostname}:${window.location.port || 3000}/api`;
+        if (isLocalhost && port) {
+            return `${protocol}//${hostname}:${port}/api`;
+        }
+        if (isLocalhost) {
+            return `${protocol}//${hostname}:3000/api`;
+        }
+        // Produção: sem porta explícita — o proxy reverso roteia
+        return `${protocol}//${hostname}/api`;
+    }
+
+    const BASE_URL = buildBaseUrl();
 
     function getToken() {
         return localStorage.getItem('mdm_token');

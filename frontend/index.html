@@ -319,6 +319,8 @@
                             </table>
                         </div>
                     </div>
+                    <!-- ADICIONADO: paginação da página dinâmica -->
+                    <div id="dynamic-pagination" class="pagination-container"></div>
                 </div>
 
                 <!-- ===== USERS ===== -->
@@ -357,6 +359,8 @@
                             </table>
                         </div>
                     </div>
+                    <!-- ADICIONADO: paginação da página dinâmica -->
+                    <div id="dynamic-pagination" class="pagination-container"></div>
                 </div>
 
                 <!-- ===== SERVER & APKs ===== -->
@@ -795,6 +799,8 @@
                             </table>
                         </div>
                     </div>
+                    <!-- ADICIONADO: paginação da página dinâmica -->
+                    <div id="dynamic-pagination" class="pagination-container"></div>
                 </div>
 
             </div>
@@ -1047,6 +1053,48 @@
             <div class="modal-footer">
                 <button class="btn btn-ghost" id="module-modal-cancel">Cancelar</button>
                 <button class="btn btn-primary" id="module-modal-save">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== ASSET MODAL (botão "+ Ativo" nos cards de módulo) ===== -->
+    <div class="modal-overlay" id="asset-modal">
+        <div class="modal-box" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 id="asset-modal-title">Novo Ativo</h3>
+                <button class="modal-close" id="asset-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="asset-form">
+                    <input type="hidden" id="asset-id">
+                    <input type="hidden" id="asset-module-type">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="asset-name">Nome do Ativo *</label>
+                            <input type="text" id="asset-name" required placeholder="Ex: Desktop-TI-01">
+                        </div>
+                        <div class="form-group">
+                            <label for="asset-serial">Serial / Identificador</label>
+                            <input type="text" id="asset-serial" placeholder="SN12345">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="asset-location">Localização</label>
+                            <input type="text" id="asset-location" placeholder="Sala 301">
+                        </div>
+                        <div class="form-group">
+                            <label for="asset-assigned">Responsável</label>
+                            <input type="text" id="asset-assigned" placeholder="Ex: João Silva">
+                        </div>
+                    </div>
+                    <!-- Campos dinâmicos injetados por modules.js via renderAssetForm() -->
+                    <div id="asset-dynamic-fields"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="asset-modal-cancel">Cancelar</button>
+                <button class="btn btn-primary" id="asset-modal-save" type="submit" form="asset-form">💾 Salvar</button>
             </div>
         </div>
     </div>

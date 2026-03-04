@@ -1,47 +1,24 @@
 // MDM Dashboard — Notification System
-// Polling /api/monitoring/assets para alertas de status
+//
+// ─── CORREÇÃO ────────────────────────────────────────────────────────────────
+// A versão anterior fazia polling de /api/monitoring/assets a cada 30s para
+// detectar mudanças de status e disparar toasts. Isso é redundante porque
+// websocket-client.js já faz exatamente isso via eventos asset_online /
+// asset_offline em tempo real, sem custo de polling.
+//
+// Este arquivo mantém a interface pública (NotificationSystem.init) para não
+// quebrar código que já chame isso, mas não faz mais polling. A lógica de
+// notificação de status vive exclusivamente em websocket-client.js.
+// ─────────────────────────────────────────────────────────────────────────────
 
 const NotificationSystem = (() => {
-    let lastAssetStates = {};   // { assetId: { status, cpu } }
     let isInitialized = false;
-    const POLLING_INTERVAL = 30000;
 
     function init() {
         if (isInitialized) return;
         isInitialized = true;
-
-        fetchAssets(true);
-        setInterval(() => fetchAssets(false), POLLING_INTERVAL);
-    }
-
-    // GET /api/monitoring/assets — todos os ativos
-    async function fetchAssets(isInitial = false) {
-        try {
-            const data = await API.get('/monitoring/assets');
-            const assets = Array.isArray(data) ? data : (data.assets || []);
-            assets.forEach(a => checkAsset(a, isInitial));
-        } catch (err) {
-            // silencioso — não interrompe o painel
-        }
-    }
-
-    function checkAsset(asset, isInitial) {
-        const assetId = asset._id || asset.id;
-        if (!assetId) return;
-
-        const currentStatus = (asset.status || 'unknown').toLowerCase();
-        const assetName = asset.asset_name || asset.name || assetId;
-        const lastState = lastAssetStates[assetId];
-
-        if (!isInitial && lastState && lastState.status !== currentStatus) {
-            if (['online', 'active'].includes(currentStatus)) {
-                showToast(`🟢 ${esc(assetName)} está Online`, 'success');
-            } else if (['offline', 'failed', 'inactive'].includes(currentStatus)) {
-                showToast(`🔴 ${esc(assetName)} está Offline`, 'error');
-            }
-        }
-
-        lastAssetStates[assetId] = { status: currentStatus, timestamp: Date.now() };
+        // WebSocket em websocket-client.js cuida de todos os alertas de status.
+        // Nada a fazer aqui.
     }
 
     return { init };

@@ -26,11 +26,9 @@ const App = (() => {
         setupSidebar();
         setupMobile();
         setupLogout();
-        setupChangePassword();
         loadUserInfo();
 
         if (window.lucide) window.lucide.createIcons();
-
         if (pageLoaders.dashboard) pageLoaders.dashboard();
     }
 
@@ -84,7 +82,6 @@ const App = (() => {
         if (titleEl) titleEl.textContent = pageTitles[page];
 
         closeMobileMenu();
-
         if (pageLoaders[page]) pageLoaders[page]();
     }
 
@@ -126,48 +123,6 @@ const App = (() => {
         });
     }
 
-    function setupChangePassword() {
-        const modal = document.getElementById('password-modal');
-        const btn = document.getElementById('change-password-btn');
-        const closeBtn = document.getElementById('password-modal-close');
-        const cancelBtn = document.getElementById('password-modal-cancel');
-        const saveBtn = document.getElementById('password-modal-save');
-        const form = document.getElementById('password-form');
-
-        btn?.addEventListener('click', () => {
-            form?.reset();
-            modal?.classList.add('active');
-        });
-
-        [closeBtn, cancelBtn].forEach(b => b?.addEventListener('click', () => modal?.classList.remove('active')));
-        modal?.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
-
-        saveBtn?.addEventListener('click', async () => {
-            const currentPassword = document.getElementById('form-current-password')?.value;
-            const newPassword = document.getElementById('form-new-password')?.value;
-            const confirmPassword = document.getElementById('form-confirm-password')?.value;
-
-            if (!currentPassword || !newPassword || !confirmPassword) {
-                showToast('Preencha todos os campos.', 'warning'); return;
-            }
-            if (newPassword.length < 6) {
-                showToast('Mínimo 6 caracteres.', 'warning'); return;
-            }
-            if (newPassword !== confirmPassword) {
-                showToast('As senhas não coincidem.', 'warning'); return;
-            }
-
-            try {
-                await API.post('/auth/change-password', { currentPassword, newPassword });
-                showToast('Senha alterada!', 'success');
-                modal?.classList.remove('active');
-                form?.reset();
-            } catch (err) {
-                showToast(err.message || 'Erro ao alterar senha.', 'error');
-            }
-        });
-    }
-
     function onPageLoad(page, callback) {
         pageLoaders[page] = callback;
     }
@@ -176,6 +131,10 @@ const App = (() => {
 })();
 
 // ===== TOAST =====
+// Única implementação canônica. toast-notifications.js também define window.showToast —
+// este arquivo é carregado ANTES, então toast-notifications.js vai sobrescrever.
+// A assinatura unificada é: showToast(message, type = 'info', duration = 4000)
+// toast-notifications.js respeita essa assinatura via seu wrapper global.
 function showToast(message, type = 'info', duration = 4000) {
     const container = document.getElementById('toast-container');
     if (!container) return;
@@ -255,7 +214,6 @@ function setBar(id, value) {
 }
 
 // ===== GLOBAL SEARCH =====
-// Usa /api/monitoring/assets (todos os ativos) e /api/modules
 (() => {
     let searchTimeout = null;
 
@@ -283,8 +241,6 @@ function setBar(id, value) {
         const items = [];
 
         try {
-            // GET /api/monitoring/assets — todos os ativos
-            // GET /api/modules — módulos
             const [assetsResult, modulesResult] = await Promise.allSettled([
                 API.get('/monitoring/assets'),
                 API.get('/modules'),
@@ -361,7 +317,7 @@ function Paginator(items, opts = {}) {
         renderControls(containerId) {
             if (containerId) container = containerId;
             const el = document.getElementById(container);
-            if (!el) return;
+            if (!el) return; // ← silencioso se container não existir
 
             const tp = totalPages();
             if (tp <= 1) { el.innerHTML = ''; return; }
@@ -414,32 +370,50 @@ function skeleton(rows = 5, cols = 4) {
 }
 
 // ===== CONFIRM MODAL =====
+// ─── CORREÇÃO: implementação própria que não depende de modal no HTML ─────
+// Cria o modal dinamicamente na primeira chamada e reutiliza nas seguintes.
 function confirmAction(message, opts = {}) {
     return new Promise((resolve) => {
-        const modal = document.getElementById('confirm-modal');
-        const msgEl = document.getElementById('confirm-modal-message');
-        const btnOk = document.getElementById('confirm-modal-ok');
-        const btnCancel = document.getElementById('confirm-modal-cancel');
-        const closeBtn = document.getElementById('confirm-modal-close');
+        // Reutiliza modal existente ou cria um novo
+        let modal = document.getElementById('confirm-modal');
 
-        if (!modal || !msgEl) {
-            resolve(confirm(message));
-            return;
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'confirm-modal';
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-box" style="max-width:420px;">
+                    <div class="modal-header">
+                        <h3 id="confirm-modal-title">Confirmar ação</h3>
+                        <button class="modal-close" id="confirm-modal-close">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <p id="confirm-modal-message" style="color:var(--text-secondary);line-height:1.5;"></p>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-ghost" id="confirm-modal-cancel">Cancelar</button>
+                        <button class="btn btn-primary" id="confirm-modal-ok">Confirmar</button>
+                    </div>
+                </div>`;
+            document.body.appendChild(modal);
         }
+
+        const msgEl = modal.querySelector('#confirm-modal-message');
+        const btnOk = modal.querySelector('#confirm-modal-ok');
+        const btnCancel = modal.querySelector('#confirm-modal-cancel');
+        const closeBtn = modal.querySelector('#confirm-modal-close');
 
         msgEl.textContent = message;
-        if (btnOk) {
-            btnOk.textContent = opts.okText || 'Confirmar';
-            btnOk.className = `btn ${opts.danger ? 'btn-danger' : 'btn-primary'}`;
-        }
+        btnOk.textContent = opts.okText || 'Confirmar';
+        btnOk.className = `btn ${opts.danger ? 'btn-danger' : 'btn-primary'}`;
 
         modal.classList.add('active');
 
         function cleanup(result) {
             modal.classList.remove('active');
-            btnOk?.removeEventListener('click', onOk);
-            btnCancel?.removeEventListener('click', onCancel);
-            closeBtn?.removeEventListener('click', onCancel);
+            btnOk.removeEventListener('click', onOk);
+            btnCancel.removeEventListener('click', onCancel);
+            closeBtn.removeEventListener('click', onCancel);
             modal.removeEventListener('click', onBackdrop);
             resolve(result);
         }
@@ -448,9 +422,9 @@ function confirmAction(message, opts = {}) {
         const onCancel = () => cleanup(false);
         const onBackdrop = (e) => { if (e.target === modal) cleanup(false); };
 
-        btnOk?.addEventListener('click', onOk);
-        btnCancel?.addEventListener('click', onCancel);
-        closeBtn?.addEventListener('click', onCancel);
+        btnOk.addEventListener('click', onOk);
+        btnCancel.addEventListener('click', onCancel);
+        closeBtn.addEventListener('click', onCancel);
         modal.addEventListener('click', onBackdrop);
     });
 }
