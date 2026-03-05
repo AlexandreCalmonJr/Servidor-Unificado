@@ -1,0 +1,276 @@
+<!-- =============================================================================
+  IMPRESSORAS — adicionar ao frontend/index.html
+  Cole o bloco HTML dentro da content-area, depois das outras page-sections.
+  Cole o bloco CSS dentro da tag <style> principal.
+  Adicione o item de sidebar e o <script> conforme indicado abaixo.
+============================================================================= -->
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+  1. SIDEBAR — adicionar depois do botão "Módulos" (ou onde couber)
+═══════════════════════════════════════════════════════════════════════════ -->
+<!--
+<button class="nav-item" data-page="printers">
+    <span class="nav-icon">🖨️</span>
+    <span class="nav-label">Impressoras</span>
+</button>
+-->
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+  2. PAGE SECTION — adicionar dentro de .content-area
+═══════════════════════════════════════════════════════════════════════════ -->
+<div class="page-section" id="page-printers" style="display:none">
+
+  <!-- Cabeçalho -->
+  <div class="section-header">
+    <h2>🖨️ Impressoras</h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-ghost btn-sm" id="printer-test-snmp-btn">🔍 Testar SNMP</button>
+      <button class="btn btn-ghost btn-sm" id="printer-poll-all-btn">🔄 Atualizar Todas</button>
+      <button class="btn btn-primary"      id="add-printer-btn">+ Nova Impressora</button>
+    </div>
+  </div>
+
+  <!-- Summary cards -->
+  <div class="printer-summary-row">
+    <div class="summary-card">
+      <div class="summary-value" id="printer-summary-total">—</div>
+      <div class="summary-label">Total</div>
+    </div>
+    <div class="summary-card summary-online">
+      <div class="summary-value" id="printer-summary-online">—</div>
+      <div class="summary-label">Online</div>
+    </div>
+    <div class="summary-card summary-offline">
+      <div class="summary-value" id="printer-summary-offline">—</div>
+      <div class="summary-label">Offline</div>
+    </div>
+    <div class="summary-card summary-alert">
+      <div class="summary-value" id="printer-summary-alerts">—</div>
+      <div class="summary-label">Alertas de Toner</div>
+    </div>
+  </div>
+
+  <!-- Filtros + busca -->
+  <div class="printer-toolbar">
+    <div class="filter-tabs">
+      <button class="btn btn-ghost btn-sm active" data-printer-filter="all">Todas</button>
+      <button class="btn btn-ghost btn-sm" data-printer-filter="online">Online</button>
+      <button class="btn btn-ghost btn-sm" data-printer-filter="offline">Offline</button>
+      <button class="btn btn-ghost btn-sm" data-printer-filter="warning">Atenção</button>
+    </div>
+    <input type="text" id="printer-search" class="form-input search-input"
+           placeholder="🔎 Buscar por nome, IP, modelo…">
+  </div>
+
+  <!-- Tabela -->
+  <div class="table-wrapper">
+    <table class="data-table printers-table">
+      <thead>
+        <tr>
+          <th>Nome / Setor</th>
+          <th>Endereço</th>
+          <th>Modelo</th>
+          <th>Status</th>
+          <th>Toner</th>
+          <th class="text-right">Páginas</th>
+          <th>Última Leitura</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="printers-tbody">
+        <tr><td colspan="8" class="table-loading">Carregando…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div><!-- /page-printers -->
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+  3. CSS — adicionar dentro de <style> ou em um arquivo CSS separado
+═══════════════════════════════════════════════════════════════════════════ -->
+<style>
+/* ── Summary row ── */
+.printer-summary-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.summary-card {
+  flex: 1 1 100px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  padding: 16px 20px;
+  text-align: center;
+  min-width: 100px;
+}
+.summary-value {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.summary-label {
+  font-size: 0.78rem;
+  color: var(--text-muted, #6b7280);
+  margin-top: 4px;
+}
+.summary-online  .summary-value { color: #16a34a; }
+.summary-offline .summary-value { color: #dc2626; }
+.summary-alert   .summary-value { color: #d97706; }
+
+/* ── Toolbar ── */
+.printer-toolbar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.filter-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.filter-tabs .btn.active {
+  background: var(--primary, #3b82f6);
+  color: #fff;
+  border-color: var(--primary, #3b82f6);
+}
+.search-input {
+  flex: 1 1 220px;
+  min-width: 180px;
+  max-width: 340px;
+}
+
+/* ── Toner bars ── */
+.toner-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 3px;
+  min-width: 120px;
+}
+.toner-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  width: 14px;
+  text-align: center;
+  color: var(--text-muted, #6b7280);
+}
+.toner-track {
+  flex: 1;
+  height: 8px;
+  background: var(--border, #e5e7eb);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.toner-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+.toner-ok       { background: #16a34a; }
+.toner-low      { background: #d97706; }
+.toner-critical { background: #dc2626; }
+.toner-pct {
+  font-size: 0.7rem;
+  width: 28px;
+  text-align: right;
+  color: var(--text-muted, #6b7280);
+}
+
+/* ── Printer table ── */
+.printer-name { font-weight: 600; }
+.printer-sub  { font-size: 0.78rem; color: var(--text-muted, #6b7280); }
+.action-btns  { display: flex; gap: 4px; }
+.btn-xs { padding: 2px 7px; font-size: 0.78rem; }
+.btn-danger:hover { color: #dc2626; }
+.text-right { text-align: right; }
+.text-sm    { font-size: 0.82rem; }
+.text-muted { color: var(--text-muted, #6b7280); }
+.text-success { color: #16a34a; }
+.text-warning { color: #d97706; }
+.text-danger  { color: #dc2626; }
+
+/* ── Status badges ── */
+.status-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.status-online  { background: #dcfce7; color: #15803d; }
+.status-offline { background: #fee2e2; color: #b91c1c; }
+.status-warning { background: #fef3c7; color: #b45309; }
+.status-error   { background: #fee2e2; color: #b91c1c; }
+.status-unknown { background: #f3f4f6; color: #6b7280; }
+
+/* ── Table states ── */
+.table-loading, .table-empty {
+  text-align: center;
+  padding: 48px;
+  color: var(--text-muted, #6b7280);
+}
+
+/* ── Modal ── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+.modal-dialog {
+  background: var(--card-bg, #fff);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 24px 0;
+}
+.modal-header h3 { margin: 0; font-size: 1.1rem; }
+.modal-close { background: none; border: none; cursor: pointer; font-size: 1.2rem; color: var(--text-muted, #6b7280); }
+.modal-body   { padding: 20px 24px; }
+.modal-footer { padding: 0 24px 20px; display: flex; justify-content: flex-end; gap: 8px; }
+.form-grid    { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 480px) { .form-grid { grid-template-columns: 1fr; } }
+.form-group   { display: flex; flex-direction: column; gap: 4px; }
+.form-group label { font-size: 0.82rem; font-weight: 600; color: var(--text-muted, #6b7280); }
+.form-hint    { font-size: 0.78rem; margin-top: 4px; min-height: 18px; }
+
+/* ── SNMP result box ── */
+.snmp-result-box {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  line-height: 1.7;
+}
+.snmp-success { background: #f0fdf4; border: 1px solid #86efac; color: #15803d; }
+.snmp-error   { background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; }
+</style>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+  4. SCRIPT — adicionar antes do </body>, depois dos outros scripts
+═══════════════════════════════════════════════════════════════════════════ -->
+<!--
+<script src="js/printers.js"></script>
+-->
+
+<!-- Dentro do roteador de páginas (onde você mostra/esconde sections),
+     ao entrar na página "printers", chame:
+
+     window.printersModule.init();
+     window.printersModule.bindFilters();
+
+     Ao sair da página, para o auto-refresh:
+
+     window.printersModule.stopAutoRefresh();
+-->

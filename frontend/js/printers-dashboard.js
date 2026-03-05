@@ -3,11 +3,36 @@
 let allPrinters = [];
 let chartsInstances = {};
 let currentPrinterId = null;
+let editingPrinterId = null;
+let printersRefreshTimer = null;
+let printersDashboardInitialized = false;
+let discoveredPrinters = [];
+const TONER_MONO_ONLY = true;
+
+function destroyChartInstance(key, canvasEl) {
+  if (chartsInstances[key]) {
+    try { chartsInstances[key].destroy(); } catch (e) { /* noop */ }
+    chartsInstances[key] = null;
+  }
+
+  if (typeof Chart !== 'undefined' && typeof Chart.getChart === 'function' && canvasEl) {
+    const existing = Chart.getChart(canvasEl);
+    if (existing) {
+      try { existing.destroy(); } catch (e) { /* noop */ }
+    }
+  }
+}
 
 /**
  * Inicializa o dashboard de impressoras
  */
 async function initPrintersDashboard() {
+  if (printersDashboardInitialized) {
+    await loadPrinters();
+    return;
+  }
+
+  printersDashboardInitialized = true;
   console.log('Inicializando dashboard de impressoras...');
   
   // Carrega impressoras
@@ -17,7 +42,7 @@ async function initPrintersDashboard() {
   setupEventListeners();
   
   // Atualiza a cada 30 segundos
-  setInterval(loadPrinters, 30000);
+  printersRefreshTimer = setInterval(loadPrinters, 30000);
 }
 
 /**
@@ -102,6 +127,7 @@ function renderPrintersTable(printers) {
         <td>
           <div class="table-actions">
             <button class="action-btn action-btn-view" onclick="showPrinterDetails('${printer._id}')">👁️</button>
+            <button class="action-btn action-btn-edit" onclick="openEditPrinter('${printer._id}')">Edit</button>
             <button class="action-btn action-btn-refresh" onclick="refreshPrinterStatus('${printer._id}')">🔄</button>
             <button class="action-btn action-btn-delete" onclick="confirmDeletePrinter('${printer._id}', '${printer.asset_name}')">🗑️</button>
           </div>
@@ -155,7 +181,7 @@ function renderCharts() {
  * Gráfico de status
  */
 function renderStatusChart() {
-  const ctx = document.getElementById('chart-status');
+  const ctx = document.getElementById('printer-chart-status');
   if (!ctx) return;
   
   const summary = {
@@ -164,7 +190,7 @@ function renderStatusChart() {
     maintenance: allPrinters.filter(p => p.status === 'maintenance').length,
   };
   
-  if (chartsInstances.status) chartsInstances.status.destroy();
+  destroyChartInstance('status', ctx);
   
   chartsInstances.status = new Chart(ctx, {
     type: 'doughnut',
@@ -191,7 +217,7 @@ function renderStatusChart() {
  * Gráfico de fabricante
  */
 function renderManufacturerChart() {
-  const ctx = document.getElementById('chart-manufacturer');
+  const ctx = document.getElementById('printer-chart-manufacturer');
   if (!ctx) return;
   
   const manufacturers = {};
@@ -200,7 +226,7 @@ function renderManufacturerChart() {
     manufacturers[mfg] = (manufacturers[mfg] || 0) + 1;
   });
   
-  if (chartsInstances.manufacturer) chartsInstances.manufacturer.destroy();
+  destroyChartInstance('manufacturer', ctx);
   
   chartsInstances.manufacturer = new Chart(ctx, {
     type: 'bar',
@@ -232,13 +258,13 @@ function renderManufacturerChart() {
  * Gráfico de conexão
  */
 function renderConnectionChart() {
-  const ctx = document.getElementById('chart-connection');
+  const ctx = document.getElementById('printer-chart-connection');
   if (!ctx) return;
   
   const network = allPrinters.filter(p => p.connection_type === 'network').length;
   const usb = allPrinters.filter(p => p.connection_type === 'usb').length;
   
-  if (chartsInstances.connection) chartsInstances.connection.destroy();
+  destroyChartInstance('connection', ctx);
   
   chartsInstances.connection = new Chart(ctx, {
     type: 'pie',
@@ -265,10 +291,10 @@ function renderConnectionChart() {
  * Gráfico de toner
  */
 function renderTonerChart() {
-  const ctx = document.getElementById('chart-toner');
+  const ctx = document.getElementById('printer-chart-toner');
   if (!ctx) return;
   
-  const colors = ['black', 'cyan', 'magenta', 'yellow'];
+  const colors = TONER_MONO_ONLY ? ['black'] : ['black', 'cyan', 'magenta', 'yellow'];
   const averages = {};
   
   colors.forEach(color => {
@@ -283,10 +309,11 @@ function renderTonerChart() {
   
   if (Object.keys(averages).length === 0) {
     // Sem dados de toner
+    destroyChartInstance('toner', ctx);
     return;
   }
   
-  if (chartsInstances.toner) chartsInstances.toner.destroy();
+  destroyChartInstance('toner', ctx);
   
   chartsInstances.toner = new Chart(ctx, {
     type: 'bar',
@@ -295,8 +322,12 @@ function renderTonerChart() {
       datasets: [{
         label: 'Nível Médio (%)',
         data: Object.values(averages),
-        backgroundColor: ['#2c3e50', '#3498db', '#e91e63', '#f39c12'],
-        borderColor: ['#1a252f', '#2980b9', '#c2185b', '#d68910'],
+        backgroundColor: TONER_MONO_ONLY
+          ? ['#2c3e50']
+          : ['#2c3e50', '#3498db', '#e91e63', '#f39c12'],
+        borderColor: TONER_MONO_ONLY
+          ? ['#1a252f']
+          : ['#1a252f', '#2980b9', '#c2185b', '#d68910'],
         borderWidth: 1
       }]
     },
@@ -397,6 +428,13 @@ async function refreshPrinterStatus(printerId) {
  * Abre modal de registro de impressora
  */
 function openRegisterModal() {
+  editingPrinterId = null;
+  const title = document.getElementById('modal-register-title');
+  const saveBtn = document.getElementById('modal-btn-save-register');
+  const serialInput = document.getElementById('reg-serial');
+  if (title) title.textContent = 'Registrar Nova Impressora';
+  if (saveBtn) saveBtn.textContent = 'Registrar';
+  if (serialInput) serialInput.disabled = false;
   document.getElementById('modal-register-printer').style.display = 'flex';
 }
 
@@ -404,8 +442,45 @@ function openRegisterModal() {
  * Fecha modal de registro
  */
 function closeRegisterModal() {
+  editingPrinterId = null;
+  const title = document.getElementById('modal-register-title');
+  const saveBtn = document.getElementById('modal-btn-save-register');
+  const serialInput = document.getElementById('reg-serial');
+  if (title) title.textContent = 'Registrar Nova Impressora';
+  if (saveBtn) saveBtn.textContent = 'Registrar';
+  if (serialInput) serialInput.disabled = false;
   document.getElementById('modal-register-printer').style.display = 'none';
   document.getElementById('form-register-printer').reset();
+}
+
+function openEditPrinter(printerId) {
+  const printer = allPrinters.find((p) => p._id === printerId);
+  if (!printer) {
+    showNotification('Impressora nao encontrada para edicao', 'error');
+    return;
+  }
+
+  editingPrinterId = printerId;
+  document.getElementById('reg-name').value = printer.asset_name || '';
+  document.getElementById('reg-serial').value = printer.serial_number || '';
+  document.getElementById('reg-manufacturer').value = printer.manufacturer || '';
+  document.getElementById('reg-model').value = printer.model || '';
+  document.getElementById('reg-connection').value = printer.connection_type || '';
+  document.getElementById('reg-ip').value = printer.ip_address || '';
+  document.getElementById('reg-usb').value = printer.usb_path || '';
+  document.getElementById('reg-hostname').value = printer.hostname || '';
+  document.getElementById('reg-mac').value = printer.mac_address || '';
+  document.getElementById('reg-location').value = printer.location || printer.floor || '';
+  toggleConnectionFields();
+
+  const title = document.getElementById('modal-register-title');
+  const saveBtn = document.getElementById('modal-btn-save-register');
+  const serialInput = document.getElementById('reg-serial');
+  if (title) title.textContent = 'Editar Impressora';
+  if (saveBtn) saveBtn.textContent = 'Salvar Alteracoes';
+  if (serialInput) serialInput.disabled = true;
+
+  document.getElementById('modal-register-printer').style.display = 'flex';
 }
 
 /**
@@ -435,11 +510,20 @@ async function registerPrinter() {
     model: document.getElementById('reg-model').value,
     connection_type: document.getElementById('reg-connection').value,
     ip_address: document.getElementById('reg-ip').value || null,
+    usb_path: document.getElementById('reg-usb').value || null,
+    hostname: document.getElementById('reg-hostname').value || null,
+    mac_address: document.getElementById('reg-mac').value || null,
+    location: document.getElementById('reg-location').value || null,
+    floor: document.getElementById('reg-location').value || null,
+    custom_data: { print_mode: 'mono' },
   };
   
   try {
-    const response = await fetch('/api/printers/register', {
-      method: 'POST',
+    const isEditing = Boolean(editingPrinterId);
+    const endpoint = isEditing ? `/api/printers/${editingPrinterId}` : '/api/printers/register';
+    const method = isEditing ? 'PUT' : 'POST';
+    const response = await fetch(endpoint, {
+      method,
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${getAuthToken()}`
@@ -447,15 +531,21 @@ async function registerPrinter() {
       body: JSON.stringify(data)
     });
     
-    if (!response.ok) throw new Error('Erro ao registrar impressora');
-    
-    showNotification('Impressora registrada com sucesso', 'success');
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.message || 'Erro ao registrar impressora');
+
+    const message = isEditing
+      ? 'Impressora atualizada com sucesso'
+      : (payload.updated
+        ? (payload.message || 'Impressora atualizada com sucesso')
+        : 'Impressora registrada com sucesso');
+    showNotification(message, 'success');
     closeRegisterModal();
     await loadPrinters();
     
   } catch (error) {
     console.error('Erro ao registrar:', error);
-    showNotification('Erro ao registrar impressora', 'error');
+    showNotification(error.message || 'Erro ao registrar impressora', 'error');
   }
 }
 
@@ -490,6 +580,131 @@ async function deletePrinter() {
   }
 }
 
+async function resetPrintersData() {
+  const confirmed = window.confirm('Isso vai apagar TODO o cadastro de impressoras. Deseja continuar?');
+  if (!confirmed) return;
+
+  try {
+    const response = await fetch('/api/printers/reset/all', {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${getAuthToken()}` },
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.success === false) {
+      throw new Error(payload.message || 'Erro ao limpar cadastro de impressoras');
+    }
+
+    showNotification(`Cadastro limpo: ${payload.deleted_count || 0} registro(s) removido(s)`, 'success');
+    await loadPrinters();
+  } catch (error) {
+    console.error('Erro ao limpar cadastro:', error);
+    showNotification(error.message || 'Erro ao limpar cadastro', 'error');
+  }
+}
+
+function normalizeDiscoveryPrinter(printer) {
+  const baseName = printer.asset_name || (printer.ip_address ? `Printer ${printer.ip_address}` : 'Printer');
+  const serial = printer.serial_number || (printer.ip_address ? `NET-${printer.ip_address}` : `DISC-${Date.now()}`);
+  const connection = printer.connection_type || (printer.ip_address ? 'network' : 'usb');
+
+  return {
+    asset_name: baseName,
+    serial_number: serial,
+    manufacturer: printer.manufacturer || 'Unknown',
+    model: printer.model || 'Unknown',
+    connection_type: connection,
+    ip_address: printer.ip_address || null,
+    usb_path: printer.usb_path || null,
+    hostname: printer.custom_data?.hostname || printer.hostname || null,
+    mac_address: printer.custom_data?.mac_address || printer.mac_address || null,
+    location: printer.location || 'Terreo',
+    floor: printer.floor || printer.location || 'Terreo',
+    custom_data: {
+      ...(printer.custom_data || {}),
+      open_ports: printer.open_ports || printer.custom_data?.open_ports || [],
+      print_mode: 'mono',
+    },
+  };
+}
+
+function closeDiscoveriesModal() {
+  const modal = document.getElementById('modal-discovered-printers');
+  if (modal) modal.style.display = 'none';
+}
+
+function renderDiscoveriesModal(printers) {
+  const modal = document.getElementById('modal-discovered-printers');
+  const tbody = document.getElementById('discovered-printers-tbody');
+  if (!modal || !tbody) return;
+
+  tbody.innerHTML = printers.map((printer, idx) => `
+    <tr>
+      <td><input type="checkbox" class="discover-select" data-index="${idx}" checked></td>
+      <td>${printer.asset_name || '-'}</td>
+      <td>${printer.manufacturer || 'Unknown'}</td>
+      <td>${printer.model || 'Unknown'}</td>
+      <td>${printer.connection_type === 'usb' ? 'USB' : 'Rede'}</td>
+      <td>${printer.ip_address || printer.usb_path || '-'}</td>
+      <td>${printer.serial_number || '-'}</td>
+    </tr>
+  `).join('');
+
+  const countEl = document.getElementById('discoveries-count');
+  if (countEl) countEl.textContent = `${printers.length} encontrada(s)`;
+
+  const selectAll = document.getElementById('discoveries-select-all');
+  if (selectAll) selectAll.checked = true;
+  modal.style.display = 'flex';
+}
+
+function toggleSelectAllDiscoveries() {
+  const selectAll = document.getElementById('discoveries-select-all');
+  const checked = Boolean(selectAll?.checked);
+  document.querySelectorAll('.discover-select').forEach((el) => {
+    el.checked = checked;
+  });
+}
+
+async function registerSelectedDiscoveries() {
+  const selectedIndexes = Array.from(document.querySelectorAll('.discover-select:checked'))
+    .map((input) => Number(input.getAttribute('data-index')))
+    .filter((idx) => Number.isInteger(idx) && idx >= 0);
+
+  if (!selectedIndexes.length) {
+    showNotification('Selecione ao menos uma impressora descoberta', 'error');
+    return;
+  }
+
+  const selected = selectedIndexes.map((idx) => normalizeDiscoveryPrinter(discoveredPrinters[idx]));
+
+  try {
+    const response = await fetch('/api/printers/register-batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`,
+      },
+      body: JSON.stringify({ printers: selected }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.success === false) {
+      throw new Error(payload.message || 'Erro ao cadastrar impressoras descobertas');
+    }
+
+    showNotification(
+      `Cadastro concluido: ${payload.success_count || selected.length} impressora(s) processada(s)`,
+      'success'
+    );
+    closeDiscoveriesModal();
+    await loadPrinters();
+  } catch (error) {
+    console.error('Erro ao cadastrar descobertas:', error);
+    showNotification(error.message || 'Erro ao cadastrar descobertas', 'error');
+  }
+}
+
 /**
  * Inicia descoberta de impressoras
  */
@@ -497,19 +712,27 @@ async function discoverPrinters() {
   try {
     const response = await fetch('/api/printers/discover', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`,
+      },
+      body: JSON.stringify({ persist: false }),
     });
-    
-    if (!response.ok) throw new Error('Erro ao iniciar descoberta');
-    
-    showNotification('Descoberta iniciada. Verifique em alguns momentos...', 'success');
-    
-    // Recarrega após 5 segundos
-    setTimeout(loadPrinters, 5000);
-    
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.message || 'Erro ao iniciar descoberta');
+
+    discoveredPrinters = Array.isArray(payload.discovered) ? payload.discovered : [];
+    if (!discoveredPrinters.length) {
+      showNotification('Nenhuma impressora encontrada na rede/USB', 'info');
+      return;
+    }
+
+    renderDiscoveriesModal(discoveredPrinters);
+    showNotification(`${discoveredPrinters.length} impressora(s) encontrada(s)`, 'success');
   } catch (error) {
     console.error('Erro na descoberta:', error);
-    showNotification('Erro ao iniciar descoberta', 'error');
+    showNotification(error.message || 'Erro ao iniciar descoberta', 'error');
   }
 }
 
@@ -538,6 +761,8 @@ function setupEventListeners() {
   document.getElementById('btn-refresh-printers').addEventListener('click', loadPrinters);
   document.getElementById('btn-discover-printers').addEventListener('click', discoverPrinters);
   document.getElementById('btn-register-printer').addEventListener('click', openRegisterModal);
+  const resetBtn = document.getElementById('btn-reset-printers');
+  if (resetBtn) resetBtn.addEventListener('click', resetPrintersData);
   
   // Modal de detalhes
   document.getElementById('modal-close-details').addEventListener('click', () => {
@@ -552,6 +777,14 @@ function setupEventListeners() {
     await refreshPrinterStatus(currentPrinterId);
     document.getElementById('modal-printer-details').style.display = 'none';
   });
+
+  const detailsEditBtn = document.getElementById('modal-btn-edit');
+  if (detailsEditBtn) {
+    detailsEditBtn.addEventListener('click', () => {
+      document.getElementById('modal-printer-details').style.display = 'none';
+      openEditPrinter(currentPrinterId);
+    });
+  }
   
   document.getElementById('modal-btn-delete').addEventListener('click', () => {
     const name = document.getElementById('detail-name').textContent;
@@ -563,6 +796,16 @@ function setupEventListeners() {
   document.getElementById('modal-close-register').addEventListener('click', closeRegisterModal);
   document.getElementById('modal-btn-cancel-register').addEventListener('click', closeRegisterModal);
   document.getElementById('modal-btn-save-register').addEventListener('click', registerPrinter);
+
+  const discoveriesCloseBtn = document.getElementById('modal-close-discovered');
+  const discoveriesCancelBtn = document.getElementById('modal-btn-cancel-discovered');
+  const discoveriesRegisterBtn = document.getElementById('modal-btn-register-discovered');
+  const discoveriesSelectAll = document.getElementById('discoveries-select-all');
+
+  if (discoveriesCloseBtn) discoveriesCloseBtn.addEventListener('click', closeDiscoveriesModal);
+  if (discoveriesCancelBtn) discoveriesCancelBtn.addEventListener('click', closeDiscoveriesModal);
+  if (discoveriesRegisterBtn) discoveriesRegisterBtn.addEventListener('click', registerSelectedDiscoveries);
+  if (discoveriesSelectAll) discoveriesSelectAll.addEventListener('change', toggleSelectAllDiscoveries);
   
   // Modal de confirmação
   document.getElementById('modal-btn-cancel-delete').addEventListener('click', () => {
@@ -602,7 +845,15 @@ function formatTime(date) {
  * Obtém token de autenticação
  */
 function getAuthToken() {
-  return localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || '';
+  if (window.API && typeof window.API.getToken === 'function') {
+    return window.API.getToken() || '';
+  }
+  return (
+    localStorage.getItem('mdm_token') ||
+    localStorage.getItem('auth_token') ||
+    sessionStorage.getItem('auth_token') ||
+    ''
+  );
 }
 
 /**
@@ -623,3 +874,6 @@ if (document.readyState === 'loading') {
 } else {
   initPrintersDashboard();
 }
+
+
+

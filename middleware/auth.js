@@ -30,11 +30,11 @@ const auth = async (req, res, next) => {
     }
 
     if (!token) {
-      logger.debug(`Tentativa de acesso sem token - IP: ${req.ip} - Path: ${req.path} (tentando fallback)`);
-      // ✅ CORREÇÃO: Chamar next(error) para permitir fallback em flexibleAuth
-      const error = new Error('Nenhum token fornecido');
-      error.name = 'NoTokenError';
-      return next(error);
+      logger.debug(`Tentativa de acesso sem token - IP: ${req.ip} - Path: ${req.path}`);
+      return res.status(401).json({
+        success: false,
+        message: 'Nenhum token fornecido'
+      });
     }
 
     // Verificação de Token Estático (AUTH_TOKEN do .env)

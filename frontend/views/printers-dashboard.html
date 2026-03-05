@@ -11,11 +11,14 @@
       <button id="btn-refresh-printers" class="btn btn-primary">
         <span>🔄</span> Atualizar Status
       </button>
-      <button id="btn-discover-printers" class="btn btn-secondary">
+      <button id="btn-discover-printers" class="btn btn-ghost">
         <span>🔍</span> Descobrir Impressoras
       </button>
-      <button id="btn-register-printer" class="btn btn-success">
+      <button id="btn-register-printer" class="btn btn-primary">
         <span>➕</span> Registrar Impressora
+      </button>
+      <button id="btn-reset-printers" class="btn btn-danger">
+        <span>Limpar</span> Cadastros
       </button>
     </div>
   </div>
@@ -125,22 +128,22 @@
   <div class="printers-charts">
     <div class="chart-card">
       <h3>Status das Impressoras</h3>
-      <canvas id="chart-status"></canvas>
+      <canvas id="printer-chart-status"></canvas>
     </div>
     
     <div class="chart-card">
       <h3>Distribuição por Fabricante</h3>
-      <canvas id="chart-manufacturer"></canvas>
+      <canvas id="printer-chart-manufacturer"></canvas>
     </div>
     
     <div class="chart-card">
       <h3>Distribuição por Conexão</h3>
-      <canvas id="chart-connection"></canvas>
+      <canvas id="printer-chart-connection"></canvas>
     </div>
     
     <div class="chart-card">
-      <h3>Níveis de Toner (Média)</h3>
-      <canvas id="chart-toner"></canvas>
+      <h3>Nivel de Toner Preto (Media)</h3>
+      <canvas id="printer-chart-toner"></canvas>
     </div>
   </div>
 </div>
@@ -198,8 +201,9 @@
     </div>
     
     <div class="modal-footer">
-      <button class="btn btn-secondary" id="modal-btn-close">Fechar</button>
+      <button class="btn btn-ghost" id="modal-btn-close">Fechar</button>
       <button class="btn btn-primary" id="modal-btn-refresh">Atualizar Status</button>
+      <button class="btn btn-ghost" id="modal-btn-edit">Editar</button>
       <button class="btn btn-danger" id="modal-btn-delete">Deletar</button>
     </div>
   </div>
@@ -209,7 +213,7 @@
 <div id="modal-register-printer" class="modal" style="display:none;">
   <div class="modal-content modal-medium">
     <div class="modal-header">
-      <h2>Registrar Nova Impressora</h2>
+      <h2 id="modal-register-title">Registrar Nova Impressora</h2>
       <button class="modal-close" id="modal-close-register">&times;</button>
     </div>
     
@@ -240,6 +244,21 @@
           <label for="reg-model">Modelo</label>
           <input type="text" id="reg-model" class="form-input" placeholder="Ex: LaserJet Pro M404n">
         </div>
+
+        <div class="form-group">
+          <label for="reg-hostname">Hostname</label>
+          <input type="text" id="reg-hostname" class="form-input" placeholder="Ex: EmergA_Cons07">
+        </div>
+
+        <div class="form-group">
+          <label for="reg-mac">Endereco MAC</label>
+          <input type="text" id="reg-mac" class="form-input" placeholder="Ex: C0:18:03:A8:B8:76">
+        </div>
+
+        <div class="form-group">
+          <label for="reg-location">Local</label>
+          <input type="text" id="reg-location" class="form-input" placeholder="Ex: Terreo">
+        </div>
         
         <div class="form-group">
           <label for="reg-connection">Tipo de Conexão *</label>
@@ -263,13 +282,49 @@
     </div>
     
     <div class="modal-footer">
-      <button class="btn btn-secondary" id="modal-btn-cancel-register">Cancelar</button>
+      <button class="btn btn-ghost" id="modal-btn-cancel-register">Cancelar</button>
       <button class="btn btn-primary" id="modal-btn-save-register">Registrar</button>
     </div>
   </div>
 </div>
 
-<!-- ===== MODAL: CONFIRMAÇÃO DE DELEÇÃO ===== -->
+
+<!-- ===== MODAL: IMPRESSORAS DESCOBERTAS ===== -->
+<div id="modal-discovered-printers" class="modal" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Impressoras Descobertas</h2>
+      <button class="modal-close" id="modal-close-discovered">&times;</button>
+    </div>
+
+    <div class="modal-body">
+      <p id="discoveries-count">0 encontrada(s)</p>
+      <div class="printers-table-container">
+        <table class="printers-table">
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="discoveries-select-all" checked></th>
+              <th>Nome</th>
+              <th>Fabricante</th>
+              <th>Modelo</th>
+              <th>Conexao</th>
+              <th>IP/USB</th>
+              <th>Serial</th>
+            </tr>
+          </thead>
+          <tbody id="discovered-printers-tbody"></tbody>
+        </table>
+      </div>
+      <p class="text-warning">As impressoras selecionadas serao cadastradas em modo monocromatico (toner preto).</p>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="modal-btn-cancel-discovered">Cancelar</button>
+      <button class="btn btn-primary" id="modal-btn-register-discovered">Cadastrar selecionadas</button>
+    </div>
+  </div>
+</div>
+<!-- ===== MODAL: CONFIRMACAO DE DELECAO ===== -->
 <div id="modal-confirm-delete" class="modal" style="display:none;">
   <div class="modal-content modal-small">
     <div class="modal-header">
@@ -282,8 +337,15 @@
     </div>
     
     <div class="modal-footer">
-      <button class="btn btn-secondary" id="modal-btn-cancel-delete">Cancelar</button>
+      <button class="btn btn-ghost" id="modal-btn-cancel-delete">Cancelar</button>
       <button class="btn btn-danger" id="modal-btn-confirm-delete">Deletar</button>
     </div>
   </div>
 </div>
+
+
+
+
+
+
+

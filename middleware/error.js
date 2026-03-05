@@ -100,6 +100,16 @@ const errorHandler = (logger) => {
       });
     }
 
+    // Falta de token deve ser 401, não 500
+    if (err.name === 'NoTokenError') {
+      logger.warn(`Erro de autenticação: ${err.message}`, errorContext);
+      return res.status(401).json({
+        success: false,
+        status: 'fail',
+        message: 'Nenhum token fornecido'
+      });
+    }
+
     // Erros de programação (bugs) - log como error
     logger.error('ERRO NÃO TRATADO', {
       ...errorContext,

@@ -43,6 +43,7 @@
     "jsonwebtoken": "^9.0.0",
     "mongoose": "^8.0.0",
     "multer": "^2.0.2",
+    "net-snmp": "^3.26.1",
     "node-cache": "^5.1.2",
     "node-cron": "^3.0.2",
     "os": "^0.1.2",

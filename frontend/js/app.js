@@ -131,36 +131,43 @@ const App = (() => {
     }
 
     // Carrega o conteúdo do dashboard de impressoras e inicializa o script
-    onPageLoad("printers", async () => {
-        const contentArea = document.getElementById("page-content");
-        if (contentArea) {
-            try {
-                const response = await fetch("/views/printers-dashboard.html");
+    let printersViewLoaded = false;
+    onPageLoad('printers', async () => {
+        const contentArea = document.getElementById('page-content');
+        if (!contentArea) return;
+
+        try {
+            if (!printersViewLoaded) {
+                const response = await fetch(`/views/printers-dashboard.html?v=${Date.now()}`, { cache: 'no-store' });
                 const html = await response.text();
                 contentArea.innerHTML = html;
-                
-                // Carrega o CSS específico do dashboard de impressoras
-                const head = document.getElementsByTagName("head")[0];
-                const link = document.createElement("link");
-                link.rel = "stylesheet";
-                link.type = "text/css";
-                link.href = "/css/printers-dashboard.css";
-                head.appendChild(link);
-
-                // Inicializa o script do dashboard de impressoras
-                if (typeof initPrintersDashboard === 'function') {
-                    initPrintersDashboard();
-                } else {
-                    // Se o script ainda não foi carregado, carrega-o dinamicamente
-                    const script = document.createElement("script");
-                    script.src = "/js/printers-dashboard.js";
-                    script.onload = () => initPrintersDashboard();
-                    document.body.appendChild(script);
-                }
-            } catch (error) {
-                console.error("Erro ao carregar dashboard de impressoras:", error);
-                contentArea.innerHTML = "<p>Erro ao carregar o dashboard de impressoras.</p>";
+                printersViewLoaded = true;
             }
+
+            const cssId = 'printers-dashboard-css';
+            if (!document.getElementById(cssId)) {
+                const link = document.createElement('link');
+                link.id = cssId;
+                link.rel = 'stylesheet';
+                link.type = 'text/css';
+                link.href = '/css/printers-dashboard.css';
+                document.head.appendChild(link);
+            }
+
+            if (typeof initPrintersDashboard === 'function') {
+                initPrintersDashboard();
+            } else if (!document.querySelector('script[data-printers-dashboard="1"]')) {
+                const script = document.createElement('script');
+                script.src = `/js/printers-dashboard.js?v=${Date.now()}`;
+                script.dataset.printersDashboard = '1';
+                script.onload = () => {
+                    if (typeof initPrintersDashboard === 'function') initPrintersDashboard();
+                };
+                document.body.appendChild(script);
+            }
+        } catch (error) {
+            console.error('Erro ao carregar dashboard de impressoras:', error);
+            contentArea.innerHTML = '<p>Erro ao carregar o dashboard de impressoras.</p>';
         }
     });
 

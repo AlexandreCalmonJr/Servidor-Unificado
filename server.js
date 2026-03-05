@@ -60,7 +60,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // ===== INICIALIZAÇÃO DO SERVIÇO DE IMPRESSORAS =====
-let printerService = null;
+const printerService = new PrinterService(logger);
 
 // ===== LOG DE INICIALIZAÇÃO =====
 logger.logSystemEvent('server_starting', {
@@ -281,7 +281,6 @@ cron.schedule('*/5 * * * *', async () => {
 // ===== INICIALIZAÇÃO DO PRINTER SERVICE =====
 const initializePrinterService = async () => {
   try {
-    printerService = new PrinterService(logger);
     await printerService.start();
     logger.info('✅ Serviço de impressoras iniciado com sucesso');
   } catch (error) {
