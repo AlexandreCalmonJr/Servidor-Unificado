@@ -33,6 +33,7 @@ const assetStatusUpdater = require('./scripts/assetStatusUpdater');
 const { getLocalIPAddress } = require('./utils/helpers');
 const cacheService = require('./services/cacheService');
 const WebSocketServer = require('./services/websocketServer');
+const PrinterService = require('./services/printerService');
 
 // ===== CONTROLLERS =====
 const agentController = require('./controllers/agentController');
@@ -52,9 +53,13 @@ const diagnosticRoutes = require('./routes/diagnosticRoutes');
 const deviceRoutes = require('./routes/deviceRoutes');
 const exportRoutes = require('./routes/exportRoutes');
 const savedFilterRoutes = require('./routes/savedFilterRoutes');
+const printerRoutes = require('./routes/printerRoutes');
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// ===== INICIALIZAÇÃO DO SERVIÇO DE IMPRESSORAS =====
+let printerService = null;
 
 // ===== LOG DE INICIALIZAÇÃO =====
 logger.logSystemEvent('server_starting', {
@@ -232,6 +237,9 @@ app.use('/api/diagnostic', diagnosticRoutes(logger, getApiLimiter, auth));
 app.use('/api/export', exportRoutes(logger, getApiLimiter, auth));
 app.use('/api/filters', savedFilterRoutes(logger, modifyApiLimiter, auth));
 
+// ===== ROTAS DE IMPRESSORAS =====
+app.use('/api/printers', printerRoutes(logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth, printerService));
+
 // ===== PAINEL WEB (SPA) =====
 app.get('/provision/:token', provisioningRoutes.renderProvisioningPage(logger));
 app.get('/dashboard', auth, serverRoutes.renderDashboard(logger));
@@ -268,8 +276,19 @@ cron.schedule('*/5 * * * *', async () => {
   }
 });
 
+// ===== INICIALIZAÇÃO DO PRINTER SERVICE =====
+const initializePrinterService = async () => {
+  try {
+    printerService = new PrinterService(logger);
+    await printerService.start();
+    logger.info('✅ Serviço de impressoras iniciado com sucesso');
+  } catch (error) {
+    logger.error('❌ Erro ao inicializar serviço de impressoras:', error.message);
+  }
+};
+
 // ===== INICIALIZAÇÃO =====
-const server = app.listen(port, '0.0.0.0', () => {
+const server = app.listen(port, '0.0.0.0', async () => {
   const localIp = getLocalIPAddress();
 
   logger.logSystemEvent('server_started', {
@@ -290,12 +309,21 @@ const server = app.listen(port, '0.0.0.0', () => {
   console.log('='.repeat(60) + '\n');
 
   new WebSocketServer(server);
+  
+  // Inicializa serviço de impressoras
+  await initializePrinterService();
 });
 
 // ===== GRACEFUL SHUTDOWN =====
 const gracefulShutdown = async (signal) => {
   logger.logSystemEvent('shutdown_initiated', { signal });
   console.log(`\n⚠️  ${signal} recebido. Encerrando servidor...`);
+
+  // Para o serviço de impressoras
+  if (printerService) {
+    printerService.stop();
+    console.log('✅ Serviço de impressoras parado');
+  }
 
   server.close(async () => {
     logger.logSystemEvent('server_closed');
