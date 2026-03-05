@@ -42,6 +42,8 @@ const STATUS_MAP = {
   4: 'online',
   5: 'maintenance',
 };
+const PRINTER_TEXT_HINT = /(printer|laserjet|officejet|deskjet|pagewide|neverstop|mfp|workcentre|phaser|altalink|xerox|samsung\s*(ml|scx|sl-|xpress)|brother|canon|ricoh|kyocera|epson|lexmark)/i;
+const NETWORK_DEVICE_TEXT_HINT = /(switch|router|firewall|officeconnect|aruba|cisco|juniper|mikrotik|fortigate|ubiquiti|hpe officeconnect)/i;
 
 class PrinterService {
   constructor(logger) {
@@ -268,11 +270,13 @@ class PrinterService {
         const ip = hosts[index];
 
         // eslint-disable-next-line no-await-in-loop
-        const ports = await this.getOpenPrinterPorts(ip);
+        const ports = await this.getOpenPrinterPorts(ip, { includeWebPorts: false });
         if (!ports.length) continue;
 
         // eslint-disable-next-line no-await-in-loop
         const deviceInfo = await this.tryReadDiscoveryInfo(ip);
+        if (!this.shouldAcceptDiscoveryDevice(ports, deviceInfo)) continue;
+
         const model = deviceInfo.model || 'Network Printer';
         const serial = deviceInfo.serial || `NET-${ip}`;
         const manufacturer = deviceInfo.brand || this.detectBrand(model) || 'Unknown';
@@ -322,8 +326,9 @@ class PrinterService {
     return Array.from(prefixes);
   }
 
-  async getOpenPrinterPorts(ip) {
-    const ports = [9100, 631, 515, 80, 443];
+  async getOpenPrinterPorts(ip, options = {}) {
+    const includeWebPorts = options.includeWebPorts === true;
+    const ports = includeWebPorts ? [9100, 631, 515, 80, 443] : [9100, 631, 515];
     const checks = await Promise.all(ports.map((port) => this.isTcpPortOpen(ip, port, 450)));
     return ports.filter((_, idx) => checks[idx]);
   }
@@ -354,7 +359,31 @@ class PrinterService {
       model,
       serial,
       hostname: null,
+      sysDescr: data[OIDS.sysDescr] || null,
     };
+  }
+
+  isLikelyPrinterBySnmp(deviceInfo) {
+    const model = String(deviceInfo?.model || '');
+    const sysDescr = String(deviceInfo?.sysDescr || '');
+    if (NETWORK_DEVICE_TEXT_HINT.test(model) || NETWORK_DEVICE_TEXT_HINT.test(sysDescr)) return false;
+    return PRINTER_TEXT_HINT.test(model) || PRINTER_TEXT_HINT.test(sysDescr);
+  }
+
+  shouldAcceptDiscoveryDevice(ports, deviceInfo) {
+    const model = String(deviceInfo?.model || '');
+    const sysDescr = String(deviceInfo?.sysDescr || '');
+    if (NETWORK_DEVICE_TEXT_HINT.test(model) || NETWORK_DEVICE_TEXT_HINT.test(sysDescr)) return false;
+
+    const hasRawPort = ports.includes(9100);
+    const hasLpdPort = ports.includes(515);
+    const hasIppPort = ports.includes(631);
+    const looksLikePrinterBySnmp = this.isLikelyPrinterBySnmp(deviceInfo);
+
+    // 9100 eh forte indicativo de impressora; 515/631 exigem confirmacao por SNMP.
+    if (hasRawPort) return true;
+    if ((hasLpdPort || hasIppPort) && looksLikePrinterBySnmp) return true;
+    return false;
   }
 
   async isTcpPortOpen(ip, port, timeoutMs = 500) {
@@ -537,13 +566,14 @@ class PrinterService {
     const alerts = this.computeAlerts(toner);
     const statusCode = Number(snmpData[OIDS.printerStatus] || 1);
     const status = STATUS_MAP[statusCode] || 'unknown';
+    const finalStatus = status === 'unknown' && hasPrinterPort ? 'online' : status;
 
     const model = snmpData[OIDS.hpModel] || snmpData[OIDS.samsungModel] || snmpData[OIDS.sysDescr] || null;
     const serial = snmpData[OIDS.hpSerial] || snmpData[OIDS.samsungSerial] || null;
     const brand = this.detectBrand(model);
 
     return {
-      status,
+      status: finalStatus,
       brand,
       model,
       serial,

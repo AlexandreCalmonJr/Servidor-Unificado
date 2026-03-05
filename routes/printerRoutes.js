@@ -1,6 +1,7 @@
 const express = require('express');
 const ManagedAsset = require('../models/ManagedAsset');
 const AssetModuleConfig = require('../models/AssetModuleConfig');
+const locationService = require('../services/locationService');
 
 module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, printerService) => {
   const router = express.Router();
@@ -71,6 +72,50 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
     return aliasMap[value];
   }
 
+  function cleanMappedValue(value, unknownTokens = []) {
+    if (value === undefined || value === null) return null;
+    const normalized = String(value).trim();
+    if (!normalized) return null;
+    const lowered = normalized.toLowerCase();
+    if (unknownTokens.includes(lowered)) return null;
+    return normalized;
+  }
+
+  async function resolveMappedLocation(input = {}, fallback = {}) {
+    const safeInput = input || {};
+    const safeFallback = fallback || {};
+    const ipAddress = safeInput.ip_address || safeFallback.ip_address || null;
+    const macAddress = safeInput.mac_address || safeInput.mac_address_radio || safeFallback.mac_address || null;
+    let mapped = null;
+
+    if (ipAddress || macAddress) {
+      try {
+        mapped = await locationService.mapDeviceLocation({
+          ip_address: ipAddress,
+          mac_address_radio: macAddress,
+          device_name: safeInput.asset_name || safeFallback.asset_name || 'Printer',
+        });
+      } catch (error) {
+        logger.warn(`[printerRoutes] Falha ao mapear localizacao da impressora: ${error.message}`);
+      }
+    }
+
+    const unit = cleanMappedValue(safeInput.unit ?? safeFallback.unit) || cleanMappedValue(mapped?.unit, ['n/a']);
+    const sector = cleanMappedValue(safeInput.sector ?? safeFallback.sector) || cleanMappedValue(mapped?.sector, ['desconhecido', 'unknown']);
+    const floor = cleanMappedValue(safeInput.floor ?? safeFallback.floor ?? safeInput.location ?? safeFallback.location)
+      || cleanMappedValue(mapped?.floor, ['desconhecido', 'unknown']);
+    const location = cleanMappedValue(safeInput.location ?? safeFallback.location) || floor || null;
+
+    return { unit, sector, floor, location };
+  }
+
+  function sortableText(value) {
+    const v = String(value || '').trim().toLowerCase();
+    if (!v) return '\uffff';
+    if (['n/a', 'desconhecido', 'unknown', '-'].includes(v)) return '\uffff';
+    return v;
+  }
+
   router.get('/', auth, getApiLimiter, validatePrinterModule, async (req, res) => {
     try {
       const { status, manufacturer, connection_type, search } = req.query;
@@ -92,6 +137,9 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
           { serial_number: { $regex: search, $options: 'i' } },
           { model: { $regex: search, $options: 'i' } },
           { ip_address: { $regex: search, $options: 'i' } },
+          { unit: { $regex: search, $options: 'i' } },
+          { sector: { $regex: search, $options: 'i' } },
+          { floor: { $regex: search, $options: 'i' } },
         ];
       }
 
@@ -99,7 +147,14 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
         .sort({ status: 1, asset_name: 1 })
         .lean();
 
-      const printers = printersRaw.map(normalizePrinter);
+      const printers = printersRaw
+        .map(normalizePrinter)
+        .sort((a, b) => (
+          sortableText(a.unit).localeCompare(sortableText(b.unit), 'pt-BR')
+          || sortableText(a.sector).localeCompare(sortableText(b.sector), 'pt-BR')
+          || sortableText(a.floor || a.location).localeCompare(sortableText(b.floor || b.location), 'pt-BR')
+          || sortableText(a.asset_name).localeCompare(sortableText(b.asset_name), 'pt-BR')
+        ));
       const summary = {
         total: printers.length,
         online: printers.filter((p) => p.status === 'online').length,
@@ -240,6 +295,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
       });
       const customDataInput = data.custom_data || {};
       if (existing) {
+        const mappedLocation = await resolveMappedLocation(data, existing.toObject ? existing.toObject() : existing);
         existing.asset_name = data.asset_name;
         existing.manufacturer = data.manufacturer || existing.manufacturer || 'Unknown';
         existing.model = data.model || existing.model || 'Unknown';
@@ -250,8 +306,10 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
         if (normalizedStatus) existing.status = normalizedStatus;
         existing.hostname = data.hostname || existing.hostname || null;
         existing.mac_address = data.mac_address || existing.mac_address || null;
-        existing.location = data.location || existing.location || null;
-        existing.floor = data.floor || existing.floor || existing.location || existing.floor || null;
+        existing.unit = mappedLocation.unit;
+        existing.sector = mappedLocation.sector;
+        existing.location = mappedLocation.location;
+        existing.floor = mappedLocation.floor;
         existing.custom_data = {
           ...(existing.custom_data instanceof Map ? Object.fromEntries(existing.custom_data) : (existing.custom_data || {})),
           ...customDataInput,
@@ -273,6 +331,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
         });
       }
 
+      const mappedLocation = await resolveMappedLocation(data);
       const printer = await ManagedAsset.create({
         module_id: req.printerModule._id,
         asset_type: 'printer',
@@ -286,8 +345,10 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
         snmp_community: data.snmp_community || 'public',
         hostname: data.hostname || null,
         mac_address: data.mac_address || null,
-        location: data.location || null,
-        floor: data.floor || data.location || null,
+        unit: mappedLocation.unit,
+        sector: mappedLocation.sector,
+        location: mappedLocation.location,
+        floor: mappedLocation.floor,
         custom_data: {
           ...customDataInput,
           print_mode: 'mono',
@@ -316,6 +377,16 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
 
       const results = [];
       for (const p of printers) {
+        if (!p || typeof p !== 'object') {
+          results.push({
+            success: false,
+            serial_number: null,
+            message: 'Item de impressora invalido na lista',
+          });
+          // eslint-disable-next-line no-continue
+          continue;
+        }
+
         if (!p.asset_name || !p.serial_number || !p.connection_type) {
           results.push({
             success: false,
@@ -342,6 +413,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
           module_id: req.printerModule._id,
           serial_number: p.serial_number,
         });
+        const mappedLocation = await resolveMappedLocation(p, existing?.toObject ? existing.toObject() : existing);
 
         const customData = {
           ...(p.custom_data || {}),
@@ -359,8 +431,10 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
           if (normalizedStatus) existing.status = normalizedStatus;
           existing.hostname = p.hostname || existing.hostname || null;
           existing.mac_address = p.mac_address || existing.mac_address || null;
-          existing.location = p.location || existing.location || null;
-          existing.floor = p.floor || existing.floor || p.location || null;
+          existing.unit = mappedLocation.unit;
+          existing.sector = mappedLocation.sector;
+          existing.location = mappedLocation.location;
+          existing.floor = mappedLocation.floor;
           existing.custom_data = {
             ...(existing.custom_data instanceof Map ? Object.fromEntries(existing.custom_data) : (existing.custom_data || {})),
             ...customData,
@@ -389,8 +463,10 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
           snmp_community: p.snmp_community || 'public',
           hostname: p.hostname || null,
           mac_address: p.mac_address || null,
-          location: p.location || null,
-          floor: p.floor || p.location || null,
+          unit: mappedLocation.unit,
+          sector: mappedLocation.sector,
+          location: mappedLocation.location,
+          floor: mappedLocation.floor,
           custom_data: customData,
           status: normalizedStatus || 'offline',
         });
@@ -497,6 +573,8 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
         'status',
         'hostname',
         'mac_address',
+        'unit',
+        'sector',
         'location',
         'floor',
         'custom_data',
@@ -517,6 +595,20 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
         update.status = normalizedStatus;
       }
 
+      const existingPrinter = await ManagedAsset.findOne({
+        _id: req.params.printerId,
+        module_id: req.printerModule._id,
+        asset_type: 'printer',
+        is_deleted: { $ne: true },
+      }).lean();
+      if (!existingPrinter) return res.status(404).json({ success: false, message: 'Impressora nao encontrada' });
+
+      const mappedLocation = await resolveMappedLocation(update, existingPrinter);
+      if (update.unit === undefined) update.unit = mappedLocation.unit;
+      if (update.sector === undefined) update.sector = mappedLocation.sector;
+      if (update.floor === undefined) update.floor = mappedLocation.floor;
+      if (update.location === undefined) update.location = mappedLocation.location;
+
       const printer = await ManagedAsset.findOneAndUpdate(
         {
           _id: req.params.printerId,
@@ -528,7 +620,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
         { new: true }
       ).lean();
 
-      if (!printer) return res.status(404).json({ success: false, message: 'Impressora nao encontrada' });
       return res.json({ success: true, printer: normalizePrinter(printer) });
     } catch (error) {
       return res.status(500).json({ success: false, message: error.message });

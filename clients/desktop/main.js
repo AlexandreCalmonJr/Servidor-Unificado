@@ -124,6 +124,7 @@ function createWindow() {
             assetName: '',
             interval: 300,
             forceLegacyMode: false,
+            enableUsbMonitor: true,
             lockOnMinimize: true, // Default true for security
             adminPassword: 'admin123', // Simple local storage for now
             zeroTouch: false
@@ -149,6 +150,7 @@ function createWindow() {
 
             // Booleanos precisam de checagem estrita para não virarem true/false acidentalmente
             forceLegacyMode: settings.forceLegacyMode !== undefined ? settings.forceLegacyMode === true : currentSettings.forceLegacyMode,
+            enableUsbMonitor: settings.enableUsbMonitor !== undefined ? settings.enableUsbMonitor === true : (currentSettings.enableUsbMonitor !== false),
             lockOnMinimize: settings.lockOnMinimize !== undefined ? settings.lockOnMinimize === true : currentSettings.lockOnMinimize,
             adminPassword: settings.adminPassword || currentSettings.adminPassword || 'admin123'
         };

@@ -1,12 +1,14 @@
 // clients/desktop/src/services/CommandPoller.js
 const https = require('https');
 const http = require('http');
+const os = require('os');
 const { EventEmitter } = require('events');
 
 const DataCollector = require('./DataCollector');
 const PayloadBuilder = require('./PayloadBuilder');
 const APIClient = require('./APIClient');
 const CommandExecutor = require('./CommandExecutor'); // ✅ ADICIONADO
+const USBPrinterMonitor = require('./USBPrinterMonitor');
 
 const DEFAULT_POLL_INTERVAL = 10_000; // 10 segundos
 
@@ -19,6 +21,7 @@ class CommandPollerManager extends EventEmitter {
     this._running = false;
     this._serialNumber = null;
     this._executor = null; // ✅ ADICIONADO
+    this._usbMonitor = null;
 
     this.lastRunTime = null;
     this.lastRunStatus = 'Aguardando inicialização...';
@@ -38,6 +41,7 @@ class CommandPollerManager extends EventEmitter {
     this._logger.info('[CommandPoller] Inicializando serviço de background...');
     // ✅ Cria o executor uma vez
     this._executor = new CommandExecutor(this._logger);
+    this._usbMonitor = new USBPrinterMonitor(this._logger);
     this.lastRunStatus = 'Inicializado';
   }
 
@@ -159,6 +163,29 @@ class CommandPollerManager extends EventEmitter {
       this.syncCount++;
       this._logger.info('[CommandPoller] ✅ Sincronização concluída!');
 
+      const enableUsbMonitor = this._settings.enableUsbMonitor !== false
+        && String(process.env.ENABLE_USB_MONITOR || 'true').toLowerCase() !== 'false';
+
+      if (enableUsbMonitor) {
+        try {
+          const printers = await this._usbMonitor.collect();
+          if (printers.length > 0) {
+            const usbPayload = {
+              source: 'desktop-agent',
+              agent_hostname: os.hostname(),
+              device_id: coreInfo.serial_number || this._serialNumber || os.hostname(),
+              timestamp: new Date().toISOString(),
+              printers,
+            };
+            const syncResult = await APIClient.syncPrinters(baseUrl, usbPayload, token);
+            this._logger.info(`[CommandPoller] USB sync: ${syncResult.data?.synced_count || printers.length}/${printers.length}`);
+          } else {
+            this._logger.debug('[CommandPoller] Nenhuma impressora USB encontrada neste ciclo');
+          }
+        } catch (usbError) {
+          this._logger.warn(`[CommandPoller] Falha no monitoramento USB: ${usbError.message}`);
+        }
+      }
       return { success: true, result };
     } catch (error) {
       this.lastRunStatus = `Erro: ${error.message}`;
@@ -181,6 +208,9 @@ class CommandPollerManager extends EventEmitter {
     // ✅ Garante que o executor existe antes de começar
     if (!this._executor) {
       this._executor = new CommandExecutor(this._logger);
+    }
+    if (!this._usbMonitor) {
+      this._usbMonitor = new USBPrinterMonitor(this._logger);
     }
 
     this._running = true;
@@ -370,3 +400,5 @@ class CommandPollerManager extends EventEmitter {
 }
 
 module.exports = new CommandPollerManager();
+
+

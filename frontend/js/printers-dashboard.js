@@ -114,7 +114,10 @@ function renderPrintersTable(printers) {
         <td>${printer.model || 'N/A'}</td>
         <td>${printer.connection_type === 'network' ? '🌐 Rede' : '🔌 USB'}</td>
         <td>${printer.ip_address || printer.custom_data?.connection_details?.uri || 'N/A'}</td>
-        <td><span class="status-badge ${printer.status}">${printer.status.toUpperCase()}</span></td>
+        <td>${printer.unit || '-'}</td>
+        <td>${printer.sector || '-'}</td>
+        <td>${printer.floor || printer.location || '-'}</td>
+        <td><span class="status-badge ${printer.status}">${(printer.status || 'unknown').toUpperCase()}</span></td>
         <td>
           <div class="toner-bar">
             <div class="toner-progress">
@@ -157,7 +160,10 @@ function applyFilters(printers) {
         printer.manufacturer,
         printer.model,
         printer.ip_address,
-        printer.serial_number
+        printer.serial_number,
+        printer.unit,
+        printer.sector,
+        printer.floor
       ].join(' ').toLowerCase();
       
       if (!searchable.includes(searchFilter)) return false;
@@ -471,6 +477,9 @@ function openEditPrinter(printerId) {
   document.getElementById('reg-hostname').value = printer.hostname || '';
   document.getElementById('reg-mac').value = printer.mac_address || '';
   document.getElementById('reg-location').value = printer.location || printer.floor || '';
+  document.getElementById('reg-unit').value = printer.unit || '';
+  document.getElementById('reg-sector').value = printer.sector || '';
+  document.getElementById('reg-floor').value = printer.floor || '';
   toggleConnectionFields();
 
   const title = document.getElementById('modal-register-title');
@@ -514,7 +523,9 @@ async function registerPrinter() {
     hostname: document.getElementById('reg-hostname').value || null,
     mac_address: document.getElementById('reg-mac').value || null,
     location: document.getElementById('reg-location').value || null,
-    floor: document.getElementById('reg-location').value || null,
+    floor: document.getElementById('reg-floor').value || document.getElementById('reg-location').value || null,
+    unit: document.getElementById('reg-unit').value || null,
+    sector: document.getElementById('reg-sector').value || null,
     custom_data: { print_mode: 'mono' },
   };
   
@@ -620,6 +631,8 @@ function normalizeDiscoveryPrinter(printer) {
     mac_address: printer.custom_data?.mac_address || printer.mac_address || null,
     location: printer.location || 'Terreo',
     floor: printer.floor || printer.location || 'Terreo',
+    unit: printer.unit || null,
+    sector: printer.sector || 'Desconhecido',
     custom_data: {
       ...(printer.custom_data || {}),
       open_ports: printer.open_ports || printer.custom_data?.open_ports || [],
@@ -646,6 +659,9 @@ function renderDiscoveriesModal(printers) {
       <td>${printer.model || 'Unknown'}</td>
       <td>${printer.connection_type === 'usb' ? 'USB' : 'Rede'}</td>
       <td>${printer.ip_address || printer.usb_path || '-'}</td>
+      <td>${printer.unit || '-'}</td>
+      <td>${printer.sector || '-'}</td>
+      <td>${printer.floor || printer.location || '-'}</td>
       <td>${printer.serial_number || '-'}</td>
     </tr>
   `).join('');
@@ -874,6 +890,4 @@ if (document.readyState === 'loading') {
 } else {
   initPrintersDashboard();
 }
-
-
 

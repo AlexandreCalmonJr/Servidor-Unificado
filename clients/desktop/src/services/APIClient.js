@@ -129,6 +129,27 @@ async function sendLegacyData(serverUrl, payload, token) {
     }
 }
 
+async function syncPrinters(serverUrl, payload, token) {
+    try {
+        const response = await axios.post(`${serverUrl}/api/printers/sync`, payload, {
+            headers: getHeaders(token),
+            timeout: 20000,
+            proxy: false,
+        });
+
+        return {
+            success: true,
+            data: response.data,
+        };
+    } catch (error) {
+        console.error('[APIClient] Erro ao sincronizar impressoras USB:', error.message);
+        if (error.response?.data) {
+            console.error('[APIClient] Resposta do servidor:', error.response.data);
+        }
+        throw error;
+    }
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // COMMAND OPERATIONS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -187,6 +208,7 @@ module.exports = {
     listModules,
     sendAssetToModule,
     sendLegacyData,
+    syncPrinters,
     fetchPendingCommands,
     reportCommandResult,
 };

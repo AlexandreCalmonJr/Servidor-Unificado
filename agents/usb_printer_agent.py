@@ -187,6 +187,8 @@ class USBPrinterAgent:
             payload = {
                 'asset_type': 'printer',
                 'device_id': self.device_id,
+                'source': 'usb-agent',
+                'agent_hostname': socket.gethostname(),
                 'printers': printers,
                 'timestamp': datetime.now().isoformat()
             }
