@@ -16,6 +16,7 @@ const App = (() => {
         users: 'Usuários',
         server: 'Servidor & APKs',
         reports: 'Relatórios',
+        printers: 'Impressoras',
     };
 
     const pageLoaders = {};
@@ -30,6 +31,8 @@ const App = (() => {
 
         if (window.lucide) window.lucide.createIcons();
         if (pageLoaders.dashboard) pageLoaders.dashboard();
+        // Carrega o dashboard de impressoras se a página inicial for 'printers'
+        if (currentPage === 'printers' && pageLoaders.printers) pageLoaders.printers();
     }
 
     function checkAuth() {
@@ -126,6 +129,40 @@ const App = (() => {
     function onPageLoad(page, callback) {
         pageLoaders[page] = callback;
     }
+
+    // Carrega o conteúdo do dashboard de impressoras e inicializa o script
+    onPageLoad("printers", async () => {
+        const contentArea = document.getElementById("page-content");
+        if (contentArea) {
+            try {
+                const response = await fetch("/views/printers-dashboard.html");
+                const html = await response.text();
+                contentArea.innerHTML = html;
+                
+                // Carrega o CSS específico do dashboard de impressoras
+                const head = document.getElementsByTagName("head")[0];
+                const link = document.createElement("link");
+                link.rel = "stylesheet";
+                link.type = "text/css";
+                link.href = "/css/printers-dashboard.css";
+                head.appendChild(link);
+
+                // Inicializa o script do dashboard de impressoras
+                if (typeof initPrintersDashboard === 'function') {
+                    initPrintersDashboard();
+                } else {
+                    // Se o script ainda não foi carregado, carrega-o dinamicamente
+                    const script = document.createElement("script");
+                    script.src = "/js/printers-dashboard.js";
+                    script.onload = () => initPrintersDashboard();
+                    document.body.appendChild(script);
+                }
+            } catch (error) {
+                console.error("Erro ao carregar dashboard de impressoras:", error);
+                contentArea.innerHTML = "<p>Erro ao carregar o dashboard de impressoras.</p>";
+            }
+        }
+    });
 
     return { init, navigateTo, onPageLoad };
 })();

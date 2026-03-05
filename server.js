@@ -54,6 +54,7 @@ const deviceRoutes = require('./routes/deviceRoutes');
 const exportRoutes = require('./routes/exportRoutes');
 const savedFilterRoutes = require('./routes/savedFilterRoutes');
 const printerRoutes = require('./routes/printerRoutes');
+const printerSyncRoutes = require('./routes/printerSyncRoutes');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -239,6 +240,7 @@ app.use('/api/filters', savedFilterRoutes(logger, modifyApiLimiter, auth));
 
 // ===== ROTAS DE IMPRESSORAS =====
 app.use('/api/printers', printerRoutes(logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth, printerService));
+app.use('/api/printers', printerSyncRoutes(logger, modifyApiLimiter, deviceAuth));
 
 // ===== PAINEL WEB (SPA) =====
 app.get('/provision/:token', provisioningRoutes.renderProvisioningPage(logger));
