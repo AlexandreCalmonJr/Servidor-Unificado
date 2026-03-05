@@ -2,7 +2,10 @@ const express = require('express');
 const ManagedAsset = require('../models/ManagedAsset');
 const AssetModuleConfig = require('../models/AssetModuleConfig');
 const PrinterInventoryEvent = require('../models/PrinterInventoryEvent');
+const PrinterSupplyItem = require('../models/PrinterSupplyItem');
+const PrinterSupplyMovement = require('../models/PrinterSupplyMovement');
 const locationService = require('../services/locationService');
+const NotificationService = require('../services/notificationService');
 
 module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, printerService) => {
   const router = express.Router();
@@ -120,23 +123,118 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
   function normalizeStock(settingsMap) {
     const settings = settingsMap instanceof Map ? Object.fromEntries(settingsMap) : (settingsMap || {});
     const current = settings.printer_inventory_stock || {};
+    const rawByModel = current.by_model || {};
+    const byModel = {};
+    Object.entries(rawByModel).forEach(([key, value]) => {
+      if (!key || !value || typeof value !== 'object') return;
+      byModel[key] = {
+        label: String(value.label || key),
+        toner_black: Math.max(0, Number(value.toner_black || 0)),
+        imaging_unit: Math.max(0, Number(value.imaging_unit || 0)),
+      };
+    });
     return {
       toner_black: Number(current.toner_black || 0),
       imaging_unit: Number(current.imaging_unit || 0),
       backup_printer: Number(current.backup_printer || 0),
+      by_model: byModel,
     };
+  }
+
+  function normalizeSupplyItem(item) {
+    if (!item) return null;
+    return {
+      ...item,
+      is_low_stock: Number(item.quantity_on_hand || 0) <= Number(item.min_stock || 0),
+    };
+  }
+
+  function calculateMovementResult(movementType, inputQty, currentQty, quantityAfterInput) {
+    const quantity = Number(inputQty);
+    const current = Number(currentQty || 0);
+    if (!Number.isFinite(current) || current < 0) throw new Error('Estoque atual invalido');
+
+    if (movementType === 'adjustment') {
+      const target = Number(quantityAfterInput);
+      if (!Number.isFinite(target) || target < 0) throw new Error('quantity_after deve ser numerico e >= 0');
+      return {
+        delta: target - current,
+        after: target,
+      };
+    }
+
+    if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('quantity deve ser numerico e > 0');
+
+    if (movementType === 'in' || movementType === 'initial') {
+      return { delta: quantity, after: current + quantity };
+    }
+
+    if (movementType === 'out' || movementType === 'consumption' || movementType === 'transfer') {
+      const after = current - quantity;
+      if (after < 0) throw new Error('Estoque insuficiente para esta movimentacao');
+      return { delta: -quantity, after };
+    }
+
+    throw new Error('movement_type invalido');
+  }
+
+  async function notifyLowSupplyIfNeeded(module, supply, previousQty, currentQty) {
+    const minStock = Number(supply.min_stock || 0);
+    if (minStock <= 0) return;
+
+    const previous = Number(previousQty || 0);
+    const current = Number(currentQty || 0);
+    const becameLow = previous > minStock && current <= minStock;
+    if (!becameLow) return;
+
+    const message = `${supply.name} (${supply.sku}) em estoque baixo: ${current} ${supply.unit_of_measure || 'un'}`;
+    NotificationService.notifyError('Estoque de insumo baixo', message, 'warning');
+
+    await PrinterInventoryEvent.create({
+      module_id: module._id,
+      event_type: 'alert',
+      item_type: supply.category || 'other',
+      quantity_delta: 0,
+      quantity_after: current,
+      reason: 'low_stock',
+      notes: message,
+      severity: 'warning',
+      metadata: {
+        supply_id: supply._id,
+        sku: supply.sku,
+        supply_name: supply.name,
+        min_stock: minStock,
+      },
+    });
+  }
+
+  function normalizeModelKey(value) {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (!normalized) return null;
+    return normalized.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   }
 
   async function saveStock(module, nextStock) {
     const settings = module.settings instanceof Map
       ? Object.fromEntries(module.settings)
       : (module.settings || {});
+    const byModel = {};
+    Object.entries(nextStock.by_model || {}).forEach(([key, val]) => {
+      const modelKey = normalizeModelKey(key);
+      if (!modelKey || !val || typeof val !== 'object') return;
+      byModel[modelKey] = {
+        label: String(val.label || modelKey),
+        toner_black: Math.max(0, Number(val.toner_black || 0)),
+        imaging_unit: Math.max(0, Number(val.imaging_unit || 0)),
+      };
+    });
     module.settings = {
       ...settings,
       printer_inventory_stock: {
         toner_black: Math.max(0, Number(nextStock.toner_black || 0)),
         imaging_unit: Math.max(0, Number(nextStock.imaging_unit || 0)),
         backup_printer: Math.max(0, Number(nextStock.backup_printer || 0)),
+        by_model: byModel,
       },
     };
     await module.save();
@@ -231,10 +329,28 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
         const levels = p.toner_levels || p.custom_data?.toner_levels || {};
         return levels.imaging_unit !== undefined && Number(levels.imaging_unit) <= 15;
       }).length;
+      const modelOptionsMap = new Map();
+      printers.forEach((p) => {
+        const manufacturer = String(p.manufacturer || '').trim();
+        const model = String(p.model || '').trim();
+        if (!model || model.toLowerCase() === 'unknown') return;
+        const label = manufacturer ? `${manufacturer} ${model}` : model;
+        const key = normalizeModelKey(label);
+        if (!key) return;
+        if (!modelOptionsMap.has(key)) modelOptionsMap.set(key, { key, label });
+      });
+      Object.entries(stock.by_model || {}).forEach(([key, val]) => {
+        if (!modelOptionsMap.has(key)) {
+          modelOptionsMap.set(key, { key, label: String(val.label || key) });
+        }
+      });
+      const modelOptions = Array.from(modelOptionsMap.values())
+        .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
 
       return res.json({
         success: true,
         stock,
+        model_options: modelOptions,
         printers: {
           total: printers.length,
           toner_low: tonerLow,
@@ -266,6 +382,245 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
     }
   });
 
+  router.get('/inventory/supplies', auth, getApiLimiter, validatePrinterModule, async (req, res) => {
+    try {
+      const limit = Math.min(Number(req.query.limit || 300), 1000);
+      const filter = { module_id: req.printerModule._id };
+
+      if (req.query.is_active === 'true') filter.is_active = true;
+      if (req.query.is_active === 'false') filter.is_active = false;
+      if (req.query.category) filter.category = req.query.category;
+      if (req.query.search) {
+        filter.$or = [
+          { name: { $regex: req.query.search, $options: 'i' } },
+          { sku: { $regex: req.query.search, $options: 'i' } },
+          { manufacturer: { $regex: req.query.search, $options: 'i' } },
+          { model_family: { $regex: req.query.search, $options: 'i' } },
+        ];
+      }
+
+      let items = await PrinterSupplyItem.find(filter)
+        .sort({ category: 1, name: 1 })
+        .limit(limit)
+        .lean();
+
+      if (req.query.low_only === 'true') {
+        items = items.filter((item) => Number(item.quantity_on_hand || 0) <= Number(item.min_stock || 0));
+      }
+
+      return res.json({
+        success: true,
+        total: items.length,
+        items: items.map(normalizeSupplyItem),
+      });
+    } catch (error) {
+      logger.error(`Erro ao listar insumos: ${error.message}`);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  router.post('/inventory/supplies', auth, modifyApiLimiter, validatePrinterModule, async (req, res) => {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Apenas admins podem cadastrar insumos.' });
+    }
+    try {
+      const payload = req.body || {};
+      const sku = String(payload.sku || '').trim();
+      const name = String(payload.name || '').trim();
+      if (!sku || !name) {
+        return res.status(400).json({ success: false, message: 'Campos obrigatorios: sku, name' });
+      }
+
+      const existing = await PrinterSupplyItem.findOne({
+        module_id: req.printerModule._id,
+        sku,
+      }).lean();
+      if (existing) {
+        return res.status(409).json({ success: false, message: 'SKU ja cadastrado para impressoras' });
+      }
+
+      const quantityOnHand = Math.max(0, Number(payload.quantity_on_hand || 0));
+      const minStock = Math.max(0, Number(payload.min_stock || 0));
+      const reorderPoint = Math.max(0, Number(payload.reorder_point || minStock));
+      const item = await PrinterSupplyItem.create({
+        module_id: req.printerModule._id,
+        sku,
+        name,
+        category: payload.category || 'other',
+        manufacturer: payload.manufacturer || null,
+        model_family: payload.model_family || null,
+        compatible_models: Array.isArray(payload.compatible_models) ? payload.compatible_models : [],
+        compatible_manufacturers: Array.isArray(payload.compatible_manufacturers) ? payload.compatible_manufacturers : [],
+        unit_of_measure: payload.unit_of_measure || 'un',
+        quantity_on_hand: quantityOnHand,
+        min_stock: minStock,
+        reorder_point: reorderPoint,
+        storage_location: payload.storage_location || null,
+        is_active: payload.is_active !== false,
+        notes: payload.notes || '',
+      });
+
+      if (quantityOnHand > 0) {
+        await PrinterSupplyMovement.create({
+          module_id: req.printerModule._id,
+          supply_id: item._id,
+          movement_type: 'initial',
+          quantity: quantityOnHand,
+          quantity_before: 0,
+          quantity_after: quantityOnHand,
+          reason: 'initial_stock',
+          notes: 'Cadastro inicial do insumo',
+          created_by: req.user.id || null,
+        });
+      }
+
+      return res.status(201).json({ success: true, item: normalizeSupplyItem(item.toObject()) });
+    } catch (error) {
+      logger.error(`Erro ao cadastrar insumo: ${error.message}`);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  router.put('/inventory/supplies/:supplyId', auth, modifyApiLimiter, validatePrinterModule, async (req, res) => {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Apenas admins podem editar insumos.' });
+    }
+    try {
+      const allowed = [
+        'name',
+        'category',
+        'manufacturer',
+        'model_family',
+        'compatible_models',
+        'compatible_manufacturers',
+        'unit_of_measure',
+        'min_stock',
+        'reorder_point',
+        'storage_location',
+        'is_active',
+        'notes',
+      ];
+      const setData = {};
+      allowed.forEach((key) => {
+        if (req.body[key] !== undefined) setData[key] = req.body[key];
+      });
+      if (setData.min_stock !== undefined) setData.min_stock = Math.max(0, Number(setData.min_stock || 0));
+      if (setData.reorder_point !== undefined) setData.reorder_point = Math.max(0, Number(setData.reorder_point || 0));
+
+      const item = await PrinterSupplyItem.findOneAndUpdate(
+        { _id: req.params.supplyId, module_id: req.printerModule._id },
+        { $set: setData },
+        { new: true }
+      ).lean();
+      if (!item) return res.status(404).json({ success: false, message: 'Insumo nao encontrado' });
+      return res.json({ success: true, item: normalizeSupplyItem(item) });
+    } catch (error) {
+      logger.error(`Erro ao atualizar insumo: ${error.message}`);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  router.get('/inventory/movements', auth, getApiLimiter, validatePrinterModule, async (req, res) => {
+    try {
+      const limit = Math.min(Number(req.query.limit || 300), 1000);
+      const filter = { module_id: req.printerModule._id };
+      if (req.query.supply_id) filter.supply_id = req.query.supply_id;
+      if (req.query.printer_id) filter.printer_id = req.query.printer_id;
+      if (req.query.movement_type) filter.movement_type = req.query.movement_type;
+
+      const rows = await PrinterSupplyMovement.find(filter)
+        .sort({ created_at: -1 })
+        .limit(limit)
+        .populate('supply_id', 'name sku category unit_of_measure')
+        .populate('printer_id', 'asset_name serial_number manufacturer model')
+        .lean();
+
+      return res.json({ success: true, total: rows.length, movements: rows });
+    } catch (error) {
+      logger.error(`Erro ao listar movimentacoes: ${error.message}`);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  router.post('/inventory/supplies/:supplyId/movements', auth, modifyApiLimiter, validatePrinterModule, async (req, res) => {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Apenas admins podem movimentar estoque.' });
+    }
+    try {
+      const supply = await PrinterSupplyItem.findOne({
+        _id: req.params.supplyId,
+        module_id: req.printerModule._id,
+      });
+      if (!supply) return res.status(404).json({ success: false, message: 'Insumo nao encontrado' });
+
+      const movementType = String(req.body.movement_type || '').trim();
+      const result = calculateMovementResult(
+        movementType,
+        req.body.quantity,
+        supply.quantity_on_hand,
+        req.body.quantity_after
+      );
+
+      const before = Number(supply.quantity_on_hand || 0);
+      supply.quantity_on_hand = result.after;
+      await supply.save();
+
+      const movement = await PrinterSupplyMovement.create({
+        module_id: req.printerModule._id,
+        supply_id: supply._id,
+        printer_id: req.body.printer_id || null,
+        movement_type: movementType,
+        quantity: Math.abs(Number(result.delta)),
+        quantity_before: before,
+        quantity_after: result.after,
+        reason: req.body.reason || '',
+        reference: req.body.reference || '',
+        notes: req.body.notes || '',
+        metadata: req.body.metadata || {},
+        created_by: req.user.id || null,
+      });
+
+      await notifyLowSupplyIfNeeded(req.printerModule, supply, before, result.after);
+
+      return res.status(201).json({
+        success: true,
+        movement,
+        item: normalizeSupplyItem(supply.toObject()),
+      });
+    } catch (error) {
+      logger.error(`Erro ao registrar movimentacao de insumo: ${error.message}`);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  router.get('/inventory/alerts', auth, getApiLimiter, validatePrinterModule, async (req, res) => {
+    try {
+      const lowSupplies = await PrinterSupplyItem.find({
+        module_id: req.printerModule._id,
+        is_active: true,
+      }).lean();
+
+      const lowItems = lowSupplies
+        .map(normalizeSupplyItem)
+        .filter((item) => item.is_low_stock);
+
+      const recentAlertEvents = await PrinterInventoryEvent.find({
+        module_id: req.printerModule._id,
+        event_type: 'alert',
+      }).sort({ created_at: -1 }).limit(50).lean();
+
+      return res.json({
+        success: true,
+        low_stock_count: lowItems.length,
+        low_items: lowItems,
+        recent_alerts: recentAlertEvents,
+      });
+    } catch (error) {
+      logger.error(`Erro ao listar alertas de inventario: ${error.message}`);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
   router.post('/inventory/stock-adjust', auth, modifyApiLimiter, validatePrinterModule, async (req, res) => {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ success: false, message: 'Apenas admins podem ajustar estoque.' });
@@ -281,27 +636,47 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
       const reason = String(req.body.reason || 'ajuste_manual').trim();
       const notes = String(req.body.notes || '').trim();
       const mode = String(req.body.mode || 'delta').trim().toLowerCase();
+      const modelKeyRaw = req.body.model_key;
+      const modelLabelRaw = req.body.model_label;
+      const modelKey = normalizeModelKey(modelKeyRaw);
       const value = Number(req.body.value);
       if (!Number.isFinite(value)) {
         return res.status(400).json({ success: false, message: 'value deve ser numerico' });
       }
 
       const stock = normalizeStock(req.printerModule.settings);
-      const current = Number(stock[itemType] || 0);
-      const next = mode === 'set' ? value : current + value;
-      const safeNext = Math.max(0, Math.round(next));
-      stock[itemType] = safeNext;
+      let current = Number(stock[itemType] || 0);
+      if (modelKey && ['toner_black', 'imaging_unit'].includes(itemType)) {
+        const modelBucket = stock.by_model[modelKey] || { label: String(modelLabelRaw || modelKey), toner_black: 0, imaging_unit: 0 };
+        current = Number(modelBucket[itemType] || 0);
+        const next = mode === 'set' ? value : current + value;
+        const safeNext = Math.max(0, Math.round(next));
+        modelBucket[itemType] = safeNext;
+        modelBucket.label = String(modelLabelRaw || modelBucket.label || modelKey);
+        stock.by_model[modelKey] = modelBucket;
+      } else {
+        const next = mode === 'set' ? value : current + value;
+        const safeNext = Math.max(0, Math.round(next));
+        stock[itemType] = safeNext;
+      }
+      const quantityAfter = modelKey && ['toner_black', 'imaging_unit'].includes(itemType)
+        ? Number(stock.by_model[modelKey]?.[itemType] || 0)
+        : Number(stock[itemType] || 0);
       await saveStock(req.printerModule, stock);
 
       await PrinterInventoryEvent.create({
         module_id: req.printerModule._id,
         event_type: 'stock_adjustment',
         item_type: itemType,
-        quantity_delta: mode === 'set' ? (safeNext - current) : value,
-        quantity_after: safeNext,
+        quantity_delta: mode === 'set' ? (quantityAfter - current) : value,
+        quantity_after: quantityAfter,
         reason,
         notes,
-        metadata: { mode },
+        metadata: {
+          mode,
+          model_key: modelKey || null,
+          model_label: modelLabelRaw || null,
+        },
         created_by: req.user.id || null,
       });
 
@@ -309,7 +684,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
         success: true,
         stock,
         item_type: itemType,
-        quantity_after: safeNext,
+        quantity_after: quantityAfter,
       });
     } catch (error) {
       logger.error(`Erro ao ajustar estoque: ${error.message}`);
@@ -345,11 +720,25 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
       let stockAfter = null;
       if (consumeStock && ['toner_black', 'imaging_unit', 'backup_printer'].includes(itemType)) {
         const stock = normalizeStock(req.printerModule.settings);
-        const current = Number(stock[itemType] || 0);
-        const next = Math.max(0, current - (Number.isFinite(consumeQty) ? Math.max(1, Math.round(consumeQty)) : 1));
-        stock[itemType] = next;
+        const consumeValue = Number.isFinite(consumeQty) ? Math.max(1, Math.round(consumeQty)) : 1;
+        const modelLabel = `${printer.manufacturer || ''} ${printer.model || ''}`.trim();
+        const modelKey = normalizeModelKey(modelLabel);
+        let consumedByModel = false;
+        if (modelKey && ['toner_black', 'imaging_unit'].includes(itemType) && stock.by_model?.[modelKey]) {
+          const modelCurrent = Number(stock.by_model[modelKey][itemType] || 0);
+          const modelNext = Math.max(0, modelCurrent - consumeValue);
+          stock.by_model[modelKey][itemType] = modelNext;
+          stockAfter = modelNext;
+          consumedByModel = true;
+        } else {
+          const current = Number(stock[itemType] || 0);
+          const next = Math.max(0, current - consumeValue);
+          stock[itemType] = next;
+          stockAfter = next;
+        }
         await saveStock(req.printerModule, stock);
-        stockAfter = next;
+        req.body.__inventory_model_key = consumedByModel ? modelKey : null;
+        req.body.__inventory_model_label = consumedByModel ? modelLabel : null;
       }
 
       const maintenanceEntry = {
@@ -386,6 +775,8 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
         metadata: {
           printer_name: printer.asset_name,
           printer_serial: printer.serial_number,
+          model_key: req.body.__inventory_model_key || null,
+          model_label: req.body.__inventory_model_label || null,
         },
         created_by: req.user.id || null,
       });

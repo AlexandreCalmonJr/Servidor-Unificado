@@ -87,6 +87,27 @@
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
+.printer-subtabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.printer-subtab-btn.is-active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.printer-subtab-panel {
+  display: none;
+}
+
+.printer-subtab-panel.is-active {
+  display: block;
+}
+
 .filter-group {
   display: flex;
   flex-direction: column;

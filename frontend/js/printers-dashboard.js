@@ -8,6 +8,9 @@ let printersRefreshTimer = null;
 let printersDashboardInitialized = false;
 let discoveredPrinters = [];
 let allInventoryEvents = [];
+let inventoryModelOptions = [];
+let inventorySupplyItems = [];
+let inventorySupplyMovements = [];
 const TONER_MONO_ONLY = true;
 
 function destroyChartInstance(key, canvasEl) {
@@ -186,6 +189,45 @@ function renderCharts() {
   renderManufacturerChart();
   renderConnectionChart();
   renderTonerChart();
+}
+
+function switchPrintersSubtab(tab) {
+  const panels = {
+    list: document.getElementById('printers-tab-list'),
+    details: document.getElementById('printers-tab-details'),
+    inventory: document.getElementById('printers-tab-inventory'),
+  };
+  const buttons = {
+    list: document.getElementById('btn-tab-list'),
+    details: document.getElementById('btn-tab-details'),
+    inventory: document.getElementById('btn-tab-inventory'),
+  };
+
+  Object.entries(panels).forEach(([key, el]) => {
+    if (!el) return;
+    if (key === tab) el.classList.add('is-active');
+    else el.classList.remove('is-active');
+  });
+  Object.entries(buttons).forEach(([key, el]) => {
+    if (!el) return;
+    if (key === tab) el.classList.add('is-active');
+    else el.classList.remove('is-active');
+  });
+}
+
+function buildTonerLevelsHtml(tonerLevels) {
+  if (!tonerLevels || Object.keys(tonerLevels).length === 0) {
+    return '<p style="color: #7f8c8d;">Dados de toner nao disponiveis</p>';
+  }
+  return Object.entries(tonerLevels).map(([color, level]) => `
+    <div class="toner-level-item">
+      <div class="toner-level-label">${color.charAt(0).toUpperCase() + color.slice(1)}</div>
+      <div class="toner-level-bar">
+        <div class="toner-level-fill" style="width: ${level}%"></div>
+      </div>
+      <div class="toner-level-value">${level}%</div>
+    </div>
+  `).join('');
 }
 
 /**
@@ -367,50 +409,51 @@ function renderTonerChart() {
 async function showPrinterDetails(printerId) {
   try {
     const response = await fetch(`/api/printers/${printerId}`, {
-      headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+      headers: { "Authorization": `Bearer ${getAuthToken()}` }
     });
-    
-    if (!response.ok) throw new Error('Erro ao carregar detalhes');
-    
+
+    if (!response.ok) throw new Error("Erro ao carregar detalhes");
+
     const { printer } = await response.json();
     currentPrinterId = printerId;
-    
-    // Preenche modal
-    document.getElementById('modal-printer-name').textContent = printer.asset_name;
-    document.getElementById('detail-name').textContent = printer.asset_name;
-    document.getElementById('detail-manufacturer').textContent = printer.manufacturer || 'N/A';
-    document.getElementById('detail-model').textContent = printer.model || 'N/A';
-    document.getElementById('detail-serial').textContent = printer.serial_number || 'N/A';
-    document.getElementById('detail-connection').textContent = printer.connection_type === 'network' ? 'Rede (IP)' : 'USB';
-    document.getElementById('detail-address').textContent = printer.ip_address || 'N/A';
-    document.getElementById('detail-status').textContent = printer.status.toUpperCase();
-    document.getElementById('detail-status').className = `status-badge ${printer.status}`;
-    document.getElementById('detail-last-check').textContent = formatTime(new Date(printer.last_check_time || printer.updated_at));
-    
-    // Renderiza níveis de toner
-    const tonerContainer = document.getElementById('toner-levels-container');
+
     const tonerLevels = printer.toner_levels || printer.custom_data?.toner_levels || {};
-    
-    if (Object.keys(tonerLevels).length === 0) {
-      tonerContainer.innerHTML = '<p style="color: #7f8c8d;">Dados de toner não disponíveis</p>';
-    } else {
-      tonerContainer.innerHTML = Object.entries(tonerLevels).map(([color, level]) => `
-        <div class="toner-level-item">
-          <div class="toner-level-label">${color.charAt(0).toUpperCase() + color.slice(1)}</div>
-          <div class="toner-level-bar">
-            <div class="toner-level-fill" style="width: ${level}%"></div>
-          </div>
-          <div class="toner-level-value">${level}%</div>
-        </div>
-      `).join('');
-    }
-    
-    // Mostra modal
-    document.getElementById('modal-printer-details').style.display = 'flex';
-    
+    const lastCheck = formatTime(new Date(printer.last_check_time || printer.updated_at));
+    const setIfExists = (id, value, cssClass) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = value;
+      if (cssClass) el.className = cssClass;
+    };
+
+    setIfExists("modal-printer-name", printer.asset_name || "-");
+    setIfExists("detail-name", printer.asset_name || "-");
+    setIfExists("detail-manufacturer", printer.manufacturer || "N/A");
+    setIfExists("detail-model", printer.model || "N/A");
+    setIfExists("detail-serial", printer.serial_number || "N/A");
+    setIfExists("detail-connection", printer.connection_type === "network" ? "Rede (IP)" : "USB");
+    setIfExists("detail-address", printer.ip_address || "N/A");
+    setIfExists("detail-status", String(printer.status || "unknown").toUpperCase(), `status-badge ${printer.status}`);
+    setIfExists("detail-last-check", lastCheck);
+
+    setIfExists("tab-detail-name", printer.asset_name || "-");
+    setIfExists("tab-detail-manufacturer", printer.manufacturer || "N/A");
+    setIfExists("tab-detail-model", printer.model || "N/A");
+    setIfExists("tab-detail-serial", printer.serial_number || "N/A");
+    setIfExists("tab-detail-connection", printer.connection_type === "network" ? "Rede (IP)" : "USB");
+    setIfExists("tab-detail-address", printer.ip_address || "N/A");
+    setIfExists("tab-detail-status", String(printer.status || "unknown").toUpperCase(), `status-badge ${printer.status}`);
+    setIfExists("tab-detail-last-check", lastCheck);
+
+    const tonerContainer = document.getElementById("toner-levels-container");
+    if (tonerContainer) tonerContainer.innerHTML = buildTonerLevelsHtml(tonerLevels);
+    const tabTonerContainer = document.getElementById("tab-toner-levels-container");
+    if (tabTonerContainer) tabTonerContainer.innerHTML = buildTonerLevelsHtml(tonerLevels);
+
+    switchPrintersSubtab("details");
   } catch (error) {
-    console.error('Erro ao carregar detalhes:', error);
-    showNotification('Erro ao carregar detalhes da impressora', 'error');
+    console.error("Erro ao carregar detalhes:", error);
+    showNotification("Erro ao carregar detalhes da impressora", "error");
   }
 }
 
@@ -569,11 +612,17 @@ async function registerPrinter() {
 
 async function loadInventoryPanel() {
   try {
-    const [summaryRes, eventsRes] = await Promise.all([
+    const [summaryRes, eventsRes, suppliesRes, supplyMovementsRes] = await Promise.all([
       fetch('/api/printers/inventory/summary', {
         headers: { 'Authorization': `Bearer ${getAuthToken()}` }
       }),
       fetch('/api/printers/inventory/events?limit=200', {
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+      }),
+      fetch('/api/printers/inventory/supplies?limit=300', {
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+      }),
+      fetch('/api/printers/inventory/movements?limit=300', {
         headers: { 'Authorization': `Bearer ${getAuthToken()}` }
       }),
     ]);
@@ -581,6 +630,7 @@ async function loadInventoryPanel() {
     if (summaryRes.ok) {
       const payload = await summaryRes.json();
       const stock = payload.stock || {};
+      inventoryModelOptions = Array.isArray(payload.model_options) ? payload.model_options : [];
       const stats = payload.printers || {};
       const stockToner = Number(stock.toner_black || 0);
       const stockImaging = Number(stock.imaging_unit || 0);
@@ -594,6 +644,7 @@ async function loadInventoryPanel() {
       setText('inv-stock-imaging', stockImaging);
       setText('inv-stock-backup', stockBackup);
       setText('inv-low-total', lowTotal);
+      populateInventoryModelOptions(stock.by_model || {});
     }
 
     if (eventsRes.ok) {
@@ -601,9 +652,37 @@ async function loadInventoryPanel() {
       allInventoryEvents = Array.isArray(payload.events) ? payload.events : [];
       renderInventoryEventsTable();
     }
+
+    if (suppliesRes.ok) {
+      const payload = await suppliesRes.json();
+      inventorySupplyItems = Array.isArray(payload.items) ? payload.items : [];
+      renderSuppliesTable();
+      populateSupplySelects();
+    }
+
+    if (supplyMovementsRes.ok) {
+      const payload = await supplyMovementsRes.json();
+      inventorySupplyMovements = Array.isArray(payload.movements) ? payload.movements : [];
+      renderSupplyMovementsTable();
+    }
   } catch (error) {
     console.error('Erro ao carregar inventario:', error);
   }
+}
+
+function populateInventoryModelOptions(byModelStock = {}) {
+  const modelSelect = document.getElementById('inv-stock-model');
+  if (!modelSelect) return;
+  const options = inventoryModelOptions.length
+    ? inventoryModelOptions
+    : Object.keys(byModelStock).map((key) => ({
+      key,
+      label: byModelStock[key]?.label || key,
+    }));
+  modelSelect.innerHTML = [
+    '<option value="">Selecione...</option>',
+    ...options.map((opt) => `<option value="${opt.key}">${opt.label}</option>`),
+  ].join('');
 }
 
 function formatInventoryEventType(type) {
@@ -621,10 +700,17 @@ function formatInventoryItemType(type) {
   const map = {
     toner_black: 'Toner Preto',
     imaging_unit: 'Unidade Imagem',
+    maintenance_kit: 'Kit Manutencao',
     backup_printer: 'Impressora Backup',
     other: 'Outro',
   };
   return map[type] || type || '-';
+}
+
+function getInventoryModelLabel(modelKey) {
+  if (!modelKey) return null;
+  const found = inventoryModelOptions.find((opt) => opt.key === modelKey);
+  return found?.label || modelKey;
 }
 
 function findPrinterDisplayName(printerId, metadata = {}) {
@@ -670,7 +756,7 @@ function renderInventoryEventsTable() {
         <td>${date}</td>
         <td>${formatInventoryEventType(event.event_type)}</td>
         <td>${printerLabel}</td>
-        <td>${formatInventoryItemType(event.item_type)}</td>
+        <td>${formatInventoryItemType(event.item_type)}${event.metadata?.model_label ? ` (${event.metadata.model_label})` : ''}</td>
         <td>${deltaText}</td>
         <td>${stockAfter}</td>
         <td>${event.reason || '-'}</td>
@@ -678,6 +764,65 @@ function renderInventoryEventsTable() {
       </tr>
     `;
   }).join('');
+}
+
+function renderSuppliesTable() {
+  const tbody = document.getElementById('supplies-tbody');
+  const emptyState = document.getElementById('supplies-empty-state');
+  if (!tbody || !emptyState) return;
+
+  if (!inventorySupplyItems.length) {
+    tbody.innerHTML = '';
+    emptyState.style.display = 'block';
+    return;
+  }
+
+  emptyState.style.display = 'none';
+  tbody.innerHTML = inventorySupplyItems.map((item) => `
+    <tr>
+      <td>${item.sku || '-'}</td>
+      <td>${item.name || '-'}</td>
+      <td>${formatInventoryItemType(item.category)}</td>
+      <td>${item.manufacturer || '-'}</td>
+      <td>${item.model_family || '-'}</td>
+      <td>${item.quantity_on_hand ?? 0}</td>
+      <td>${item.min_stock ?? 0}</td>
+      <td>${item.is_low_stock ? '<span class="status-badge offline">BAIXO</span>' : '<span class="status-badge online">OK</span>'}</td>
+    </tr>
+  `).join('');
+}
+
+function renderSupplyMovementsTable() {
+  const tbody = document.getElementById('supply-movements-tbody');
+  const emptyState = document.getElementById('supply-movements-empty-state');
+  if (!tbody || !emptyState) return;
+
+  if (!inventorySupplyMovements.length) {
+    tbody.innerHTML = '';
+    emptyState.style.display = 'block';
+    return;
+  }
+
+  emptyState.style.display = 'none';
+  tbody.innerHTML = inventorySupplyMovements.map((mv) => `
+    <tr>
+      <td>${mv.created_at ? formatTime(new Date(mv.created_at)) : '-'}</td>
+      <td>${mv.supply_id?.name || '-'}</td>
+      <td>${mv.movement_type || '-'}</td>
+      <td>${mv.quantity ?? 0}</td>
+      <td>${mv.quantity_before ?? 0}</td>
+      <td>${mv.quantity_after ?? 0}</td>
+      <td>${mv.reason || '-'}</td>
+    </tr>
+  `).join('');
+}
+
+function populateSupplySelects() {
+  const moveSelect = document.getElementById('supply-move-item');
+  if (!moveSelect) return;
+  moveSelect.innerHTML = inventorySupplyItems.map((item) => (
+    `<option value="${item._id}">${item.name} (${item.sku})</option>`
+  )).join('');
 }
 
 function updateMaintenancePrinterOptions() {
@@ -696,6 +841,14 @@ async function adjustInventoryStock(action) {
     const baseValue = Number(document.getElementById('inv-stock-value')?.value || 0);
     const reason = document.getElementById('inv-stock-reason')?.value || 'ajuste_manual';
     const notes = document.getElementById('inv-stock-notes')?.value || '';
+    const scope = document.getElementById('inv-stock-scope')?.value || 'global';
+    const modelKey = document.getElementById('inv-stock-model')?.value || '';
+    const modelLabel = getInventoryModelLabel(modelKey);
+
+    if (scope === 'model' && !modelKey) {
+      showNotification('Selecione o modelo para ajustar estoque por modelo', 'error');
+      return;
+    }
 
     let value = baseValue;
     if (action === 'add_one') value = 1;
@@ -713,6 +866,8 @@ async function adjustInventoryStock(action) {
         value,
         reason,
         notes,
+        model_key: scope === 'model' ? modelKey : null,
+        model_label: scope === 'model' ? modelLabel : null,
       }),
     });
 
@@ -770,6 +925,90 @@ async function registerMaintenanceEvent() {
   } catch (error) {
     console.error('Erro ao registrar evento:', error);
     showNotification(error.message || 'Erro ao registrar evento', 'error');
+  }
+}
+
+async function createSupplyItem() {
+  try {
+    const sku = document.getElementById('supply-sku')?.value?.trim();
+    const name = document.getElementById('supply-name')?.value?.trim();
+    if (!sku || !name) {
+      showNotification('Informe SKU e Nome do insumo', 'error');
+      return;
+    }
+
+    const response = await fetch('/api/printers/inventory/supplies', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`,
+      },
+      body: JSON.stringify({
+        sku,
+        name,
+        category: document.getElementById('supply-category')?.value || 'other',
+        manufacturer: document.getElementById('supply-manufacturer')?.value || null,
+        model_family: document.getElementById('supply-model-family')?.value || null,
+        quantity_on_hand: Number(document.getElementById('supply-quantity')?.value || 0),
+        min_stock: Number(document.getElementById('supply-min-stock')?.value || 0),
+        storage_location: document.getElementById('supply-location')?.value || null,
+      }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.success === false) {
+      throw new Error(payload.message || 'Erro ao cadastrar insumo');
+    }
+
+    showNotification('Insumo cadastrado com sucesso', 'success');
+    await loadInventoryPanel();
+  } catch (error) {
+    console.error('Erro ao cadastrar insumo:', error);
+    showNotification(error.message || 'Erro ao cadastrar insumo', 'error');
+  }
+}
+
+async function registerSupplyMovement() {
+  try {
+    const supplyId = document.getElementById('supply-move-item')?.value;
+    if (!supplyId) {
+      showNotification('Selecione um insumo para movimentar', 'error');
+      return;
+    }
+
+    const movementType = document.getElementById('supply-move-type')?.value || 'in';
+    const quantity = Number(document.getElementById('supply-move-quantity')?.value || 0);
+    const quantityAfter = Number(document.getElementById('supply-move-after')?.value || 0);
+    const reason = document.getElementById('supply-move-reason')?.value || '';
+    const notes = document.getElementById('supply-move-notes')?.value || '';
+
+    const body = {
+      movement_type: movementType,
+      quantity,
+      reason,
+      notes,
+    };
+    if (movementType === 'adjustment') body.quantity_after = quantityAfter;
+
+    const response = await fetch(`/api/printers/inventory/supplies/${supplyId}/movements`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.success === false) {
+      throw new Error(payload.message || 'Erro ao registrar movimentacao');
+    }
+
+    showNotification('Movimentacao registrada com sucesso', 'success');
+    await loadInventoryPanel();
+  } catch (error) {
+    console.error('Erro ao registrar movimentacao:', error);
+    showNotification(error.message || 'Erro ao registrar movimentacao', 'error');
   }
 }
 
@@ -1000,6 +1239,31 @@ async function discoverPrinters() {
  * Configura event listeners
  */
 function setupEventListeners() {
+  const tabListBtn = document.getElementById('btn-tab-list');
+  const tabDetailsBtn = document.getElementById('btn-tab-details');
+  const tabInventoryBtn = document.getElementById('btn-tab-inventory');
+  if (tabListBtn) tabListBtn.addEventListener('click', () => switchPrintersSubtab('list'));
+  if (tabDetailsBtn) tabDetailsBtn.addEventListener('click', () => switchPrintersSubtab('details'));
+  if (tabInventoryBtn) tabInventoryBtn.addEventListener('click', () => switchPrintersSubtab('inventory'));
+
+  const tabDetailBackBtn = document.getElementById('tab-detail-btn-back');
+  const tabDetailRefreshBtn = document.getElementById('tab-detail-btn-refresh');
+  const tabDetailEditBtn = document.getElementById('tab-detail-btn-edit');
+  if (tabDetailBackBtn) tabDetailBackBtn.addEventListener('click', () => switchPrintersSubtab('list'));
+  if (tabDetailRefreshBtn) {
+    tabDetailRefreshBtn.addEventListener('click', async () => {
+      if (!currentPrinterId) return;
+      await refreshPrinterStatus(currentPrinterId);
+      await showPrinterDetails(currentPrinterId);
+    });
+  }
+  if (tabDetailEditBtn) {
+    tabDetailEditBtn.addEventListener('click', () => {
+      if (!currentPrinterId) return;
+      openEditPrinter(currentPrinterId);
+    });
+  }
+
   // Filtros
   document.getElementById('filter-status').addEventListener('change', () => {
     renderPrintersTable(allPrinters);
@@ -1068,16 +1332,31 @@ function setupEventListeners() {
   const invSubBtn = document.getElementById('btn-stock-subtract');
   const invSaveBtn = document.getElementById('btn-stock-save');
   const invMaintSaveBtn = document.getElementById('btn-maint-save');
+  const supplyCreateBtn = document.getElementById('btn-supply-create');
+  const supplyMoveBtn = document.getElementById('btn-supply-move');
   const invFilterType = document.getElementById('inv-filter-type');
   const invFilterPrinter = document.getElementById('inv-filter-printer');
+  const invStockScope = document.getElementById('inv-stock-scope');
+  const invStockModel = document.getElementById('inv-stock-model');
 
   if (invRefreshBtn) invRefreshBtn.addEventListener('click', loadInventoryPanel);
   if (invAddBtn) invAddBtn.addEventListener('click', () => adjustInventoryStock('add_one'));
   if (invSubBtn) invSubBtn.addEventListener('click', () => adjustInventoryStock('subtract_one'));
   if (invSaveBtn) invSaveBtn.addEventListener('click', () => adjustInventoryStock('apply'));
   if (invMaintSaveBtn) invMaintSaveBtn.addEventListener('click', registerMaintenanceEvent);
+  if (supplyCreateBtn) supplyCreateBtn.addEventListener('click', createSupplyItem);
+  if (supplyMoveBtn) supplyMoveBtn.addEventListener('click', registerSupplyMovement);
   if (invFilterType) invFilterType.addEventListener('change', renderInventoryEventsTable);
   if (invFilterPrinter) invFilterPrinter.addEventListener('input', renderInventoryEventsTable);
+  if (invStockScope && invStockModel) {
+    const updateModelEnabled = () => {
+      const isModel = invStockScope.value === 'model';
+      invStockModel.disabled = !isModel;
+      if (!isModel) invStockModel.value = '';
+    };
+    invStockScope.addEventListener('change', updateModelEnabled);
+    updateModelEnabled();
+  }
   
   // Fecha modais ao clicar fora
   document.querySelectorAll('.modal').forEach(modal => {
@@ -1139,4 +1418,5 @@ if (document.readyState === 'loading') {
 } else {
   initPrintersDashboard();
 }
+
 
