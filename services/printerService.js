@@ -4,6 +4,7 @@ const net = require('net');
 const os = require('os');
 const ManagedAsset = require('../models/ManagedAsset');
 const AssetModuleConfig = require('../models/AssetModuleConfig');
+const NotificationService = require('./notificationService');
 
 const execAsync = promisify(exec);
 
@@ -29,11 +30,17 @@ const OIDS = {
   magentaCur: '1.3.6.1.2.1.43.11.1.1.9.1.3',
   yellowMax: '1.3.6.1.2.1.43.11.1.1.8.1.4',
   yellowCur: '1.3.6.1.2.1.43.11.1.1.9.1.4',
+  imagingMax: '1.3.6.1.2.1.43.11.1.1.8.1.5',
+  imagingCur: '1.3.6.1.2.1.43.11.1.1.9.1.5',
   hpModel: '1.3.6.1.4.1.11.2.3.9.4.2.1.1.3.2.0',
   hpSerial: '1.3.6.1.4.1.11.2.3.9.4.2.1.1.3.3.0',
   samsungModel: '1.3.6.1.4.1.236.11.5.11.81.2.2.0',
   samsungSerial: '1.3.6.1.4.1.236.11.5.11.81.2.1.0',
 };
+const SUPPLIES_DESC_BASE_OID = '1.3.6.1.2.1.43.11.1.1.6.1';
+const SUPPLIES_MAX_BASE_OID = '1.3.6.1.2.1.43.11.1.1.8.1';
+const SUPPLIES_CUR_BASE_OID = '1.3.6.1.2.1.43.11.1.1.9.1';
+const IMAGING_DESC_HINT = /(imaging|image unit|drum|opc|photo conductor|fuser|maintenance kit|unidade de imagem|unidad de imagen|cilindro|fotocondutor)/i;
 
 const STATUS_MAP = {
   1: 'unknown',
@@ -414,6 +421,7 @@ class PrinterService {
   detectBrand(text) {
     const val = String(text || '').toLowerCase();
     if (val.includes('hp') || val.includes('hewlett')) return 'HP';
+    if (val.includes('samsung') && /(4020|4080|m4020|m4080|proxpress)/i.test(val)) return 'HP';
     if (val.includes('samsung')) return 'Samsung';
     if (val.includes('brother')) return 'Brother';
     if (val.includes('xerox')) return 'Xerox';
@@ -457,6 +465,9 @@ class PrinterService {
   async updatePrinterStatus(printer) {
     const type = (printer.connection_type || '').toLowerCase();
     let result = null;
+    const previousToner = printer.toner_levels instanceof Map
+      ? Object.fromEntries(printer.toner_levels)
+      : (printer.toner_levels || {});
 
     if (type === 'usb') {
       result = await this.readUsbPrinterStatus(printer);
@@ -468,7 +479,9 @@ class PrinterService {
     printer.last_check_time = new Date();
     printer.last_seen = new Date();
 
-    if (result.model) printer.model = result.model;
+    if (result.model && (!printer.model || printer.model === 'Unknown')) {
+      printer.model = result.model;
+    }
     if (result.brand && (!printer.manufacturer || printer.manufacturer === 'Unknown')) {
       printer.manufacturer = result.brand;
     }
@@ -476,6 +489,13 @@ class PrinterService {
       printer.total_pages = result.total_pages;
     }
     if (result.toner_levels) {
+      // Evita perder a unidade de imagem por flutuacao de leitura SNMP.
+      if (
+        (result.toner_levels.imaging_unit === undefined || result.toner_levels.imaging_unit === null)
+        && previousToner.imaging_unit !== undefined
+      ) {
+        result.toner_levels.imaging_unit = previousToner.imaging_unit;
+      }
       printer.toner_levels = result.toner_levels;
     }
 
@@ -491,13 +511,104 @@ class PrinterService {
       open_ports: result.open_ports || currentData.open_ports || [],
       alerts: result.alerts || [],
       toner_levels: result.toner_levels || currentData.toner_levels || {},
+      imaging_supported: typeof result.imaging_supported === 'boolean'
+        ? result.imaging_supported
+        : (result.toner_levels?.imaging_unit !== undefined
+          ? true
+          : (currentData.imaging_supported === false ? false : null)),
     };
 
+    this.emitPrinterSupplyAlerts(printer, previousToner, result.toner_levels || {});
     await printer.save();
     return result;
   }
 
+  emitPrinterSupplyAlerts(printer, previousToner, currentToner) {
+    try {
+      const levels = [
+        { key: 'black', label: 'Toner preto' },
+        { key: 'imaging_unit', label: 'Unidade de imagem' },
+      ];
+      const customData = printer.custom_data instanceof Map
+        ? Object.fromEntries(printer.custom_data)
+        : (printer.custom_data || {});
+      const state = customData.supply_alert_state || {};
+
+      levels.forEach(({ key, label }) => {
+        const current = this.toNumber(currentToner[key]);
+        const previous = this.toNumber(previousToner[key]);
+        if (current === null) return;
+
+        const alertKey = `${printer._id}:${key}`;
+        const isCritical = current <= 5;
+        const isLow = current > 5 && current <= 15;
+        const level = isCritical ? 'critical' : (isLow ? 'low' : 'ok');
+        const previousLevel = state[alertKey] || 'ok';
+
+        if ((level === 'low' || level === 'critical') && level !== previousLevel) {
+          const severity = level === 'critical' ? 'error' : 'warning';
+          NotificationService.notifyError(
+            `${label} baixo`,
+            `${printer.asset_name} (${printer.serial_number}) em ${current}%`,
+            severity
+          );
+        }
+
+        if (previous !== null && previous <= 15 && current > 20 && previousLevel !== 'ok') {
+          NotificationService.notifySuccess(
+            `${label} normalizado`,
+            `${printer.asset_name} voltou para ${current}%`
+          );
+        }
+
+        state[alertKey] = level;
+      });
+
+      printer.custom_data = {
+        ...customData,
+        supply_alert_state: state,
+      };
+    } catch (error) {
+      this.logger.warn(`[PrinterService] Falha ao emitir alerta de suprimentos: ${error.message}`);
+    }
+  }
+
   async readUsbPrinterStatus(printer) {
+    const currentData = printer.custom_data instanceof Map
+      ? Object.fromEntries(printer.custom_data)
+      : (printer.custom_data || {});
+
+    const fromAgent = Boolean(currentData.device_agent_id) || String(currentData.source || '').includes('usb-agent');
+    if (fromAgent) {
+      const lastSyncRaw = currentData.last_sync || currentData.sync_timestamp || printer.last_check_time || printer.updated_at;
+      const lastSyncDate = lastSyncRaw ? new Date(lastSyncRaw) : null;
+      const ttlMs = Number(process.env.PRINTER_USB_AGENT_TTL_MS || 180000); // 3 min
+      const stale = !lastSyncDate || Number.isNaN(lastSyncDate.getTime()) || ((Date.now() - lastSyncDate.getTime()) > ttlMs);
+
+      const tonerFromAsset = printer.toner_levels instanceof Map
+        ? Object.fromEntries(printer.toner_levels)
+        : (printer.toner_levels || {});
+      const tonerFromCustom = currentData.toner_levels || {};
+      const tonerLevels = Object.keys(tonerFromAsset).length ? tonerFromAsset : tonerFromCustom;
+
+      if (stale) {
+        return {
+          status: 'offline',
+          snmp_available: false,
+          error: 'Agente USB sem sincronizacao recente',
+          toner_levels: tonerLevels,
+        };
+      }
+
+      return {
+        status: (printer.status && printer.status !== 'offline') ? printer.status : 'online',
+        snmp_available: false,
+        brand: printer.manufacturer,
+        model: printer.model,
+        toner_levels: tonerLevels,
+      };
+    }
+
     const usb = await this.detectUsbPrinters();
     const found = usb.find((p) => {
       const sameSerial = p.serial_number && p.serial_number === printer.serial_number;
@@ -563,6 +674,11 @@ class PrinterService {
     }
 
     const toner = this.parseToner(snmpData);
+    if (toner.imaging_unit === undefined || toner.imaging_unit === null) {
+      const dynamicImaging = await this.readImagingUnitByWalk(ip, community);
+      if (dynamicImaging !== null) toner.imaging_unit = dynamicImaging;
+    }
+    const imagingSupported = toner.imaging_unit !== undefined && toner.imaging_unit !== null;
     const alerts = this.computeAlerts(toner);
     const statusCode = Number(snmpData[OIDS.printerStatus] || 1);
     const status = STATUS_MAP[statusCode] || 'unknown';
@@ -580,6 +696,7 @@ class PrinterService {
       toner_levels: toner,
       total_pages: this.toNumber(snmpData[OIDS.totalPages]),
       snmp_available: true,
+      imaging_supported: imagingSupported,
       response_ms: Date.now() - start,
       alerts,
       open_ports: openPorts,
@@ -634,12 +751,95 @@ class PrinterService {
     });
   }
 
+  async snmpSubtree(ip, community, baseOid) {
+    return new Promise((resolve) => {
+      const session = snmp.createSession(ip, community, {
+        timeout: this.snmpTimeout,
+        retries: 1,
+        version: snmp.Version2c,
+      });
+
+      const result = {};
+      const feedCb = (varbinds) => {
+        (varbinds || []).forEach((vb) => {
+          if (snmp.isVarbindError(vb)) return;
+          const value = Buffer.isBuffer(vb.value)
+            ? vb.value.toString('utf8').replace(/\0/g, '').trim()
+            : vb.value;
+          result[vb.oid] = value;
+        });
+      };
+
+      const doneCb = () => {
+        session.close();
+        resolve(result);
+      };
+
+      try {
+        session.subtree(baseOid, feedCb, doneCb);
+      } catch (error) {
+        try { session.close(); } catch (e) { /* noop */ }
+        resolve({});
+      }
+    });
+  }
+
+  async readImagingUnitByWalk(ip, community) {
+    if (!snmp) return null;
+    try {
+      const [descMap, maxMap, curMap] = await Promise.all([
+        this.snmpSubtree(ip, community, SUPPLIES_DESC_BASE_OID),
+        this.snmpSubtree(ip, community, SUPPLIES_MAX_BASE_OID),
+        this.snmpSubtree(ip, community, SUPPLIES_CUR_BASE_OID),
+      ]);
+
+      const toIndex = (oid) => String(oid || '').split('.').pop();
+      const allIndexes = new Set([
+        ...Object.keys(descMap).map(toIndex),
+        ...Object.keys(maxMap).map(toIndex),
+        ...Object.keys(curMap).map(toIndex),
+      ]);
+
+      const candidateIndexes = Array.from(allIndexes).filter((idx) => /^\d+$/.test(String(idx)));
+      if (!candidateIndexes.length) return null;
+
+      const byDesc = candidateIndexes.find((idx) => IMAGING_DESC_HINT.test(String(descMap[`${SUPPLIES_DESC_BASE_OID}.${idx}`] || '')));
+      if (byDesc) {
+        const max = this.toNumber(maxMap[`${SUPPLIES_MAX_BASE_OID}.${byDesc}`]);
+        const current = this.toNumber(curMap[`${SUPPLIES_CUR_BASE_OID}.${byDesc}`]);
+        return this.percent(current, max);
+      }
+
+      // Fallback para ambientes mono: em muitos modelos, indice 1 eh toner preto e o segundo indice eh unidade de imagem/drum.
+      if (this.monoOnly) {
+        const sorted = candidateIndexes.map(Number).sort((a, b) => a - b).map(String);
+        for (const idx of sorted) {
+          if (idx === '1') continue;
+          const max = this.toNumber(maxMap[`${SUPPLIES_MAX_BASE_OID}.${idx}`]);
+          const current = this.toNumber(curMap[`${SUPPLIES_CUR_BASE_OID}.${idx}`]);
+          const pct = this.percent(current, max);
+          if (pct !== null) return pct;
+        }
+      }
+
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
   parseToner(snmpData) {
     if (this.monoOnly) {
       const current = this.toNumber(snmpData[OIDS.blackCur]);
       const max = this.toNumber(snmpData[OIDS.blackMax]);
       const black = this.percent(current, max);
-      return black === null ? {} : { black };
+      const imagingCurrent = this.toNumber(snmpData[OIDS.imagingCur]);
+      const imagingMax = this.toNumber(snmpData[OIDS.imagingMax]);
+      const imaging = this.percent(imagingCurrent, imagingMax);
+      const result = {};
+      if (black !== null) result.black = black;
+      if (imaging !== null) result.imaging_unit = imaging;
+      return result;
     }
 
     const colors = {
@@ -657,14 +857,20 @@ class PrinterService {
       if (pct !== null) toner[name] = pct;
     });
 
+    const imagingCurrent = this.toNumber(snmpData[OIDS.imagingCur]);
+    const imagingMax = this.toNumber(snmpData[OIDS.imagingMax]);
+    const imaging = this.percent(imagingCurrent, imagingMax);
+    if (imaging !== null) toner.imaging_unit = imaging;
+
     return toner;
   }
 
   computeAlerts(toner) {
     const alerts = [];
     Object.entries(toner || {}).forEach(([color, pct]) => {
-      if (pct <= 5) alerts.push({ type: 'toner_critical', color, percent: pct });
-      else if (pct <= 15) alerts.push({ type: 'toner_low', color, percent: pct });
+      const prefix = color === 'imaging_unit' ? 'imaging' : 'toner';
+      if (pct <= 5) alerts.push({ type: `${prefix}_critical`, color, percent: pct });
+      else if (pct <= 15) alerts.push({ type: `${prefix}_low`, color, percent: pct });
     });
     return alerts;
   }

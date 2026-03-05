@@ -1,6 +1,7 @@
 const express = require('express');
 const ManagedAsset = require('../models/ManagedAsset');
 const AssetModuleConfig = require('../models/AssetModuleConfig');
+const PrinterInventoryEvent = require('../models/PrinterInventoryEvent');
 const locationService = require('../services/locationService');
 
 module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, printerService) => {
@@ -116,6 +117,31 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
     return v;
   }
 
+  function normalizeStock(settingsMap) {
+    const settings = settingsMap instanceof Map ? Object.fromEntries(settingsMap) : (settingsMap || {});
+    const current = settings.printer_inventory_stock || {};
+    return {
+      toner_black: Number(current.toner_black || 0),
+      imaging_unit: Number(current.imaging_unit || 0),
+      backup_printer: Number(current.backup_printer || 0),
+    };
+  }
+
+  async function saveStock(module, nextStock) {
+    const settings = module.settings instanceof Map
+      ? Object.fromEntries(module.settings)
+      : (module.settings || {});
+    module.settings = {
+      ...settings,
+      printer_inventory_stock: {
+        toner_black: Math.max(0, Number(nextStock.toner_black || 0)),
+        imaging_unit: Math.max(0, Number(nextStock.imaging_unit || 0)),
+        backup_printer: Math.max(0, Number(nextStock.backup_printer || 0)),
+      },
+    };
+    await module.save();
+  }
+
   router.get('/', auth, getApiLimiter, validatePrinterModule, async (req, res) => {
     try {
       const { status, manufacturer, connection_type, search } = req.query;
@@ -184,6 +210,189 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
       }
       return res.json({ success: true, summary });
     } catch (error) {
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  router.get('/inventory/summary', auth, getApiLimiter, validatePrinterModule, async (req, res) => {
+    try {
+      const stock = normalizeStock(req.printerModule.settings);
+      const printers = await ManagedAsset.find({
+        module_id: req.printerModule._id,
+        asset_type: 'printer',
+        is_deleted: { $ne: true },
+      }).lean();
+
+      const tonerLow = printers.filter((p) => {
+        const levels = p.toner_levels || p.custom_data?.toner_levels || {};
+        return levels.black !== undefined && Number(levels.black) <= 15;
+      }).length;
+      const imagingLow = printers.filter((p) => {
+        const levels = p.toner_levels || p.custom_data?.toner_levels || {};
+        return levels.imaging_unit !== undefined && Number(levels.imaging_unit) <= 15;
+      }).length;
+
+      return res.json({
+        success: true,
+        stock,
+        printers: {
+          total: printers.length,
+          toner_low: tonerLow,
+          imaging_low: imagingLow,
+        },
+      });
+    } catch (error) {
+      logger.error(`Erro no resumo de inventario: ${error.message}`);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  router.get('/inventory/events', auth, getApiLimiter, validatePrinterModule, async (req, res) => {
+    try {
+      const limit = Math.min(Number(req.query.limit || 100), 500);
+      const filter = { module_id: req.printerModule._id };
+      if (req.query.printer_id) filter.printer_id = req.query.printer_id;
+      if (req.query.event_type) filter.event_type = req.query.event_type;
+
+      const events = await PrinterInventoryEvent.find(filter)
+        .sort({ created_at: -1 })
+        .limit(limit)
+        .lean();
+
+      return res.json({ success: true, events, total: events.length });
+    } catch (error) {
+      logger.error(`Erro ao listar eventos de inventario: ${error.message}`);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  router.post('/inventory/stock-adjust', auth, modifyApiLimiter, validatePrinterModule, async (req, res) => {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Apenas admins podem ajustar estoque.' });
+    }
+
+    try {
+      const itemType = String(req.body.item_type || '').trim();
+      const allowedItems = ['toner_black', 'imaging_unit', 'backup_printer'];
+      if (!allowedItems.includes(itemType)) {
+        return res.status(400).json({ success: false, message: 'item_type invalido' });
+      }
+
+      const reason = String(req.body.reason || 'ajuste_manual').trim();
+      const notes = String(req.body.notes || '').trim();
+      const mode = String(req.body.mode || 'delta').trim().toLowerCase();
+      const value = Number(req.body.value);
+      if (!Number.isFinite(value)) {
+        return res.status(400).json({ success: false, message: 'value deve ser numerico' });
+      }
+
+      const stock = normalizeStock(req.printerModule.settings);
+      const current = Number(stock[itemType] || 0);
+      const next = mode === 'set' ? value : current + value;
+      const safeNext = Math.max(0, Math.round(next));
+      stock[itemType] = safeNext;
+      await saveStock(req.printerModule, stock);
+
+      await PrinterInventoryEvent.create({
+        module_id: req.printerModule._id,
+        event_type: 'stock_adjustment',
+        item_type: itemType,
+        quantity_delta: mode === 'set' ? (safeNext - current) : value,
+        quantity_after: safeNext,
+        reason,
+        notes,
+        metadata: { mode },
+        created_by: req.user.id || null,
+      });
+
+      return res.json({
+        success: true,
+        stock,
+        item_type: itemType,
+        quantity_after: safeNext,
+      });
+    } catch (error) {
+      logger.error(`Erro ao ajustar estoque: ${error.message}`);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  router.post('/:printerId/maintenance-event', auth, modifyApiLimiter, validatePrinterModule, async (req, res) => {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Apenas admins podem registrar manutencao.' });
+    }
+    try {
+      const printer = await ManagedAsset.findOne({
+        _id: req.params.printerId,
+        module_id: req.printerModule._id,
+        asset_type: 'printer',
+        is_deleted: { $ne: true },
+      });
+      if (!printer) return res.status(404).json({ success: false, message: 'Impressora nao encontrada' });
+
+      const eventType = String(req.body.event_type || '').trim();
+      const itemType = String(req.body.item_type || 'other').trim();
+      const notes = String(req.body.notes || '').trim();
+      const reason = String(req.body.reason || '').trim();
+      const consumeStock = req.body.consume_stock === true;
+      const consumeQty = Number(req.body.consume_quantity || 1);
+
+      const allowedEventTypes = ['toner_replacement', 'imaging_replacement', 'maintenance'];
+      if (!allowedEventTypes.includes(eventType)) {
+        return res.status(400).json({ success: false, message: 'event_type invalido' });
+      }
+
+      let stockAfter = null;
+      if (consumeStock && ['toner_black', 'imaging_unit', 'backup_printer'].includes(itemType)) {
+        const stock = normalizeStock(req.printerModule.settings);
+        const current = Number(stock[itemType] || 0);
+        const next = Math.max(0, current - (Number.isFinite(consumeQty) ? Math.max(1, Math.round(consumeQty)) : 1));
+        stock[itemType] = next;
+        await saveStock(req.printerModule, stock);
+        stockAfter = next;
+      }
+
+      const maintenanceEntry = {
+        type: eventType,
+        item_type: itemType,
+        reason,
+        notes,
+        consume_stock: consumeStock,
+        consume_quantity: Number.isFinite(consumeQty) ? consumeQty : 1,
+        created_by: req.user.username,
+        created_at: new Date(),
+      };
+
+      const customData = printer.custom_data instanceof Map
+        ? Object.fromEntries(printer.custom_data)
+        : (printer.custom_data || {});
+
+      printer.custom_data = {
+        ...customData,
+        last_maintenance_event: maintenanceEntry,
+      };
+      printer.maintenance_history = [...(printer.maintenance_history || []), maintenanceEntry].slice(-200);
+      await printer.save();
+
+      await PrinterInventoryEvent.create({
+        module_id: req.printerModule._id,
+        printer_id: printer._id,
+        event_type: eventType,
+        item_type: ['toner_black', 'imaging_unit', 'backup_printer'].includes(itemType) ? itemType : 'other',
+        quantity_delta: consumeStock ? -Math.abs(Number.isFinite(consumeQty) ? consumeQty : 1) : 0,
+        quantity_after: stockAfter,
+        reason,
+        notes,
+        metadata: {
+          printer_name: printer.asset_name,
+          printer_serial: printer.serial_number,
+        },
+        created_by: req.user.id || null,
+      });
+
+      return res.json({ success: true, printer: normalizePrinter(printer.toObject ? printer.toObject() : printer) });
+    } catch (error) {
+      logger.error(`Erro ao registrar evento de manutencao: ${error.message}`);
       return res.status(500).json({ success: false, message: error.message });
     }
   });
@@ -564,6 +773,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
     try {
       const allowed = [
         'asset_name',
+        'serial_number',
         'manufacturer',
         'model',
         'ip_address',
@@ -584,6 +794,15 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
         if (req.body[field] !== undefined) update[field] = req.body[field];
       });
       if (update.connection_type === 'ip') update.connection_type = 'network';
+      if (update.serial_number !== undefined) {
+        update.serial_number = String(update.serial_number || '').trim();
+        if (!update.serial_number) {
+          return res.status(400).json({
+            success: false,
+            message: 'serial_number nao pode ficar vazio',
+          });
+        }
+      }
       if (update.status !== undefined) {
         const normalizedStatus = normalizePrinterStatus(update.status);
         if (!normalizedStatus) {
@@ -602,6 +821,23 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
         is_deleted: { $ne: true },
       }).lean();
       if (!existingPrinter) return res.status(404).json({ success: false, message: 'Impressora nao encontrada' });
+
+      if (update.serial_number && update.serial_number !== existingPrinter.serial_number) {
+        const serialConflict = await ManagedAsset.findOne({
+          _id: { $ne: req.params.printerId },
+          module_id: req.printerModule._id,
+          asset_type: 'printer',
+          serial_number: update.serial_number,
+          is_deleted: { $ne: true },
+        }).lean();
+
+        if (serialConflict) {
+          return res.status(409).json({
+            success: false,
+            message: 'Ja existe outra impressora com este serial_number',
+          });
+        }
+      }
 
       const mappedLocation = await resolveMappedLocation(update, existingPrinter);
       if (update.unit === undefined) update.unit = mappedLocation.unit;

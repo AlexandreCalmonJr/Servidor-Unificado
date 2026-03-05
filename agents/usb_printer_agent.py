@@ -7,14 +7,27 @@ Monitora impressoras conectadas via USB e envia dados ao servidor central
 import os
 import sys
 import json
+import base64
 import subprocess
 import time
 import requests
 import argparse
 import logging
+import random
+import re
+import shutil
 from datetime import datetime
 from typing import Dict, List, Optional
 import socket
+import threading
+
+try:
+    import tkinter as tk
+    from tkinter import ttk, messagebox
+except Exception:
+    tk = None
+    ttk = None
+    messagebox = None
 
 # Configuração de logging
 logging.basicConfig(
@@ -22,6 +35,73 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+def _config_file_path() -> str:
+    if os.name == 'nt':
+        base = os.getenv('APPDATA') or os.path.expanduser('~')
+        folder = os.path.join(base, 'ServidorUnificado')
+    else:
+        folder = os.path.join(os.path.expanduser('~'), '.config', 'servidor-unificado')
+    os.makedirs(folder, exist_ok=True)
+    return os.path.join(folder, 'usb_printer_agent_config.json')
+
+
+def _obfuscate_token(token: str, key_hint: str) -> str:
+    raw = (token or '').encode('utf-8')
+    key = (key_hint or 'usb-agent').encode('utf-8')
+    out = bytes([raw[i] ^ key[i % len(key)] for i in range(len(raw))])
+    return base64.urlsafe_b64encode(out).decode('ascii')
+
+
+def _deobfuscate_token(token_obf: str, key_hint: str) -> str:
+    try:
+        raw = base64.urlsafe_b64decode((token_obf or '').encode('ascii'))
+        key = (key_hint or 'usb-agent').encode('utf-8')
+        out = bytes([raw[i] ^ key[i % len(key)] for i in range(len(raw))])
+        return out.decode('utf-8')
+    except Exception:
+        return ''
+
+
+def load_ui_config(key_hint: str) -> Dict:
+    path = _config_file_path()
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, 'r', encoding='utf-8') as fh:
+            data = json.load(fh)
+        token = _deobfuscate_token(data.get('token_obf', ''), key_hint)
+        return {
+            'server': data.get('server', ''),
+            'port': str(data.get('port', '3000')),
+            'device_id': data.get('device_id', ''),
+            'interval': str(data.get('interval', 60)),
+            'token': token,
+            'remember': bool(data.get('remember', True)),
+        }
+    except Exception:
+        return {}
+
+
+def save_ui_config(server: str, port: str, token: str, device_id: str, interval: int, remember: bool, key_hint: str) -> None:
+    path = _config_file_path()
+    payload = {
+        'server': server,
+        'port': port,
+        'device_id': device_id,
+        'interval': int(interval),
+        'remember': bool(remember),
+        'token_obf': _obfuscate_token(token, key_hint) if remember else '',
+    }
+    with open(path, 'w', encoding='utf-8') as fh:
+        json.dump(payload, fh, indent=2, ensure_ascii=False)
+
+
+def clear_ui_config() -> None:
+    path = _config_file_path()
+    if os.path.exists(path):
+        os.remove(path)
 
 
 class USBPrinterAgent:
@@ -110,6 +190,7 @@ class USBPrinterAgent:
             desc_parts = description.split()
             manufacturer = desc_parts[0] if desc_parts else 'Unknown'
             model = ' '.join(desc_parts[1:]) if len(desc_parts) > 1 else 'Unknown'
+            manufacturer, model = self.normalize_printer_brand(manufacturer, model)
             
             return {
                 'id': f"usb-{vendor_id}-{product_id}",
@@ -129,6 +210,19 @@ class USBPrinterAgent:
         except Exception as e:
             logger.debug(f"Erro ao fazer parse de linha lsusb: {e}")
             return None
+
+    def normalize_printer_brand(self, manufacturer: str, model: str):
+        """
+        Regra de ambiente: modelos Samsung 4020/4080/ProXpress são tratados como HP.
+        """
+        mfg_raw = str(manufacturer or '').strip()
+        model_raw = str(model or '').strip()
+        joined = f"{mfg_raw} {model_raw}".lower()
+
+        if 'samsung' in joined and any(tag in joined for tag in ['4020', '4080', 'm4020', 'm4080', 'proxpress']):
+            return 'HP', model_raw
+
+        return (mfg_raw or 'Unknown', model_raw or 'Unknown')
     
     def get_printer_status(self, printer: Dict) -> Dict:
         """
@@ -160,15 +254,79 @@ class USBPrinterAgent:
     
     def get_toner_levels(self, printer: Dict) -> Optional[Dict]:
         """
-        Tenta obter níveis de toner via SNMP (para impressoras de rede)
-        
-        Para USB, geralmente não é possível obter via SNMP
+        Tenta obter níveis de toner para USB.
+        Suporte real:
+          - HP: via utilitários HPLIP (hp-levels/hp-info), quando instalados.
+        Demais fabricantes:
+          - retorna None (sem SDK/driver específico disponível no host).
         """
-        # USB geralmente não expõe toner via SNMP
-        # Seria necessário usar protocolos específicos do fabricante
+        manufacturer = str(printer.get('manufacturer') or '').strip().lower()
+        if 'hp' in manufacturer or 'hewlett' in manufacturer:
+            return self._get_toner_hp_usb(printer)
+        if 'samsung' in manufacturer:
+            if self._is_samsung_hp_like(printer):
+                return self._get_toner_hp_usb(printer)
+            return self._get_toner_samsung_usb(printer)
+        return None
+
+    def _is_samsung_hp_like(self, printer: Dict) -> bool:
+        model = str(printer.get('model') or '').lower()
+        name = str(printer.get('asset_name') or '').lower()
+        joined = f"{model} {name}"
+        return any(tag in joined for tag in ['4020', '4080', 'm4020', 'm4080', 'proxpress'])
+
+    def _extract_first_percent(self, text: str, color_hint: str = 'black') -> Optional[int]:
+        if not text:
+            return None
+
+        color_patterns = {
+            'black': [
+                r'(?i)(black|preto)[^\n\r%]{0,80}?(\d{1,3})\s*%',
+                r'(?i)(k toner|k cartridge)[^\n\r%]{0,80}?(\d{1,3})\s*%',
+            ],
+        }
+        for pattern in color_patterns.get(color_hint, []):
+            match = re.search(pattern, text)
+            if match:
+                pct = int(match.group(2))
+                return max(0, min(100, pct))
+
+        generic = re.search(r'(\d{1,3})\s*%', text)
+        if generic:
+            pct = int(generic.group(1))
+            return max(0, min(100, pct))
+        return None
+
+    def _run_command_capture(self, command: List[str], timeout: int = 10) -> str:
+        try:
+            output = subprocess.check_output(command, text=True, timeout=timeout, stderr=subprocess.STDOUT)
+            return output or ''
+        except Exception:
+            return ''
+
+    def _get_toner_hp_usb(self, printer: Dict) -> Optional[Dict]:
+        # Tentativa 1: hp-levels (HPLIP)
+        if shutil.which('hp-levels'):
+            out = self._run_command_capture(['hp-levels'])
+            pct = self._extract_first_percent(out, color_hint='black')
+            if pct is not None:
+                return {'black': pct}
+
+        # Tentativa 2: hp-info (HPLIP)
+        if shutil.which('hp-info'):
+            out = self._run_command_capture(['hp-info', '-i'])
+            pct = self._extract_first_percent(out, color_hint='black')
+            if pct is not None:
+                return {'black': pct}
+
+        return None
+
+    def _get_toner_samsung_usb(self, printer: Dict) -> Optional[Dict]:
+        # Samsung USB sem utilitário padrão universal no host.
+        # Mantém fallback None até integração com tool/SDK específico.
         return None
     
-    def send_printer_data(self, printers: List[Dict]) -> bool:
+    def send_printer_data(self, printers: List[Dict]) -> Dict:
         """
         Envia dados de impressoras para o servidor
         
@@ -176,11 +334,16 @@ class USBPrinterAgent:
             printers: Lista de impressoras com status
             
         Returns:
-            True se enviado com sucesso
+            Dict com status da tentativa e resposta do servidor
         """
         if not printers:
             logger.debug("Nenhuma impressora para enviar")
-            return True
+            return {
+                'success': True,
+                'status_code': 200,
+                'message': 'Nenhuma impressora para enviar',
+                'response_json': None,
+            }
         
         try:
             # Prepara payload
@@ -204,17 +367,70 @@ class USBPrinterAgent:
             
             if response.status_code in [200, 201]:
                 logger.info(f"Dados de {len(printers)} impressoras enviados com sucesso")
-                return True
+                parsed = None
+                try:
+                    parsed = response.json()
+                except Exception:
+                    parsed = {'raw': response.text}
+                return {
+                    'success': True,
+                    'status_code': response.status_code,
+                    'message': 'Dados enviados com sucesso',
+                    'response_json': parsed,
+                }
             else:
                 logger.warning(f"Erro ao enviar dados: {response.status_code} - {response.text}")
-                return False
+                return {
+                    'success': False,
+                    'status_code': response.status_code,
+                    'message': f'Falha HTTP: {response.status_code}',
+                    'response_json': {'raw': response.text},
+                }
                 
         except requests.exceptions.ConnectionError:
             logger.warning(f"Erro de conexão com servidor: {self.server_url}")
-            return False
+            return {
+                'success': False,
+                'status_code': 0,
+                'message': f'Erro de conexão com servidor: {self.server_url}',
+                'response_json': None,
+            }
         except Exception as e:
             logger.error(f"Erro ao enviar dados: {e}")
-            return False
+            return {
+                'success': False,
+                'status_code': 0,
+                'message': f'Erro ao enviar dados: {e}',
+                'response_json': None,
+            }
+
+    def enrich_usb_telemetry(self, printer: Dict) -> Dict:
+        """
+        Enriquecimento de dados USB.
+        Toner via USB é limitado por SO/fabricante; quando indisponível, marcamos explicitamente.
+        """
+        enriched = printer.copy()
+        toner_levels = self.get_toner_levels(printer)
+        custom_data = enriched.get('custom_data') or {}
+        custom_data['usb_toner_supported'] = toner_levels is not None
+        manufacturer = str(enriched.get('manufacturer') or '').lower()
+        if toner_levels is not None:
+            custom_data['toner_source'] = 'usb_hplip' if 'hp' in manufacturer else 'usb_vendor_tool'
+            custom_data['toner_message'] = 'Nível de toner obtido via utilitário local.'
+        else:
+            if 'hp' in manufacturer:
+                custom_data['toner_source'] = 'usb_hplip_not_available'
+                custom_data['toner_message'] = 'Instale HPLIP (hp-levels/hp-info) para leitura de toner USB HP.'
+            elif 'samsung' in manufacturer:
+                custom_data['toner_source'] = 'usb_samsung_tool_not_available'
+                custom_data['toner_message'] = 'Samsung USB requer utilitário específico do fabricante para toner.'
+            else:
+                custom_data['toner_source'] = 'not_supported_generic_usb'
+                custom_data['toner_message'] = 'Leitura de toner USB não suportada genericamente.'
+        enriched['custom_data'] = custom_data
+        if toner_levels is not None:
+            enriched['toner_levels'] = toner_levels
+        return enriched
     
     def run(self):
         """Executa o agente em loop contínuo"""
@@ -233,6 +449,7 @@ class USBPrinterAgent:
                         for printer in printers:
                             status = self.get_printer_status(printer)
                             printer.update(status)
+                            printer.update(self.enrich_usb_telemetry(printer))
                         
                         # Envia dados
                         self.send_printer_data(printers)
@@ -262,13 +479,86 @@ class USBPrinterAgent:
             for printer in printers:
                 status = self.get_printer_status(printer)
                 printer.update(status)
+                printer.update(self.enrich_usb_telemetry(printer))
             
-            self.send_printer_data(printers)
+            result = self.send_printer_data(printers)
             
             # Exibe resultado
-            print(json.dumps(printers, indent=2, ensure_ascii=False))
+            output = {
+                'result': result,
+                'printers': printers
+            }
+            print(json.dumps(output, indent=2, ensure_ascii=False))
+            return output
         else:
             print("Nenhuma impressora USB encontrada")
+            return {
+                'result': {
+                    'success': True,
+                    'status_code': 200,
+                    'message': 'Nenhuma impressora USB encontrada'
+                },
+                'printers': []
+            }
+
+    def build_simulated_printers(self, count: int = 2) -> List[Dict]:
+        """Gera impressoras USB simuladas para teste de integração com o servidor."""
+        hostname = socket.gethostname()
+        manufacturers = ['HP', 'Samsung', 'Brother']
+        models = {
+            'HP': ['LaserJet Pro M404n', 'LaserJet MFP M428fdw'],
+            'Samsung': ['M4080FX', 'ProXpress M4020ND'],
+            'Brother': ['HL-L5102DW', 'DCP-L5652DN'],
+        }
+        printers = []
+
+        for idx in range(max(1, count)):
+            manufacturer = random.choice(manufacturers)
+            model = random.choice(models[manufacturer])
+            manufacturer, model = self.normalize_printer_brand(manufacturer, model)
+            serial = f"SIM-USB-{manufacturer[:2].upper()}-{idx + 1:03d}"
+            printer_hostname = f"{hostname}-usb-prn-{idx + 1}"
+
+            printers.append({
+                'id': serial,
+                'serial_number': serial,
+                'asset_name': printer_hostname,
+                'hostname': printer_hostname,
+                'manufacturer': manufacturer,
+                'model': model,
+                'connection_type': 'usb',
+                'usb_path': f"USB{idx + 1:03d}",
+                'status': 'online',
+                'toner_levels': {
+                    'black': random.randint(20, 95),
+                    'imaging_unit': random.randint(30, 99),
+                },
+                'last_check': datetime.now().isoformat(),
+                'connection_details': {
+                    'bus': f"{idx + 1:03d}",
+                    'device': f"{idx + 10:03d}",
+                    'vendor_id': 'FFFF',
+                    'product_id': f"{1000 + idx}",
+                    'simulated': True
+                },
+                'mac_address': f"02:00:00:AA:{idx + 1:02X}:{idx + 10:02X}",
+            })
+
+        return printers
+
+    def run_simulation(self, count: int = 2):
+        """Executa envio simulado para validar integração com /api/printers/sync."""
+        logger.info(f"Executando simulação USB com {count} impressora(s)")
+        printers = self.build_simulated_printers(count=count)
+        result = self.send_printer_data(printers)
+        output = {
+            'simulated': True,
+            'result': result,
+            'count': len(printers),
+            'printers': printers
+        }
+        print(json.dumps(output, indent=2, ensure_ascii=False))
+        return output
 
 
 def main():
@@ -290,13 +580,193 @@ Exemplos de uso:
         '''
     )
     
-    parser.add_argument('--server', required=True, help='URL do servidor (ex: http://192.168.1.100:3000)')
-    parser.add_argument('--token', required=True, help='Token de autenticação do dispositivo')
+    parser.add_argument('--server', help='URL do servidor (ex: http://192.168.1.100:3000)')
+    parser.add_argument('--token', help='Token de autenticação do dispositivo')
+    parser.add_argument('--ui', action='store_true', help='Abre interface para informar IP, porta e token')
     parser.add_argument('--device-id', help='ID único do dispositivo (opcional)')
     parser.add_argument('--once', action='store_true', help='Executar uma única verificação e sair')
+    parser.add_argument('--simulate', action='store_true', help='Enviar impressoras USB simuladas para teste')
+    parser.add_argument('--simulate-count', type=int, default=2, help='Quantidade de impressoras simuladas (padrão: 2)')
     parser.add_argument('--interval', type=int, default=60, help='Intervalo de verificação em segundos (padrão: 60)')
     
     args = parser.parse_args()
+
+    def build_server_url(host_or_url: str, port: str) -> str:
+        host_or_url = (host_or_url or '').strip()
+        port = (port or '').strip()
+        if not host_or_url:
+            return ''
+        if host_or_url.startswith('http://') or host_or_url.startswith('https://'):
+            return host_or_url.rstrip('/')
+        protocol = 'http://'
+        if ':' in host_or_url and host_or_url.count(':') == 1 and host_or_url.split(':')[1].isdigit():
+            return f"{protocol}{host_or_url}".rstrip('/')
+        if not port:
+            port = '3000'
+        return f"{protocol}{host_or_url}:{port}".rstrip('/')
+
+    if args.ui:
+        if tk is None:
+            print("Tkinter não está disponível neste Python. Rode sem --ui ou instale suporte Tk.")
+            sys.exit(1)
+
+        config_hint = socket.gethostname()
+        saved = load_ui_config(config_hint)
+
+        root = tk.Tk()
+        root.title("USB Printer Agent")
+        root.geometry("560x380")
+        root.resizable(False, False)
+
+        frame = ttk.Frame(root, padding=16)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(frame, text="Servidor (IP ou URL):").grid(row=0, column=0, sticky=tk.W, pady=4)
+        server_var = tk.StringVar(value=saved.get('server') or args.server or "localhost")
+        ttk.Entry(frame, textvariable=server_var, width=44).grid(row=0, column=1, sticky=tk.W, pady=4)
+
+        ttk.Label(frame, text="Porta:").grid(row=1, column=0, sticky=tk.W, pady=4)
+        port_var = tk.StringVar(value=saved.get('port') or "3000")
+        ttk.Entry(frame, textvariable=port_var, width=14).grid(row=1, column=1, sticky=tk.W, pady=4)
+
+        ttk.Label(frame, text="Token:").grid(row=2, column=0, sticky=tk.W, pady=4)
+        token_var = tk.StringVar(value=saved.get('token') or args.token or "")
+        ttk.Entry(frame, textvariable=token_var, width=44, show="*").grid(row=2, column=1, sticky=tk.W, pady=4)
+
+        ttk.Label(frame, text="Device ID:").grid(row=3, column=0, sticky=tk.W, pady=4)
+        device_id_var = tk.StringVar(value=saved.get('device_id') or args.device_id or socket.gethostname())
+        ttk.Entry(frame, textvariable=device_id_var, width=44).grid(row=3, column=1, sticky=tk.W, pady=4)
+
+        ttk.Label(frame, text="Intervalo (s):").grid(row=4, column=0, sticky=tk.W, pady=4)
+        interval_var = tk.StringVar(value=saved.get('interval') or str(args.interval or 60))
+        ttk.Entry(frame, textvariable=interval_var, width=14).grid(row=4, column=1, sticky=tk.W, pady=4)
+
+        remember_var = tk.BooleanVar(value=saved.get('remember', True))
+        ttk.Checkbutton(frame, text="Salvar credenciais neste computador", variable=remember_var).grid(row=5, column=1, sticky=tk.W, pady=4)
+
+        status_var = tk.StringVar(value="Pronto.")
+        ttk.Label(frame, textvariable=status_var).grid(row=7, column=0, columnspan=2, sticky=tk.W, pady=12)
+
+        ttk.Label(frame, text="Resposta do servidor:").grid(row=8, column=0, sticky=tk.NW, pady=4)
+        response_box = tk.Text(frame, height=5, width=56, wrap=tk.WORD)
+        response_box.grid(row=8, column=1, sticky=tk.W, pady=4)
+        response_box.insert("1.0", "Aguardando execução...")
+        response_box.config(state=tk.DISABLED)
+
+        def set_response_text(payload: str):
+            response_box.config(state=tk.NORMAL)
+            response_box.delete("1.0", tk.END)
+            response_box.insert("1.0", payload)
+            response_box.config(state=tk.DISABLED)
+
+        def build_agent_from_ui():
+            server_url = build_server_url(server_var.get(), port_var.get())
+            token = token_var.get().strip()
+            device_id = device_id_var.get().strip() or None
+            interval = int(interval_var.get().strip() or "60")
+            if not server_url or not token:
+                raise ValueError("Informe servidor e token.")
+            if remember_var.get():
+                save_ui_config(
+                    server=server_var.get().strip(),
+                    port=port_var.get().strip(),
+                    token=token,
+                    device_id=device_id or '',
+                    interval=interval,
+                    remember=True,
+                    key_hint=config_hint
+                )
+            agent = USBPrinterAgent(server_url=server_url, device_token=token, device_id=device_id)
+            agent.interval = max(10, interval)
+            return agent
+
+        def save_config_ui():
+            try:
+                token = token_var.get().strip()
+                interval = int(interval_var.get().strip() or "60")
+                save_ui_config(
+                    server=server_var.get().strip(),
+                    port=port_var.get().strip(),
+                    token=token,
+                    device_id=device_id_var.get().strip(),
+                    interval=interval,
+                    remember=remember_var.get(),
+                    key_hint=config_hint
+                )
+                status_var.set("Configuração salva.")
+                if messagebox:
+                    messagebox.showinfo("USB Agent", "Configuração salva com sucesso.")
+            except Exception as exc:
+                status_var.set(f"Erro: {exc}")
+                if messagebox:
+                    messagebox.showerror("USB Agent", str(exc))
+
+        def clear_config_ui():
+            try:
+                clear_ui_config()
+                status_var.set("Configuração local removida.")
+                if messagebox:
+                    messagebox.showinfo("USB Agent", "Configuração local removida.")
+            except Exception as exc:
+                status_var.set(f"Erro: {exc}")
+                if messagebox:
+                    messagebox.showerror("USB Agent", str(exc))
+
+        def run_once_ui():
+            try:
+                agent = build_agent_from_ui()
+                status_var.set("Executando envio único...")
+                root.update_idletasks()
+                result = agent.run_once()
+                set_response_text(json.dumps(result, indent=2, ensure_ascii=False))
+                status_var.set("Envio único finalizado.")
+                if messagebox:
+                    messagebox.showinfo("USB Agent", "Execução única finalizada.")
+            except Exception as exc:
+                status_var.set(f"Erro: {exc}")
+                if messagebox:
+                    messagebox.showerror("USB Agent", str(exc))
+
+        def run_simulated_ui():
+            try:
+                agent = build_agent_from_ui()
+                status_var.set("Enviando simulação...")
+                root.update_idletasks()
+                result = agent.run_simulation(count=max(1, args.simulate_count))
+                set_response_text(json.dumps(result, indent=2, ensure_ascii=False))
+                status_var.set("Simulação enviada.")
+                if messagebox:
+                    messagebox.showinfo("USB Agent", "Simulação enviada com sucesso.")
+            except Exception as exc:
+                status_var.set(f"Erro: {exc}")
+                if messagebox:
+                    messagebox.showerror("USB Agent", str(exc))
+
+        def run_background_ui():
+            def target():
+                try:
+                    agent = build_agent_from_ui()
+                    status_var.set("Monitoramento contínuo iniciado.")
+                    agent.run()
+                except Exception as exc:
+                    status_var.set(f"Erro: {exc}")
+                    set_response_text(str(exc))
+
+            threading.Thread(target=target, daemon=True).start()
+
+        buttons = ttk.Frame(frame)
+        buttons.grid(row=6, column=0, columnspan=2, sticky=tk.W, pady=12)
+        ttk.Button(buttons, text="Testar (uma vez)", command=run_once_ui).pack(side=tk.LEFT, padx=4)
+        ttk.Button(buttons, text="Simular envio", command=run_simulated_ui).pack(side=tk.LEFT, padx=4)
+        ttk.Button(buttons, text="Iniciar contínuo", command=run_background_ui).pack(side=tk.LEFT, padx=4)
+        ttk.Button(buttons, text="Salvar", command=save_config_ui).pack(side=tk.LEFT, padx=4)
+        ttk.Button(buttons, text="Limpar", command=clear_config_ui).pack(side=tk.LEFT, padx=4)
+
+        root.mainloop()
+        return
+
+    if not args.server or not args.token:
+        parser.error("Sem --ui, os argumentos --server e --token são obrigatórios.")
     
     # Cria e executa agente
     agent = USBPrinterAgent(
@@ -307,7 +777,9 @@ Exemplos de uso:
     
     agent.interval = args.interval
     
-    if args.once:
+    if args.simulate:
+        agent.run_simulation(count=args.simulate_count)
+    elif args.once:
         agent.run_once()
     else:
         agent.run()

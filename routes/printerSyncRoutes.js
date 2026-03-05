@@ -125,14 +125,22 @@ module.exports = (logger, modifyApiLimiter, deviceAuth) => {
             agent_hostname: agent_hostname || null,
             sync_timestamp: timestamp || null,
             last_sync: new Date(),
+            toner_levels: printer.toner_levels || {},
+            usb_toner_supported: Boolean(printer.custom_data?.usb_toner_supported || printer.toner_levels),
+            toner_source: printer.custom_data?.toner_source || null,
+            toner_message: printer.custom_data?.toner_message || null,
           };
 
           let asset;
           if (existing) {
             const mappedLocation = await resolveMappedLocation(printer, existing.toObject ? existing.toObject() : existing);
             existing.asset_name = printer.asset_name;
-            existing.manufacturer = printer.manufacturer || existing.manufacturer || 'Unknown';
-            existing.model = printer.model || existing.model || 'Unknown';
+            if (!existing.manufacturer || existing.manufacturer === 'Unknown') {
+              existing.manufacturer = printer.manufacturer || existing.manufacturer || 'Unknown';
+            }
+            if (!existing.model || existing.model === 'Unknown') {
+              existing.model = printer.model || existing.model || 'Unknown';
+            }
             existing.ip_address = printer.ip_address || existing.ip_address || null;
             existing.connection_type = connectionType;
             existing.usb_path = printer.usb_path || existing.usb_path || null;
@@ -144,6 +152,9 @@ module.exports = (logger, modifyApiLimiter, deviceAuth) => {
             existing.status = normalizeStatus(printer.status);
             existing.last_check_time = printer.last_check ? new Date(printer.last_check) : new Date();
             existing.last_seen = new Date();
+            if (printer.toner_levels && typeof printer.toner_levels === 'object') {
+              existing.toner_levels = printer.toner_levels;
+            }
             existing.custom_data = {
               ...(existing.custom_data instanceof Map ? Object.fromEntries(existing.custom_data) : (existing.custom_data || {})),
               ...customData,
@@ -174,6 +185,7 @@ module.exports = (logger, modifyApiLimiter, deviceAuth) => {
               floor: mappedLocation.floor,
               status: normalizeStatus(printer.status),
               last_check_time: printer.last_check ? new Date(printer.last_check) : new Date(),
+              toner_levels: (printer.toner_levels && typeof printer.toner_levels === 'object') ? printer.toner_levels : {},
               custom_data: customData,
             });
           }

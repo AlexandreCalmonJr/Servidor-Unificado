@@ -11,6 +11,9 @@
       <button id="btn-refresh-printers" class="btn btn-primary">
         <span>🔄</span> Atualizar Status
       </button>
+      <button id="btn-export-printers" class="btn btn-ghost">
+        <span>Exportar</span> CSV
+      </button>
       <button id="btn-discover-printers" class="btn btn-ghost">
         <span>🔍</span> Descobrir Impressoras
       </button>
@@ -102,6 +105,7 @@
       <thead>
         <tr>
           <th>Nome</th>
+          <th>Serial</th>
           <th>Fabricante</th>
           <th>Modelo</th>
           <th>Conexão</th>
@@ -111,6 +115,7 @@
           <th>Andar</th>
           <th>Status</th>
           <th>Toner</th>
+          <th>Unidade Imagem</th>
           <th>Última Verificação</th>
           <th>Ações</th>
         </tr>
@@ -207,7 +212,165 @@
       <button class="btn btn-ghost" id="modal-btn-close">Fechar</button>
       <button class="btn btn-primary" id="modal-btn-refresh">Atualizar Status</button>
       <button class="btn btn-ghost" id="modal-btn-edit">Editar</button>
-      <button class="btn btn-danger" id="modal-btn-delete">Deletar</button>
+    </div>
+  </div>
+
+  <!-- ===== ESTOQUE E HISTORICO ===== -->
+  <div class="inventory-section">
+    <div class="inventory-header">
+      <h2>Estoque e Historico</h2>
+      <button id="btn-refresh-inventory" class="btn btn-ghost">Atualizar Inventario</button>
+    </div>
+
+    <div class="inventory-cards">
+      <div class="summary-card">
+        <div class="card-content">
+          <div class="card-label">Toner Preto em Estoque</div>
+          <div class="card-value" id="inv-stock-toner">0</div>
+        </div>
+      </div>
+      <div class="summary-card">
+        <div class="card-content">
+          <div class="card-label">Unidade de Imagem em Estoque</div>
+          <div class="card-value" id="inv-stock-imaging">0</div>
+        </div>
+      </div>
+      <div class="summary-card">
+        <div class="card-content">
+          <div class="card-label">Impressoras Backup</div>
+          <div class="card-value" id="inv-stock-backup">0</div>
+        </div>
+      </div>
+      <div class="summary-card">
+        <div class="card-content">
+          <div class="card-label">Alertas Toner/Imagem</div>
+          <div class="card-value" id="inv-low-total">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="inventory-forms">
+      <div class="chart-card">
+        <h3>Ajuste de Estoque</h3>
+        <div class="inventory-form-grid">
+          <div class="form-group">
+            <label for="inv-stock-item">Item</label>
+            <select id="inv-stock-item" class="form-input">
+              <option value="toner_black">Toner Preto</option>
+              <option value="imaging_unit">Unidade de Imagem</option>
+              <option value="backup_printer">Impressora Backup</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="inv-stock-mode">Modo</label>
+            <select id="inv-stock-mode" class="form-input">
+              <option value="delta">Somar/Subtrair</option>
+              <option value="set">Definir Valor</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="inv-stock-value">Valor</label>
+            <input type="number" id="inv-stock-value" class="form-input" value="1">
+          </div>
+          <div class="form-group">
+            <label for="inv-stock-reason">Motivo</label>
+            <input type="text" id="inv-stock-reason" class="form-input" placeholder="Ex: compra, ajuste inventario">
+          </div>
+          <div class="form-group inventory-form-span">
+            <label for="inv-stock-notes">Observacoes</label>
+            <input type="text" id="inv-stock-notes" class="form-input" placeholder="Detalhes opcionais">
+          </div>
+        </div>
+        <div class="inventory-actions">
+          <button id="btn-stock-subtract" class="btn btn-ghost">-1</button>
+          <button id="btn-stock-add" class="btn btn-primary">+1</button>
+          <button id="btn-stock-save" class="btn btn-ghost">Aplicar Valor</button>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <h3>Troca e Manutencao</h3>
+        <div class="inventory-form-grid">
+          <div class="form-group">
+            <label for="inv-maint-printer">Impressora</label>
+            <select id="inv-maint-printer" class="form-input"></select>
+          </div>
+          <div class="form-group">
+            <label for="inv-maint-event">Evento</label>
+            <select id="inv-maint-event" class="form-input">
+              <option value="toner_replacement">Troca de Toner</option>
+              <option value="imaging_replacement">Troca Unidade de Imagem</option>
+              <option value="maintenance">Manutencao</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="inv-maint-item">Consome Item</label>
+            <select id="inv-maint-item" class="form-input">
+              <option value="toner_black">Toner Preto</option>
+              <option value="imaging_unit">Unidade de Imagem</option>
+              <option value="backup_printer">Impressora Backup</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="inv-maint-qty">Quantidade</label>
+            <input type="number" id="inv-maint-qty" class="form-input" value="1" min="1">
+          </div>
+          <div class="form-group">
+            <label for="inv-maint-reason">Motivo</label>
+            <input type="text" id="inv-maint-reason" class="form-input" placeholder="Ex: toner zerou">
+          </div>
+          <div class="form-group inventory-form-span">
+            <label for="inv-maint-notes">Observacoes</label>
+            <input type="text" id="inv-maint-notes" class="form-input" placeholder="Detalhes da troca/manutencao">
+          </div>
+        </div>
+        <div class="inventory-actions">
+          <label class="inventory-checkbox">
+            <input type="checkbox" id="inv-maint-consume" checked>
+            Consumir do estoque
+          </label>
+          <button id="btn-maint-save" class="btn btn-primary">Registrar Evento</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="printers-filters">
+      <div class="filter-group">
+        <label for="inv-filter-type">Tipo de Evento</label>
+        <select id="inv-filter-type" class="filter-select">
+          <option value="">Todos</option>
+          <option value="stock_adjustment">Ajuste Estoque</option>
+          <option value="toner_replacement">Troca Toner</option>
+          <option value="imaging_replacement">Troca Unidade Imagem</option>
+          <option value="maintenance">Manutencao</option>
+          <option value="alert">Alerta</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="inv-filter-printer">Buscar Impressora</label>
+        <input type="text" id="inv-filter-printer" class="filter-input" placeholder="Nome ou serial">
+      </div>
+    </div>
+
+    <div class="printers-table-container">
+      <table class="printers-table">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Tipo</th>
+            <th>Impressora</th>
+            <th>Item</th>
+            <th>Delta</th>
+            <th>Estoque Apos</th>
+            <th>Motivo</th>
+            <th>Observacoes</th>
+          </tr>
+        </thead>
+        <tbody id="inventory-events-tbody"></tbody>
+      </table>
+      <div id="inventory-empty-state" class="empty-state" style="display:none;">
+        <div class="empty-title">Sem eventos de inventario</div>
+      </div>
     </div>
   </div>
 </div>
@@ -345,22 +508,5 @@
     </div>
   </div>
 </div>
-<!-- ===== MODAL: CONFIRMACAO DE DELECAO ===== -->
-<div id="modal-confirm-delete" class="modal" style="display:none;">
-  <div class="modal-content modal-small">
-    <div class="modal-header">
-      <h2>Confirmar Exclusão</h2>
-    </div>
-    
-    <div class="modal-body">
-      <p>Tem certeza que deseja deletar a impressora <strong id="confirm-printer-name">-</strong>?</p>
-      <p class="text-warning">Esta ação não pode ser desfeita.</p>
-    </div>
-    
-    <div class="modal-footer">
-      <button class="btn btn-ghost" id="modal-btn-cancel-delete">Cancelar</button>
-      <button class="btn btn-danger" id="modal-btn-confirm-delete">Deletar</button>
-    </div>
-  </div>
-</div>
+
 

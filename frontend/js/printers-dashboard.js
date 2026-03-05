@@ -7,6 +7,7 @@ let editingPrinterId = null;
 let printersRefreshTimer = null;
 let printersDashboardInitialized = false;
 let discoveredPrinters = [];
+let allInventoryEvents = [];
 const TONER_MONO_ONLY = true;
 
 function destroyChartInstance(key, canvasEl) {
@@ -63,6 +64,8 @@ async function loadPrinters() {
     updateSummary(data.summary);
     renderPrintersTable(allPrinters);
     renderCharts();
+    updateMaintenancePrinterOptions();
+    await loadInventoryPanel();
     
   } catch (error) {
     console.error('Erro ao carregar impressoras:', error);
@@ -99,17 +102,19 @@ function renderPrintersTable(printers) {
   const filtered = applyFilters(printers);
   
   tbody.innerHTML = filtered.map(printer => {
-    const tonerLevels = printer.custom_data?.toner_levels || {};
-    const tonerDisplay = Object.keys(tonerLevels).length > 0 
-      ? `${tonerLevels.black || tonerLevels.color || 0}%`
-      : 'N/A';
+    const tonerLevels = printer.toner_levels || printer.custom_data?.toner_levels || {};
+    const tonerDisplay = tonerLevels.black !== undefined ? `${tonerLevels.black}%` : 'N/A';
+    const imagingDisplay = tonerLevels.imaging_unit !== undefined
+      ? `${tonerLevels.imaging_unit}%`
+      : (printer.custom_data?.imaging_supported === false ? 'Nao suportado' : 'N/A');
     
     const lastCheck = new Date(printer.last_check_time || printer.updated_at);
     const lastCheckFormatted = formatTime(lastCheck);
     
     return `
       <tr>
-        <td><strong>${printer.asset_name}</strong></td>
+        <td><strong>${printer.hostname || printer.custom_data?.hostname || printer.asset_name || 'N/A'}</strong></td>
+        <td>${printer.serial_number || '-'}</td>
         <td>${printer.manufacturer || 'N/A'}</td>
         <td>${printer.model || 'N/A'}</td>
         <td>${printer.connection_type === 'network' ? '🌐 Rede' : '🔌 USB'}</td>
@@ -126,13 +131,13 @@ function renderPrintersTable(printers) {
             <span>${tonerDisplay}</span>
           </div>
         </td>
+        <td>${imagingDisplay}</td>
         <td><small>${lastCheckFormatted}</small></td>
         <td>
           <div class="table-actions">
             <button class="action-btn action-btn-view" onclick="showPrinterDetails('${printer._id}')">👁️</button>
             <button class="action-btn action-btn-edit" onclick="openEditPrinter('${printer._id}')">Edit</button>
             <button class="action-btn action-btn-refresh" onclick="refreshPrinterStatus('${printer._id}')">🔄</button>
-            <button class="action-btn action-btn-delete" onclick="confirmDeletePrinter('${printer._id}', '${printer.asset_name}')">🗑️</button>
           </div>
         </td>
       </tr>
@@ -300,12 +305,12 @@ function renderTonerChart() {
   const ctx = document.getElementById('printer-chart-toner');
   if (!ctx) return;
   
-  const colors = TONER_MONO_ONLY ? ['black'] : ['black', 'cyan', 'magenta', 'yellow'];
+  const colors = TONER_MONO_ONLY ? ['black', 'imaging_unit'] : ['black', 'cyan', 'magenta', 'yellow', 'imaging_unit'];
   const averages = {};
   
   colors.forEach(color => {
     const levels = allPrinters
-      .map(p => p.custom_data?.toner_levels?.[color])
+      .map(p => (p.toner_levels || p.custom_data?.toner_levels || {})[color])
       .filter(l => l !== undefined);
     
     if (levels.length > 0) {
@@ -324,7 +329,9 @@ function renderTonerChart() {
   chartsInstances.toner = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: Object.keys(averages).map(c => c.charAt(0).toUpperCase() + c.slice(1)),
+      labels: Object.keys(averages).map(c => c === 'imaging_unit'
+        ? 'Imagem'
+        : c.charAt(0).toUpperCase() + c.slice(1)),
       datasets: [{
         label: 'Nível Médio (%)',
         data: Object.values(averages),
@@ -382,7 +389,7 @@ async function showPrinterDetails(printerId) {
     
     // Renderiza níveis de toner
     const tonerContainer = document.getElementById('toner-levels-container');
-    const tonerLevels = printer.custom_data?.toner_levels || {};
+    const tonerLevels = printer.toner_levels || printer.custom_data?.toner_levels || {};
     
     if (Object.keys(tonerLevels).length === 0) {
       tonerContainer.innerHTML = '<p style="color: #7f8c8d;">Dados de toner não disponíveis</p>';
@@ -487,7 +494,7 @@ function openEditPrinter(printerId) {
   const serialInput = document.getElementById('reg-serial');
   if (title) title.textContent = 'Editar Impressora';
   if (saveBtn) saveBtn.textContent = 'Salvar Alteracoes';
-  if (serialInput) serialInput.disabled = true;
+  if (serialInput) serialInput.disabled = false;
 
   document.getElementById('modal-register-printer').style.display = 'flex';
 }
@@ -560,37 +567,274 @@ async function registerPrinter() {
   }
 }
 
-/**
- * Confirma exclusão de impressora
- */
-function confirmDeletePrinter(printerId, printerName) {
-  currentPrinterId = printerId;
-  document.getElementById('confirm-printer-name').textContent = printerName;
-  document.getElementById('modal-confirm-delete').style.display = 'flex';
-}
-
-/**
- * Deleta impressora
- */
-async function deletePrinter() {
+async function loadInventoryPanel() {
   try {
-    const response = await fetch(`/api/printers/${currentPrinterId}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${getAuthToken()}` }
-    });
-    
-    if (!response.ok) throw new Error('Erro ao deletar impressora');
-    
-    showNotification('Impressora deletada com sucesso', 'success');
-    document.getElementById('modal-confirm-delete').style.display = 'none';
-    await loadPrinters();
-    
+    const [summaryRes, eventsRes] = await Promise.all([
+      fetch('/api/printers/inventory/summary', {
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+      }),
+      fetch('/api/printers/inventory/events?limit=200', {
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+      }),
+    ]);
+
+    if (summaryRes.ok) {
+      const payload = await summaryRes.json();
+      const stock = payload.stock || {};
+      const stats = payload.printers || {};
+      const stockToner = Number(stock.toner_black || 0);
+      const stockImaging = Number(stock.imaging_unit || 0);
+      const stockBackup = Number(stock.backup_printer || 0);
+      const lowTotal = Number(stats.toner_low || 0) + Number(stats.imaging_low || 0);
+      const setText = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = String(value);
+      };
+      setText('inv-stock-toner', stockToner);
+      setText('inv-stock-imaging', stockImaging);
+      setText('inv-stock-backup', stockBackup);
+      setText('inv-low-total', lowTotal);
+    }
+
+    if (eventsRes.ok) {
+      const payload = await eventsRes.json();
+      allInventoryEvents = Array.isArray(payload.events) ? payload.events : [];
+      renderInventoryEventsTable();
+    }
   } catch (error) {
-    console.error('Erro ao deletar:', error);
-    showNotification('Erro ao deletar impressora', 'error');
+    console.error('Erro ao carregar inventario:', error);
   }
 }
 
+function formatInventoryEventType(type) {
+  const map = {
+    stock_adjustment: 'Ajuste Estoque',
+    toner_replacement: 'Troca Toner',
+    imaging_replacement: 'Troca Imagem',
+    maintenance: 'Manutencao',
+    alert: 'Alerta',
+  };
+  return map[type] || type || '-';
+}
+
+function formatInventoryItemType(type) {
+  const map = {
+    toner_black: 'Toner Preto',
+    imaging_unit: 'Unidade Imagem',
+    backup_printer: 'Impressora Backup',
+    other: 'Outro',
+  };
+  return map[type] || type || '-';
+}
+
+function findPrinterDisplayName(printerId, metadata = {}) {
+  const printer = allPrinters.find((p) => String(p._id) === String(printerId));
+  if (printer) return `${printer.asset_name || printer.hostname || 'Printer'} (${printer.serial_number || '-'})`;
+  if (metadata?.printer_name || metadata?.printer_serial) {
+    return `${metadata.printer_name || 'Printer'} (${metadata.printer_serial || '-'})`;
+  }
+  return '-';
+}
+
+function renderInventoryEventsTable() {
+  const tbody = document.getElementById('inventory-events-tbody');
+  const emptyState = document.getElementById('inventory-empty-state');
+  if (!tbody || !emptyState) return;
+
+  const typeFilter = (document.getElementById('inv-filter-type')?.value || '').trim();
+  const printerFilter = (document.getElementById('inv-filter-printer')?.value || '').trim().toLowerCase();
+
+  const filtered = allInventoryEvents.filter((event) => {
+    if (typeFilter && event.event_type !== typeFilter) return false;
+    if (!printerFilter) return true;
+    const printerLabel = findPrinterDisplayName(event.printer_id, event.metadata).toLowerCase();
+    const reason = String(event.reason || '').toLowerCase();
+    return printerLabel.includes(printerFilter) || reason.includes(printerFilter);
+  });
+
+  if (!filtered.length) {
+    tbody.innerHTML = '';
+    emptyState.style.display = 'block';
+    return;
+  }
+
+  emptyState.style.display = 'none';
+  tbody.innerHTML = filtered.map((event) => {
+    const date = event.created_at ? formatTime(new Date(event.created_at)) : '-';
+    const delta = Number(event.quantity_delta || 0);
+    const deltaText = delta > 0 ? `+${delta}` : String(delta);
+    const stockAfter = event.quantity_after === null || event.quantity_after === undefined ? '-' : event.quantity_after;
+    const printerLabel = findPrinterDisplayName(event.printer_id, event.metadata);
+    return `
+      <tr>
+        <td>${date}</td>
+        <td>${formatInventoryEventType(event.event_type)}</td>
+        <td>${printerLabel}</td>
+        <td>${formatInventoryItemType(event.item_type)}</td>
+        <td>${deltaText}</td>
+        <td>${stockAfter}</td>
+        <td>${event.reason || '-'}</td>
+        <td>${event.notes || '-'}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function updateMaintenancePrinterOptions() {
+  const select = document.getElementById('inv-maint-printer');
+  if (!select) return;
+  const sorted = [...allPrinters].sort((a, b) => String(a.asset_name || '').localeCompare(String(b.asset_name || ''), 'pt-BR'));
+  select.innerHTML = sorted.map((p) => (
+    `<option value="${p._id}">${p.asset_name || p.hostname || 'Printer'} (${p.serial_number || '-'})</option>`
+  )).join('');
+}
+
+async function adjustInventoryStock(action) {
+  try {
+    const itemType = document.getElementById('inv-stock-item')?.value || 'toner_black';
+    const mode = document.getElementById('inv-stock-mode')?.value || 'delta';
+    const baseValue = Number(document.getElementById('inv-stock-value')?.value || 0);
+    const reason = document.getElementById('inv-stock-reason')?.value || 'ajuste_manual';
+    const notes = document.getElementById('inv-stock-notes')?.value || '';
+
+    let value = baseValue;
+    if (action === 'add_one') value = 1;
+    if (action === 'subtract_one') value = -1;
+
+    const response = await fetch('/api/printers/inventory/stock-adjust', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`,
+      },
+      body: JSON.stringify({
+        item_type: itemType,
+        mode,
+        value,
+        reason,
+        notes,
+      }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.success === false) {
+      throw new Error(payload.message || 'Erro ao ajustar estoque');
+    }
+
+    showNotification('Estoque atualizado com sucesso', 'success');
+    await loadInventoryPanel();
+  } catch (error) {
+    console.error('Erro ao ajustar estoque:', error);
+    showNotification(error.message || 'Erro ao ajustar estoque', 'error');
+  }
+}
+
+async function registerMaintenanceEvent() {
+  try {
+    const printerId = document.getElementById('inv-maint-printer')?.value;
+    if (!printerId) {
+      showNotification('Selecione uma impressora para registrar evento', 'error');
+      return;
+    }
+
+    const eventType = document.getElementById('inv-maint-event')?.value || 'maintenance';
+    const itemType = document.getElementById('inv-maint-item')?.value || 'other';
+    const consumeStock = Boolean(document.getElementById('inv-maint-consume')?.checked);
+    const consumeQty = Number(document.getElementById('inv-maint-qty')?.value || 1);
+    const reason = document.getElementById('inv-maint-reason')?.value || '';
+    const notes = document.getElementById('inv-maint-notes')?.value || '';
+
+    const response = await fetch(`/api/printers/${printerId}/maintenance-event`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`,
+      },
+      body: JSON.stringify({
+        event_type: eventType,
+        item_type: itemType,
+        consume_stock: consumeStock,
+        consume_quantity: Number.isFinite(consumeQty) ? consumeQty : 1,
+        reason,
+        notes,
+      }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.success === false) {
+      throw new Error(payload.message || 'Erro ao registrar evento');
+    }
+
+    showNotification('Evento registrado com sucesso', 'success');
+    await loadPrinters();
+  } catch (error) {
+    console.error('Erro ao registrar evento:', error);
+    showNotification(error.message || 'Erro ao registrar evento', 'error');
+  }
+}
+
+function escapeCsv(value) {
+  const raw = value === null || value === undefined ? '' : String(value);
+  return `"${raw.replace(/"/g, '""')}"`;
+}
+
+function exportPrintersCsv() {
+  const rows = applyFilters(allPrinters);
+  if (!rows.length) {
+    showNotification('Nenhuma impressora para exportar', 'info');
+    return;
+  }
+
+  const headers = [
+    'Nome',
+    'Serial',
+    'Fabricante',
+    'Modelo',
+    'Conexao',
+    'IP_USB',
+    'Unidade',
+    'Setor',
+    'Andar',
+    'Status',
+    'Toner',
+    'Ultima_Verificacao',
+  ];
+
+  const lines = rows.map((printer) => {
+    const displayName = printer.hostname || printer.custom_data?.hostname || printer.asset_name || '';
+    const tonerLevels = printer.toner_levels || printer.custom_data?.toner_levels || {};
+    const tonerDisplay = tonerLevels.black !== undefined ? `${tonerLevels.black}%` : 'N/A';
+    const lastCheck = formatTime(new Date(printer.last_check_time || printer.updated_at));
+    return [
+      displayName,
+      printer.serial_number || '',
+      printer.manufacturer || '',
+      printer.model || '',
+      printer.connection_type || '',
+      printer.ip_address || printer.custom_data?.connection_details?.uri || '',
+      printer.unit || '',
+      printer.sector || '',
+      printer.floor || printer.location || '',
+      printer.status || '',
+      tonerDisplay,
+      lastCheck,
+    ].map(escapeCsv).join(',');
+  });
+
+  const csv = `${headers.join(',')}\n${lines.join('\n')}`;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const now = new Date();
+  const stamp = now.toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `printers-${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showNotification('CSV exportado com sucesso', 'success');
+}
 async function resetPrintersData() {
   const confirmed = window.confirm('Isso vai apagar TODO o cadastro de impressoras. Deseja continuar?');
   if (!confirmed) return;
@@ -615,7 +859,7 @@ async function resetPrintersData() {
 }
 
 function normalizeDiscoveryPrinter(printer) {
-  const baseName = printer.asset_name || (printer.ip_address ? `Printer ${printer.ip_address}` : 'Printer');
+  const baseName = printer.hostname || printer.custom_data?.hostname || printer.asset_name || (printer.ip_address ? `Printer ${printer.ip_address}` : 'Printer');
   const serial = printer.serial_number || (printer.ip_address ? `NET-${printer.ip_address}` : `DISC-${Date.now()}`);
   const connection = printer.connection_type || (printer.ip_address ? 'network' : 'usb');
 
@@ -775,6 +1019,8 @@ function setupEventListeners() {
   
   // Botões
   document.getElementById('btn-refresh-printers').addEventListener('click', loadPrinters);
+  const exportBtn = document.getElementById('btn-export-printers');
+  if (exportBtn) exportBtn.addEventListener('click', exportPrintersCsv);
   document.getElementById('btn-discover-printers').addEventListener('click', discoverPrinters);
   document.getElementById('btn-register-printer').addEventListener('click', openRegisterModal);
   const resetBtn = document.getElementById('btn-reset-printers');
@@ -802,12 +1048,6 @@ function setupEventListeners() {
     });
   }
   
-  document.getElementById('modal-btn-delete').addEventListener('click', () => {
-    const name = document.getElementById('detail-name').textContent;
-    confirmDeletePrinter(currentPrinterId, name);
-    document.getElementById('modal-printer-details').style.display = 'none';
-  });
-  
   // Modal de registro
   document.getElementById('modal-close-register').addEventListener('click', closeRegisterModal);
   document.getElementById('modal-btn-cancel-register').addEventListener('click', closeRegisterModal);
@@ -822,13 +1062,22 @@ function setupEventListeners() {
   if (discoveriesCancelBtn) discoveriesCancelBtn.addEventListener('click', closeDiscoveriesModal);
   if (discoveriesRegisterBtn) discoveriesRegisterBtn.addEventListener('click', registerSelectedDiscoveries);
   if (discoveriesSelectAll) discoveriesSelectAll.addEventListener('change', toggleSelectAllDiscoveries);
-  
-  // Modal de confirmação
-  document.getElementById('modal-btn-cancel-delete').addEventListener('click', () => {
-    document.getElementById('modal-confirm-delete').style.display = 'none';
-  });
-  
-  document.getElementById('modal-btn-confirm-delete').addEventListener('click', deletePrinter);
+
+  const invRefreshBtn = document.getElementById('btn-refresh-inventory');
+  const invAddBtn = document.getElementById('btn-stock-add');
+  const invSubBtn = document.getElementById('btn-stock-subtract');
+  const invSaveBtn = document.getElementById('btn-stock-save');
+  const invMaintSaveBtn = document.getElementById('btn-maint-save');
+  const invFilterType = document.getElementById('inv-filter-type');
+  const invFilterPrinter = document.getElementById('inv-filter-printer');
+
+  if (invRefreshBtn) invRefreshBtn.addEventListener('click', loadInventoryPanel);
+  if (invAddBtn) invAddBtn.addEventListener('click', () => adjustInventoryStock('add_one'));
+  if (invSubBtn) invSubBtn.addEventListener('click', () => adjustInventoryStock('subtract_one'));
+  if (invSaveBtn) invSaveBtn.addEventListener('click', () => adjustInventoryStock('apply'));
+  if (invMaintSaveBtn) invMaintSaveBtn.addEventListener('click', registerMaintenanceEvent);
+  if (invFilterType) invFilterType.addEventListener('change', renderInventoryEventsTable);
+  if (invFilterPrinter) invFilterPrinter.addEventListener('input', renderInventoryEventsTable);
   
   // Fecha modais ao clicar fora
   document.querySelectorAll('.modal').forEach(modal => {
