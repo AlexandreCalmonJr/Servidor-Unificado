@@ -147,9 +147,47 @@
   transition: opacity var(--duration-fast);
 }
 
+.nav-submenu {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  margin: 2px 0 8px 38px;
+}
+
+.nav-item[data-page='printers'].active + .nav-submenu-printers {
+  display: flex;
+}
+
+.nav-subitem {
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-smooth);
+}
+
+.nav-subitem:hover {
+  color: var(--text-primary);
+  background: var(--bg-card);
+}
+
+.nav-subitem.active {
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
 .sidebar.collapsed .nav-item .nav-label {
   opacity: 0;
   pointer-events: none;
+}
+
+.sidebar.collapsed .nav-submenu {
+  display: none !important;
 }
 
 .sidebar-footer {

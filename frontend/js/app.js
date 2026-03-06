@@ -2,6 +2,14 @@
 
 const App = (() => {
     let currentPage = 'dashboard';
+    const printerSubPages = new Set(['printers-list', 'printers-stock', 'printers-supplies', 'printers-history', 'printers-alerts']);
+    const printerViewByPage = {
+        'printers-list': 'list',
+        'printers-stock': 'stock',
+        'printers-supplies': 'supplies',
+        'printers-history': 'history',
+        'printers-alerts': 'alerts',
+    };
 
     const pageTitles = {
         dashboard: 'Dashboard',
@@ -17,6 +25,11 @@ const App = (() => {
         server: 'Servidor & APKs',
         reports: 'Relatórios',
         printers: 'Impressoras',
+        'printers-list': 'Impressoras - Lista',
+        'printers-stock': 'Impressoras - Estoque',
+        'printers-supplies': 'Impressoras - Insumos',
+        'printers-history': 'Impressoras - Historico',
+        'printers-alerts': 'Impressoras - Alertas',
     };
 
     const pageLoaders = {};
@@ -31,8 +44,9 @@ const App = (() => {
 
         if (window.lucide) window.lucide.createIcons();
         if (pageLoaders.dashboard) pageLoaders.dashboard();
-        // Carrega o dashboard de impressoras se a página inicial for 'printers'
-        if (currentPage === 'printers' && pageLoaders.printers) pageLoaders.printers();
+        if ((currentPage === 'printers' || printerSubPages.has(currentPage)) && pageLoaders.printers) {
+            pageLoaders.printers();
+        }
     }
 
     function checkAuth() {
@@ -68,24 +82,36 @@ const App = (() => {
         document.querySelectorAll('.nav-item[data-page]').forEach(item => {
             item.addEventListener('click', () => navigateTo(item.dataset.page));
         });
+
+        document.querySelectorAll('.nav-subitem[data-page]').forEach(item => {
+            item.addEventListener('click', (event) => {
+                event.stopPropagation();
+                navigateTo(item.dataset.page);
+            });
+        });
     }
 
     function navigateTo(page) {
         if (!pageTitles[page]) return;
         currentPage = page;
+        const rootPage = printerSubPages.has(page) ? 'printers' : page;
+        window.__printersView = printerViewByPage[page] || 'list';
 
         document.querySelectorAll('.nav-item[data-page]').forEach(item => {
+            item.classList.toggle('active', item.dataset.page === rootPage);
+        });
+        document.querySelectorAll('.nav-subitem[data-page]').forEach(item => {
             item.classList.toggle('active', item.dataset.page === page);
         });
 
         document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
-        document.getElementById(`page-${page}`)?.classList.add('active');
+        document.getElementById(`page-${rootPage}`)?.classList.add('active');
 
         const titleEl = document.getElementById('page-title');
         if (titleEl) titleEl.textContent = pageTitles[page];
 
         closeMobileMenu();
-        if (pageLoaders[page]) pageLoaders[page]();
+        if (pageLoaders[rootPage]) pageLoaders[rootPage]();
     }
 
     function setupSidebar() {
@@ -130,18 +156,28 @@ const App = (() => {
         pageLoaders[page] = callback;
     }
 
-    // Carrega o conteúdo do dashboard de impressoras e inicializa o script
-    let printersViewLoaded = false;
+    // Carrega uma view de impressoras (cada subpagina em seu proprio HTML)
+    let currentPrintersViewLoaded = null;
     onPageLoad('printers', async () => {
         const contentArea = document.getElementById('page-content');
         if (!contentArea) return;
 
         try {
-            if (!printersViewLoaded) {
-                const response = await fetch(`/views/printers-dashboard.html?v=${Date.now()}`, { cache: 'no-store' });
+            const view = window.__printersView || 'list';
+            const viewPathByKey = {
+                list: '/views/printers-list.html',
+                stock: '/views/printers-stock.html',
+                supplies: '/views/printers-supplies.html',
+                history: '/views/printers-history.html',
+                alerts: '/views/printers-alerts.html',
+            };
+            const viewPath = viewPathByKey[view] || viewPathByKey.list;
+
+            if (currentPrintersViewLoaded !== view) {
+                const response = await fetch(`${viewPath}?v=${Date.now()}`, { cache: 'no-store' });
                 const html = await response.text();
                 contentArea.innerHTML = html;
-                printersViewLoaded = true;
+                currentPrintersViewLoaded = view;
             }
 
             const cssId = 'printers-dashboard-css';

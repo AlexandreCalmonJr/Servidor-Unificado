@@ -1,0 +1,60 @@
+<!-- Printers Supplies View -->
+<div class="printers-dashboard">
+  <div class="dashboard-header">
+    <div class="header-title">
+      <h1>Insumos de Impressoras</h1>
+      <p class="subtitle">Cadastro de insumos</p>
+    </div>
+    <div class="header-actions">
+      <button id="btn-refresh-inventory" class="btn btn-primary">Atualizar Inventario</button>
+    </div>
+  </div>
+
+  <section id="printers-tab-supplies" class="printer-subtab-panel is-active">
+    <div class="inventory-section">
+      <div class="inventory-forms">
+        <div class="chart-card">
+          <h3>Entrada de Estoque</h3>
+          <div class="inventory-form-grid">
+            <div class="form-group"><label for="supply-in-item">Insumo *</label><select id="supply-in-item" class="form-input"></select></div>
+            <div class="form-group"><label for="supply-in-quantity">Quantidade que Chegou *</label><input type="number" id="supply-in-quantity" class="form-input" value="1" min="1"></div>
+          </div>
+          <div class="inventory-actions">
+            <button id="btn-supply-in-stock" class="btn btn-primary">Adicionar ao Estoque</button>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <h3>Baixa de Insumo</h3>
+          <div class="inventory-form-grid">
+            <div class="form-group"><label for="supply-move-item">Insumo *</label><select id="supply-move-item" class="form-input"></select></div>
+            <div class="form-group"><label for="supply-move-quantity">Quantidade *</label><input type="number" id="supply-move-quantity" class="form-input" value="1" min="1"></div>
+            <div class="form-group"><label for="supply-move-ticket">Numero do Chamado *</label><input type="text" id="supply-move-ticket" class="form-input" placeholder="Ex: CH-2026-00125"></div>
+            <div class="form-group"><label for="supply-move-reason">Motivo *</label><input type="text" id="supply-move-reason" class="form-input" placeholder="Ex: troca em impressora do setor X"></div>
+            <div class="form-group inventory-form-span"><label for="supply-move-notes">Observacoes</label><input type="text" id="supply-move-notes" class="form-input" placeholder="Detalhes adicionais"></div>
+          </div>
+          <div class="inventory-actions">
+            <button id="btn-supply-out" class="btn btn-danger">Dar Baixa</button>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <h3>Cadastro de Insumo</h3>
+          <div class="inventory-form-grid">
+            <div class="form-group"><label for="supply-sku">SKU *</label><input type="text" id="supply-sku" class="form-input" placeholder="Ex: W2040A"></div>
+            <div class="form-group"><label for="supply-name">Nome *</label><input type="text" id="supply-name" class="form-input" placeholder="Ex: Toner Preto HP 416A"></div>
+            <div class="form-group"><label for="supply-category">Categoria</label><select id="supply-category" class="form-input"><option value="toner_black">Toner Preto</option><option value="imaging_unit">Unidade de Imagem</option><option value="maintenance_kit">Kit de Manutencao</option><option value="backup_printer">Impressora Backup</option><option value="other">Outro</option></select></div>
+            <div class="form-group"><label for="supply-manufacturer">Fabricante</label><input type="text" id="supply-manufacturer" class="form-input" placeholder="Ex: HP"></div>
+            <div class="form-group"><label for="supply-model-family">Familia/Modelo</label><input type="text" id="supply-model-family" class="form-input" placeholder="Ex: M404/M408"></div>
+            <div class="form-group"><label for="supply-quantity">Qtd Inicial</label><input type="number" id="supply-quantity" class="form-input" value="0" min="0"></div>
+            <div class="form-group"><label for="supply-min-stock">Estoque Minimo</label><input type="number" id="supply-min-stock" class="form-input" value="0" min="0"></div>
+            <div class="form-group"><label for="supply-location">Local Armazenamento</label><input type="text" id="supply-location" class="form-input" placeholder="Ex: Almoxarifado A"></div>
+          </div>
+          <div class="inventory-actions">
+            <button id="btn-supply-create" class="btn btn-primary">Cadastrar Insumo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>

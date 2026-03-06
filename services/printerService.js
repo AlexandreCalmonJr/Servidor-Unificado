@@ -38,9 +38,19 @@ const OIDS = {
   samsungSerial: '1.3.6.1.4.1.236.11.5.11.81.2.1.0',
 };
 const SUPPLIES_DESC_BASE_OID = '1.3.6.1.2.1.43.11.1.1.6.1';
+const SUPPLIES_TYPE_BASE_OID = '1.3.6.1.2.1.43.11.1.1.5.1';
 const SUPPLIES_MAX_BASE_OID = '1.3.6.1.2.1.43.11.1.1.8.1';
 const SUPPLIES_CUR_BASE_OID = '1.3.6.1.2.1.43.11.1.1.9.1';
-const IMAGING_DESC_HINT = /(imaging|image unit|drum|opc|photo conductor|fuser|maintenance kit|unidade de imagem|unidad de imagen|cilindro|fotocondutor)/i;
+const IMAGING_DESC_HINT = /(imaging|image unit|drum|opc|photo conductor|unidade de imagem|unidad de imagen|cilindro|fotocondutor)/i;
+const IMAGING_DESC_EXCLUDE_HINT = /(fuser|maintenance kit|transfer|belt|waste|collector|pickup|roller|fixador|fusor)/i;
+const TONER_DESC_HINT = /(toner|cartridge|cartucho|w1330|cf258|mlt-|crum)/i;
+const SUPPLY_TYPE = {
+  TONER: 3,
+  OPC: 9,
+  DEVELOPER: 10,
+  FUSER: 15,
+  TRANSFER_UNIT: 30,
+};
 
 const STATUS_MAP = {
   1: 'unknown',
@@ -59,6 +69,8 @@ class PrinterService {
     this.timer = null;
     this.snmpTimeout = 5000;
     this.monoOnly = String(process.env.PRINTER_MONO_ONLY || 'true').toLowerCase() !== 'false';
+    const debugFlag = String(process.env.PRINTER_DEBUG_IMAGING || 'false').toLowerCase();
+    this.debugImaging = ['true', '1', 'yes', 'on'].includes(debugFlag);
   }
 
   async start() {
@@ -674,9 +686,11 @@ class PrinterService {
     }
 
     const toner = this.parseToner(snmpData);
-    if (toner.imaging_unit === undefined || toner.imaging_unit === null) {
-      const dynamicImaging = await this.readImagingUnitByWalk(ip, community);
-      if (dynamicImaging !== null) toner.imaging_unit = dynamicImaging;
+    // Prioriza leitura dinamica por descricao de suprimento, pois o OID fixo
+    // de imaging pode variar entre modelos e retornar valor incorreto.
+    const dynamicImaging = await this.readImagingUnitByWalk(ip, community);
+    if (dynamicImaging !== null) {
+      toner.imaging_unit = dynamicImaging;
     }
     const imagingSupported = toner.imaging_unit !== undefined && toner.imaging_unit !== null;
     const alerts = this.computeAlerts(toner);
@@ -787,8 +801,9 @@ class PrinterService {
   async readImagingUnitByWalk(ip, community) {
     if (!snmp) return null;
     try {
-      const [descMap, maxMap, curMap] = await Promise.all([
+      const [descMap, typeMap, maxMap, curMap] = await Promise.all([
         this.snmpSubtree(ip, community, SUPPLIES_DESC_BASE_OID),
+        this.snmpSubtree(ip, community, SUPPLIES_TYPE_BASE_OID),
         this.snmpSubtree(ip, community, SUPPLIES_MAX_BASE_OID),
         this.snmpSubtree(ip, community, SUPPLIES_CUR_BASE_OID),
       ]);
@@ -803,24 +818,85 @@ class PrinterService {
       const candidateIndexes = Array.from(allIndexes).filter((idx) => /^\d+$/.test(String(idx)));
       if (!candidateIndexes.length) return null;
 
-      const byDesc = candidateIndexes.find((idx) => IMAGING_DESC_HINT.test(String(descMap[`${SUPPLIES_DESC_BASE_OID}.${idx}`] || '')));
-      if (byDesc) {
-        const max = this.toNumber(maxMap[`${SUPPLIES_MAX_BASE_OID}.${byDesc}`]);
-        const current = this.toNumber(curMap[`${SUPPLIES_CUR_BASE_OID}.${byDesc}`]);
-        return this.percent(current, max);
+      const ranked = candidateIndexes.map((idx) => {
+        const desc = String(descMap[`${SUPPLIES_DESC_BASE_OID}.${idx}`] || '');
+        const descLower = desc.toLowerCase();
+        const type = this.toNumber(typeMap[`${SUPPLIES_TYPE_BASE_OID}.${idx}`]);
+        const max = this.toNumber(maxMap[`${SUPPLIES_MAX_BASE_OID}.${idx}`]);
+        const current = this.toNumber(curMap[`${SUPPLIES_CUR_BASE_OID}.${idx}`]);
+        const pct = this.percent(current, max);
+        const hasImagingHint = IMAGING_DESC_HINT.test(desc);
+        const hasExcludedHint = IMAGING_DESC_EXCLUDE_HINT.test(desc);
+        const hasTonerHint = TONER_DESC_HINT.test(desc);
+        const hasImagingTypeHint = type === SUPPLY_TYPE.OPC;
+        const hasDeveloperTypeHint = type === SUPPLY_TYPE.DEVELOPER;
+        const hasExcludedTypeHint = type === SUPPLY_TYPE.TRANSFER_UNIT
+          || type === SUPPLY_TYPE.FUSER
+          || type === SUPPLY_TYPE.TONER;
+
+        let score = 0;
+        if (hasImagingHint) score += 50;
+        if (hasImagingTypeHint) score += 35;
+        if (hasDeveloperTypeHint) score += 8;
+        if (hasExcludedHint) score -= 100;
+        if (hasTonerHint) score -= 100;
+        if (hasExcludedTypeHint) score -= 100;
+        if (/(black|preto|\bk\b)/i.test(desc)) score += 12;
+        if (/(cyan|magenta|yellow|ciano|amarelo)/i.test(desc)) score -= 20;
+        if (pct === null) score -= 5;
+        if (max !== null && max > 0) score += 2;
+
+        return {
+          idx,
+          desc: descLower,
+          pct,
+          score,
+          type,
+          hasImagingHint,
+          hasImagingTypeHint,
+          hasDeveloperTypeHint,
+          hasExcludedHint,
+          hasExcludedTypeHint,
+          hasTonerHint,
+        };
+      });
+
+      ranked.sort((a, b) => b.score - a.score);
+      const best = ranked.find((row) => (
+        row.pct !== null
+        && (row.hasImagingTypeHint || row.hasImagingHint || row.hasDeveloperTypeHint)
+        && !row.hasExcludedHint
+        && !row.hasExcludedTypeHint
+        && !row.hasTonerHint
+      ));
+
+      if (this.debugImaging) {
+        const debugRows = ranked.slice(0, 12).map((row) => {
+          const max = this.toNumber(maxMap[`${SUPPLIES_MAX_BASE_OID}.${row.idx}`]);
+          const cur = this.toNumber(curMap[`${SUPPLIES_CUR_BASE_OID}.${row.idx}`]);
+          const descRaw = String(descMap[`${SUPPLIES_DESC_BASE_OID}.${row.idx}`] || '').trim();
+          return {
+            idx: row.idx,
+            score: row.score,
+            type: row.type,
+            current: cur,
+            max,
+            percent: row.pct,
+            desc: descRaw,
+          };
+        });
+        const candidatesMsg = `[PrinterService][ImagingDebug] ip=${ip} candidates=${JSON.stringify(debugRows)}`;
+        const selectedMsg = `[PrinterService][ImagingDebug] ip=${ip} selected=${best ? JSON.stringify({ idx: best.idx, score: best.score, percent: best.pct, desc: best.desc }) : 'null'}`;
+        if (this.logger?.info) this.logger.info(candidatesMsg);
+        if (this.logger?.info) this.logger.info(selectedMsg);
+        // Fallback para garantir visibilidade no terminal local durante o ajuste deste modelo.
+        // eslint-disable-next-line no-console
+        console.log(candidatesMsg);
+        // eslint-disable-next-line no-console
+        console.log(selectedMsg);
       }
 
-      // Fallback para ambientes mono: em muitos modelos, indice 1 eh toner preto e o segundo indice eh unidade de imagem/drum.
-      if (this.monoOnly) {
-        const sorted = candidateIndexes.map(Number).sort((a, b) => a - b).map(String);
-        for (const idx of sorted) {
-          if (idx === '1') continue;
-          const max = this.toNumber(maxMap[`${SUPPLIES_MAX_BASE_OID}.${idx}`]);
-          const current = this.toNumber(curMap[`${SUPPLIES_CUR_BASE_OID}.${idx}`]);
-          const pct = this.percent(current, max);
-          if (pct !== null) return pct;
-        }
-      }
+      if (best) return best.pct;
 
       return null;
     } catch (error) {

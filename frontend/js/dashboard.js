@@ -13,6 +13,8 @@
     function startAutoRefresh() {
         stopAutoRefresh();
         refreshIntervalId = setInterval(() => {
+            const dashboardActive = document.getElementById('page-dashboard')?.classList.contains('active');
+            if (!dashboardActive) return;
             loadMetrics();
             loadAssetStatusChart();
             loadModuleStats();

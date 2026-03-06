@@ -149,6 +149,16 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
     };
   }
 
+  function normalizeSupplyCategory(rawCategory) {
+    const value = String(rawCategory || '').trim().toLowerCase();
+    const compact = value.replace(/[\s-]+/g, '_');
+
+    if (['toner_black', 'toner', 'black_toner', 'bk_toner'].includes(compact)) return 'toner_black';
+    if (['imaging_unit', 'image_unit', 'drum', 'opc', 'unidade_imagem', 'unidade_de_imagem'].includes(compact)) return 'imaging_unit';
+    if (['backup_printer', 'printer_backup', 'impressora_backup'].includes(compact)) return 'backup_printer';
+    return compact || 'other';
+  }
+
   function calculateMovementResult(movementType, inputQty, currentQty, quantityAfterInput) {
     const quantity = Number(inputQty);
     const current = Number(currentQty || 0);
@@ -314,7 +324,23 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, _deviceAuth, pr
 
   router.get('/inventory/summary', auth, getApiLimiter, validatePrinterModule, async (req, res) => {
     try {
-      const stock = normalizeStock(req.printerModule.settings);
+      const stockLegacy = normalizeStock(req.printerModule.settings);
+      const supplyItems = await PrinterSupplyItem.find({
+        module_id: req.printerModule._id,
+        is_active: true,
+      }).lean();
+      const stockBySupplies = supplyItems.reduce((acc, item) => {
+        const category = normalizeSupplyCategory(item.category);
+        const qty = Math.max(0, Number(item.quantity_on_hand || 0));
+        if (category === 'toner_black') acc.toner_black += qty;
+        if (category === 'imaging_unit') acc.imaging_unit += qty;
+        if (category === 'backup_printer') acc.backup_printer += qty;
+        return acc;
+      }, { toner_black: 0, imaging_unit: 0, backup_printer: 0 });
+      const stock = {
+        ...stockBySupplies,
+        by_model: stockLegacy.by_model || {},
+      };
       const printers = await ManagedAsset.find({
         module_id: req.printerModule._id,
         asset_type: 'printer',

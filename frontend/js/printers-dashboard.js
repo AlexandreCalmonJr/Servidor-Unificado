@@ -6,12 +6,64 @@ let currentPrinterId = null;
 let editingPrinterId = null;
 let printersRefreshTimer = null;
 let printersDashboardInitialized = false;
+let printersLoadPromise = null;
+let inventoryLoadPromise = null;
+let lastPrintersLoadAt = 0;
+let lastInventoryLoadAt = 0;
 let discoveredPrinters = [];
 let allInventoryEvents = [];
 let inventoryModelOptions = [];
 let inventorySupplyItems = [];
 let inventorySupplyMovements = [];
+let currentInventorySubview = 'supplies';
+let legacyOpsMode = 'entrada';
 const TONER_MONO_ONLY = true;
+const BROWSER_PRINTER_DEBUG = true;
+
+function getPrinterLevelsForDebug(printer) {
+  const levels = printer?.toner_levels || printer?.custom_data?.toner_levels || {};
+  return {
+    black: levels.black ?? levels.toner_black ?? levels.black_toner ?? levels.k ?? levels.bk ?? null,
+    imaging: levels.imaging_unit ?? levels.image_unit ?? levels.imaging ?? levels.drum ?? levels.opc ?? null,
+    raw: levels,
+  };
+}
+
+function logPrintersDebugToBrowser(printers = []) {
+  if (!BROWSER_PRINTER_DEBUG || typeof window === 'undefined' || !window.console) return;
+  try {
+    const rows = printers.map((p) => {
+      const levels = getPrinterLevelsForDebug(p);
+      return {
+        nome: p.asset_name || p.hostname || '-',
+        ip: p.ip_address || p.custom_data?.connection_details?.uri || '-',
+        serial: p.serial_number || '-',
+        status: p.status || 'unknown',
+        toner_preto: levels.black,
+        unidade_imagem: levels.imaging,
+        ultima_leitura: p.last_check_time || p.updated_at || '-',
+      };
+    });
+
+    console.groupCollapsed(`[PrintersDebug] Dados recebidos: ${rows.length} impressora(s)`);
+    console.table(rows);
+    printers.forEach((p) => {
+      const levels = getPrinterLevelsForDebug(p);
+      console.log('[PrintersDebug][Raw]', {
+        id: p._id,
+        nome: p.asset_name || p.hostname || '-',
+        ip: p.ip_address || '-',
+        toner_levels: p.toner_levels || null,
+        custom_toner_levels: p.custom_data?.toner_levels || null,
+        toner_preto_resolvido: levels.black,
+        unidade_imagem_resolvida: levels.imaging,
+      });
+    });
+    console.groupEnd();
+  } catch (error) {
+    console.error('[PrintersDebug] Falha ao montar log no navegador:', error);
+  }
+}
 
 function destroyChartInstance(key, canvasEl) {
   if (chartsInstances[key]) {
@@ -31,28 +83,26 @@ function destroyChartInstance(key, canvasEl) {
  * Inicializa o dashboard de impressoras
  */
 async function initPrintersDashboard() {
-  if (printersDashboardInitialized) {
-    await loadPrinters();
-    return;
-  }
-
-  printersDashboardInitialized = true;
   console.log('Inicializando dashboard de impressoras...');
-  
-  // Carrega impressoras
+
   await loadPrinters();
-  
-  // Configura event listeners
   setupEventListeners();
-  
-  // Atualiza a cada 30 segundos
-  printersRefreshTimer = setInterval(loadPrinters, 30000);
+
+  if (!printersDashboardInitialized) {
+    printersDashboardInitialized = true;
+    printersRefreshTimer = setInterval(loadPrinters, 30000);
+  }
 }
 
 /**
  * Carrega lista de impressoras do servidor
  */
 async function loadPrinters() {
+  const now = Date.now();
+  if (printersLoadPromise) return printersLoadPromise;
+  if (now - lastPrintersLoadAt < 1200) return;
+
+  printersLoadPromise = (async () => {
   try {
     const response = await fetch('/api/printers', {
       headers: { 'Authorization': `Bearer ${getAuthToken()}` }
@@ -62,10 +112,12 @@ async function loadPrinters() {
     
     const data = await response.json();
     allPrinters = data.printers || [];
+    logPrintersDebugToBrowser(allPrinters);
     
     // Atualiza UI
     updateSummary(data.summary);
     renderPrintersTable(allPrinters);
+    renderPrinterAlertsTable();
     renderCharts();
     updateMaintenancePrinterOptions();
     await loadInventoryPanel();
@@ -73,17 +125,113 @@ async function loadPrinters() {
   } catch (error) {
     console.error('Erro ao carregar impressoras:', error);
     showNotification('Erro ao carregar impressoras', 'error');
+  } finally {
+    lastPrintersLoadAt = Date.now();
+    printersLoadPromise = null;
   }
+  })();
+
+  return printersLoadPromise;
 }
 
 /**
  * Atualiza cards de resumo
  */
 function updateSummary(summary) {
-  document.getElementById('total-printers').textContent = summary.total;
-  document.getElementById('online-printers').textContent = summary.online;
-  document.getElementById('offline-printers').textContent = summary.offline;
-  document.getElementById('maintenance-printers').textContent = summary.maintenance;
+  if (!summary) return;
+  const totalEl = document.getElementById('total-printers');
+  const onlineEl = document.getElementById('online-printers');
+  const offlineEl = document.getElementById('offline-printers');
+  const maintenanceEl = document.getElementById('maintenance-printers');
+  if (totalEl) totalEl.textContent = summary.total;
+  if (onlineEl) onlineEl.textContent = summary.online;
+  if (offlineEl) offlineEl.textContent = summary.offline;
+  if (maintenanceEl) maintenanceEl.textContent = summary.maintenance;
+}
+
+function parseLevelPercent(rawValue) {
+  if (rawValue === null || rawValue === undefined || rawValue === '') return null;
+  let numeric = null;
+
+  if (typeof rawValue === 'number') {
+    numeric = Number.isFinite(rawValue) ? rawValue : null;
+  } else {
+    const text = String(rawValue).trim().replace(',', '.');
+    const match = text.match(/-?\d+(\.\d+)?/);
+    numeric = match ? Number(match[0]) : null;
+  }
+
+  if (!Number.isFinite(numeric)) return null;
+  if (numeric > 0 && numeric <= 1) numeric = numeric * 100;
+  if (numeric < 0) numeric = 0;
+  if (numeric > 100) numeric = 100;
+  return Math.round(numeric);
+}
+
+function getTonerBlackPercent(levels = {}) {
+  const candidates = [
+    levels.black,
+    levels.toner_black,
+    levels.black_toner,
+    levels.k,
+    levels.bk,
+  ];
+  for (const c of candidates) {
+    const parsed = parseLevelPercent(c);
+    if (parsed !== null) return parsed;
+  }
+  return null;
+}
+
+function getImagingPercent(levels = {}) {
+  const candidates = [
+    levels.imaging_unit,
+    levels.image_unit,
+    levels.imaging,
+    levels.drum,
+    levels.opc,
+  ];
+  for (const c of candidates) {
+    const parsed = parseLevelPercent(c);
+    if (parsed !== null) return parsed;
+  }
+  return null;
+}
+
+function normalizeSupplyCategory(rawCategory) {
+  const value = String(rawCategory || '').trim().toLowerCase();
+  const compact = value.replace(/[\s-]+/g, '_');
+  if (['toner_black', 'toner', 'black_toner', 'bk_toner'].includes(compact)) return 'toner_black';
+  if (['imaging_unit', 'image_unit', 'drum', 'opc', 'unidade_imagem', 'unidade_de_imagem'].includes(compact)) return 'imaging_unit';
+  if (['backup_printer', 'printer_backup', 'impressora_backup'].includes(compact)) return 'backup_printer';
+  return compact || 'other';
+}
+
+function updateInventorySummaryCardsFromSupplies(items = []) {
+  const stockToner = items
+    .filter((item) => normalizeSupplyCategory(item.category) === 'toner_black')
+    .reduce((sum, item) => sum + Number(item.quantity_on_hand || 0), 0);
+  const stockImaging = items
+    .filter((item) => normalizeSupplyCategory(item.category) === 'imaging_unit')
+    .reduce((sum, item) => sum + Number(item.quantity_on_hand || 0), 0);
+  const stockBackup = items
+    .filter((item) => normalizeSupplyCategory(item.category) === 'backup_printer')
+    .reduce((sum, item) => sum + Number(item.quantity_on_hand || 0), 0);
+  const lowTotal = allPrinters.filter((printer) => {
+    const levels = printer?.toner_levels || printer?.custom_data?.toner_levels || {};
+    const black = getTonerBlackPercent(levels);
+    const imaging = getImagingPercent(levels);
+    return (black !== null && black <= 15) || (imaging !== null && imaging <= 15);
+  }).length;
+
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = String(value);
+  };
+  setText('inv-stock-toner', stockToner);
+  setText('inv-stock-imaging', stockImaging);
+  setText('inv-stock-backup', stockBackup);
+  setText('inv-low-total', lowTotal);
 }
 
 /**
@@ -92,6 +240,7 @@ function updateSummary(summary) {
 function renderPrintersTable(printers) {
   const tbody = document.getElementById('printers-tbody');
   const emptyState = document.getElementById('printers-empty-state');
+  if (!tbody || !emptyState) return;
   
   if (printers.length === 0) {
     tbody.innerHTML = '';
@@ -152,10 +301,10 @@ function renderPrintersTable(printers) {
  * Aplica filtros à lista de impressoras
  */
 function applyFilters(printers) {
-  const statusFilter = document.getElementById('filter-status').value;
-  const manufacturerFilter = document.getElementById('filter-manufacturer').value;
-  const connectionFilter = document.getElementById('filter-connection').value;
-  const searchFilter = document.getElementById('filter-search').value.toLowerCase();
+  const statusFilter = document.getElementById('filter-status')?.value || '';
+  const manufacturerFilter = document.getElementById('filter-manufacturer')?.value || '';
+  const connectionFilter = document.getElementById('filter-connection')?.value || '';
+  const searchFilter = (document.getElementById('filter-search')?.value || '').toLowerCase();
   
   return printers.filter(printer => {
     if (statusFilter && printer.status !== statusFilter) return false;
@@ -191,16 +340,129 @@ function renderCharts() {
   renderTonerChart();
 }
 
+function getPrinterAlertInfo(printer) {
+  const levels = printer?.toner_levels || printer?.custom_data?.toner_levels || {};
+  const black = getTonerBlackPercent(levels);
+  const imaging = getImagingPercent(levels);
+  const status = String(printer?.status || '').toLowerCase();
+  const reasons = [];
+
+  if (black !== null && black <= 15) {
+    reasons.push(`Toner baixo (${black}%)`);
+  }
+  if (imaging !== null && imaging <= 15) {
+    reasons.push(`Imagem baixa (${imaging}%)`);
+  }
+  if (status === 'offline') reasons.push('Status offline');
+  if (status === 'maintenance') reasons.push('Em manutencao');
+
+  const isCritical = (black !== null && black <= 5)
+    || (imaging !== null && imaging <= 5)
+    || status === 'offline';
+  const hasSupplyAlert = reasons.some((r) => r.includes('Toner') || r.includes('Imagem'));
+  const hasStatusAlert = status === 'offline' || status === 'maintenance';
+
+  return { reasons, isCritical, hasSupplyAlert, hasStatusAlert, black, imaging };
+}
+
+function renderPrinterAlertsTable() {
+  const tbody = document.getElementById('printer-alerts-tbody');
+  const emptyState = document.getElementById('printer-alerts-empty-state');
+  if (!tbody || !emptyState) return;
+
+  const tonerFilter = (document.getElementById('alert-filter-toner')?.value || '').trim().toLowerCase();
+  const imagingFilter = (document.getElementById('alert-filter-imaging')?.value || '').trim().toLowerCase();
+  const typeFilter = (document.getElementById('alert-filter-type')?.value || '').trim().toLowerCase();
+  const searchFilter = (document.getElementById('alert-filter-search')?.value || '').trim().toLowerCase();
+
+  let rows = allPrinters
+    .map((printer) => ({ printer, alert: getPrinterAlertInfo(printer) }))
+    .filter(({ alert }) => {
+      if (!tonerFilter && !imagingFilter) return alert.reasons.length > 0;
+      return true;
+    });
+
+  if (tonerFilter) {
+    rows = rows.filter(({ alert }) => {
+      const value = alert.black;
+      if (tonerFilter === 'na') return value === null;
+      if (value === null) return false;
+      if (tonerFilter === 'critical') return value <= 5;
+      if (tonerFilter === 'low') return value <= 15;
+      if (tonerFilter === 'ok') return value > 15;
+      return true;
+    });
+  }
+
+  if (imagingFilter) {
+    rows = rows.filter(({ alert }) => {
+      const value = alert.imaging;
+      if (imagingFilter === 'na') return value === null;
+      if (value === null) return false;
+      if (imagingFilter === 'critical') return value <= 5;
+      if (imagingFilter === 'low') return value <= 15;
+      if (imagingFilter === 'ok') return value > 15;
+      return true;
+    });
+  }
+
+  if (typeFilter === 'supplies') rows = rows.filter(({ alert }) => alert.hasSupplyAlert);
+  if (typeFilter === 'status') rows = rows.filter(({ alert }) => alert.hasStatusAlert);
+  if (typeFilter === 'critical') rows = rows.filter(({ alert }) => alert.isCritical);
+
+  if (searchFilter) {
+    rows = rows.filter(({ printer, alert }) => {
+      const text = [
+        printer.asset_name,
+        printer.hostname,
+        printer.serial_number,
+        printer.manufacturer,
+        printer.model,
+        printer.ip_address,
+        alert.reasons.join(' '),
+      ].map((v) => String(v || '').toLowerCase()).join(' ');
+      return text.includes(searchFilter);
+    });
+  }
+
+  if (!rows.length) {
+    tbody.innerHTML = '';
+    emptyState.style.display = 'block';
+    return;
+  }
+
+  emptyState.style.display = 'none';
+  tbody.innerHTML = rows.map(({ printer, alert }) => {
+    const displayName = printer.hostname || printer.custom_data?.hostname || printer.asset_name || '-';
+    const blackText = alert.black === null ? 'N/A' : `${alert.black}%`;
+    const imagingText = alert.imaging === null ? 'N/A' : `${alert.imaging}%`;
+    const lastCheck = formatTime(new Date(printer.last_check_time || printer.updated_at));
+    return `
+      <tr>
+        <td><strong>${displayName}</strong></td>
+        <td>${printer.serial_number || '-'}</td>
+        <td><span class="status-badge ${printer.status}">${String(printer.status || 'unknown').toUpperCase()}</span></td>
+        <td>${blackText}</td>
+        <td>${imagingText}</td>
+        <td>${lastCheck}</td>
+        <td>${alert.reasons.join(' | ')}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
 function switchPrintersSubtab(tab) {
   const panels = {
     list: document.getElementById('printers-tab-list'),
     details: document.getElementById('printers-tab-details'),
-    inventory: document.getElementById('printers-tab-inventory'),
+    stock: document.getElementById('printers-tab-stock'),
+    history: document.getElementById('printers-tab-history'),
   };
   const buttons = {
     list: document.getElementById('btn-tab-list'),
     details: document.getElementById('btn-tab-details'),
-    inventory: document.getElementById('btn-tab-inventory'),
+    stock: document.getElementById('btn-tab-stock'),
+    history: document.getElementById('btn-tab-history'),
   };
 
   Object.entries(panels).forEach(([key, el]) => {
@@ -213,6 +475,65 @@ function switchPrintersSubtab(tab) {
     if (key === tab) el.classList.add('is-active');
     else el.classList.remove('is-active');
   });
+}
+
+function filterSupplyItemsBySubview(items) {
+  return items;
+}
+
+function filterSupplyMovementsBySubview(rows) {
+  return rows;
+}
+
+function switchInventorySubview(tab) {
+  currentInventorySubview = tab === 'backups' ? 'backups' : 'supplies';
+
+  const suppliesBtn = document.getElementById('btn-inv-tab-supplies');
+  const backupsBtn = document.getElementById('btn-inv-tab-backups');
+  if (suppliesBtn) suppliesBtn.classList.toggle('is-active', currentInventorySubview === 'supplies');
+  if (backupsBtn) backupsBtn.classList.toggle('is-active', currentInventorySubview === 'backups');
+
+  document.querySelectorAll('.inventory-view').forEach((el) => {
+    const visibleToSupplies = el.classList.contains('inventory-view-supplies');
+    const visibleToBackups = el.classList.contains('inventory-view-backups');
+    const visibleToBoth = el.classList.contains('inventory-view-both');
+
+    const visible = visibleToBoth
+      || (currentInventorySubview === 'supplies' && visibleToSupplies)
+      || (currentInventorySubview === 'backups' && visibleToBackups);
+    el.classList.toggle('is-hidden', !visible);
+  });
+
+  const stockItem = document.getElementById('inv-stock-item');
+  const maintItem = document.getElementById('inv-maint-item');
+  if (currentInventorySubview === 'backups') {
+    if (stockItem) stockItem.value = 'backup_printer';
+    if (maintItem) maintItem.value = 'backup_printer';
+  } else {
+    if (stockItem && stockItem.value === 'backup_printer') stockItem.value = 'toner_black';
+    if (maintItem && maintItem.value === 'backup_printer') maintItem.value = 'toner_black';
+  }
+
+  renderInventoryEventsTable();
+  renderSuppliesTable();
+  renderSupplyMovementsTable();
+  populateSupplySelects();
+}
+
+function applyPrintersTarget(target) {
+  if (!target) return;
+
+  if (target === 'inventory-supplies') {
+    switchPrintersSubtab('stock');
+    switchInventorySubview('supplies');
+    document.getElementById('supply-sku')?.focus();
+    return;
+  }
+
+  if (target === 'inventory-backups') {
+    switchPrintersSubtab('stock');
+    switchInventorySubview('backups');
+  }
 }
 
 function buildTonerLevelsHtml(tonerLevels) {
@@ -611,12 +932,14 @@ async function registerPrinter() {
 }
 
 async function loadInventoryPanel() {
+  const now = Date.now();
+  if (inventoryLoadPromise) return inventoryLoadPromise;
+  if (now - lastInventoryLoadAt < 1200) return;
+
+  inventoryLoadPromise = (async () => {
   try {
-    const [summaryRes, eventsRes, suppliesRes, supplyMovementsRes] = await Promise.all([
+    const [summaryRes, suppliesRes, supplyMovementsRes] = await Promise.all([
       fetch('/api/printers/inventory/summary', {
-        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
-      }),
-      fetch('/api/printers/inventory/events?limit=200', {
         headers: { 'Authorization': `Bearer ${getAuthToken()}` }
       }),
       fetch('/api/printers/inventory/supplies?limit=300', {
@@ -631,31 +954,13 @@ async function loadInventoryPanel() {
       const payload = await summaryRes.json();
       const stock = payload.stock || {};
       inventoryModelOptions = Array.isArray(payload.model_options) ? payload.model_options : [];
-      const stats = payload.printers || {};
-      const stockToner = Number(stock.toner_black || 0);
-      const stockImaging = Number(stock.imaging_unit || 0);
-      const stockBackup = Number(stock.backup_printer || 0);
-      const lowTotal = Number(stats.toner_low || 0) + Number(stats.imaging_low || 0);
-      const setText = (id, value) => {
-        const el = document.getElementById(id);
-        if (el) el.textContent = String(value);
-      };
-      setText('inv-stock-toner', stockToner);
-      setText('inv-stock-imaging', stockImaging);
-      setText('inv-stock-backup', stockBackup);
-      setText('inv-low-total', lowTotal);
       populateInventoryModelOptions(stock.by_model || {});
-    }
-
-    if (eventsRes.ok) {
-      const payload = await eventsRes.json();
-      allInventoryEvents = Array.isArray(payload.events) ? payload.events : [];
-      renderInventoryEventsTable();
     }
 
     if (suppliesRes.ok) {
       const payload = await suppliesRes.json();
       inventorySupplyItems = Array.isArray(payload.items) ? payload.items : [];
+      updateInventorySummaryCardsFromSupplies(inventorySupplyItems);
       renderSuppliesTable();
       populateSupplySelects();
     }
@@ -667,7 +972,124 @@ async function loadInventoryPanel() {
     }
   } catch (error) {
     console.error('Erro ao carregar inventario:', error);
+  } finally {
+    lastInventoryLoadAt = Date.now();
+    inventoryLoadPromise = null;
   }
+  })();
+
+  return inventoryLoadPromise;
+}
+
+function setLegacyOpsMode(mode) {
+  legacyOpsMode = mode || 'entrada';
+  ['entrada', 'saida', 'defeito', 'pedido', 'coleta', 'referencia'].forEach((m) => {
+    const btn = document.getElementById(`btn-legacy-${m}`);
+    if (btn) btn.classList.toggle('is-active', m === legacyOpsMode);
+  });
+  renderLegacyOperationalTable();
+}
+
+function _legacyIncludes(text, term) {
+  return String(text || '').toLowerCase().includes(String(term || '').toLowerCase());
+}
+
+function renderLegacyOperationalTable() {
+  const head = document.getElementById('legacy-ops-head');
+  const body = document.getElementById('legacy-ops-tbody');
+  const empty = document.getElementById('legacy-ops-empty');
+  if (!head || !body || !empty) return;
+
+  let headers = [];
+  let rows = [];
+
+  if (legacyOpsMode === 'entrada') {
+    headers = ['Data', 'Insumo', 'Tipo', 'Qtd', 'Referencia', 'Motivo'];
+    rows = inventorySupplyMovements
+      .filter((mv) => ['in', 'initial'].includes(String(mv.movement_type || '').toLowerCase()))
+      .map((mv) => [
+        mv.created_at ? formatDate(mv.created_at) : '-',
+        mv.supply_id?.name || '-',
+        mv.movement_type || '-',
+        mv.quantity ?? 0,
+        mv.reference || '-',
+        mv.reason || '-',
+      ]);
+  } else if (legacyOpsMode === 'saida') {
+    headers = ['Data', 'Insumo', 'Impressora', 'Tipo', 'Qtd', 'Motivo'];
+    rows = inventorySupplyMovements
+      .filter((mv) => ['out', 'consumption', 'transfer'].includes(String(mv.movement_type || '').toLowerCase()))
+      .map((mv) => [
+        mv.created_at ? formatDate(mv.created_at) : '-',
+        mv.supply_id?.name || '-',
+        mv.printer_id?.asset_name || '-',
+        mv.movement_type || '-',
+        mv.quantity ?? 0,
+        mv.reason || '-',
+      ]);
+  } else if (legacyOpsMode === 'defeito') {
+    headers = ['Data', 'Impressora', 'Item', 'Tipo Evento', 'Motivo', 'Obs'];
+    rows = allInventoryEvents
+      .filter((ev) => _legacyIncludes(ev.reason, 'defeito') || _legacyIncludes(ev.notes, 'defeito'))
+      .map((ev) => [
+        ev.created_at ? formatDate(ev.created_at) : '-',
+        findPrinterDisplayName(ev.printer_id, ev.metadata),
+        formatInventoryItemType(ev.item_type),
+        formatInventoryEventType(ev.event_type),
+        ev.reason || '-',
+        ev.notes || '-',
+      ]);
+  } else if (legacyOpsMode === 'pedido') {
+    headers = ['Insumo', 'SKU', 'Qtd Atual', 'Minimo', 'Sugestao', 'Fabricante/Modelo'];
+    rows = inventorySupplyItems
+      .filter((item) => Number(item.quantity_on_hand || 0) <= Number(item.min_stock || 0))
+      .map((item) => {
+        const current = Number(item.quantity_on_hand || 0);
+        const minimum = Number(item.min_stock || 0);
+        return [
+          item.name || '-',
+          item.sku || '-',
+          current,
+          minimum,
+          Math.max(0, minimum - current),
+          `${item.manufacturer || '-'} / ${item.model_family || '-'}`,
+        ];
+      });
+  } else if (legacyOpsMode === 'coleta') {
+    headers = ['Data', 'Insumo', 'Tipo', 'Qtd', 'Referencia', 'Motivo'];
+    rows = inventorySupplyMovements
+      .filter((mv) => _legacyIncludes(mv.reason, 'coleta') || _legacyIncludes(mv.notes, 'coleta'))
+      .map((mv) => [
+        mv.created_at ? formatDate(mv.created_at) : '-',
+        mv.supply_id?.name || '-',
+        mv.movement_type || '-',
+        mv.quantity ?? 0,
+        mv.reference || '-',
+        mv.reason || '-',
+      ]);
+  } else if (legacyOpsMode === 'referencia') {
+    headers = ['Serie', 'Andar', 'Departamento', 'Setor', 'Modelo', 'Status'];
+    rows = allPrinters.map((p) => [
+      p.serial_number || '-',
+      p.floor || p.location || '-',
+      p.unit || '-',
+      p.sector || '-',
+      `${p.manufacturer || '-'} ${p.model || '-'}`.trim(),
+      p.status || '-',
+    ]);
+  }
+
+  head.innerHTML = `<tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr>`;
+  if (!rows.length) {
+    body.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+
+  empty.style.display = 'none';
+  body.innerHTML = rows.slice(0, 500)
+    .map((cols) => `<tr>${cols.map((col) => `<td>${col ?? '-'}</td>`).join('')}</tr>`)
+    .join('');
 }
 
 function populateInventoryModelOptions(byModelStock = {}) {
@@ -731,6 +1153,8 @@ function renderInventoryEventsTable() {
   const printerFilter = (document.getElementById('inv-filter-printer')?.value || '').trim().toLowerCase();
 
   const filtered = allInventoryEvents.filter((event) => {
+    if (currentInventorySubview === 'backups' && event.item_type !== 'backup_printer') return false;
+    if (currentInventorySubview === 'supplies' && event.item_type === 'backup_printer') return false;
     if (typeFilter && event.event_type !== typeFilter) return false;
     if (!printerFilter) return true;
     const printerLabel = findPrinterDisplayName(event.printer_id, event.metadata).toLowerCase();
@@ -771,14 +1195,40 @@ function renderSuppliesTable() {
   const emptyState = document.getElementById('supplies-empty-state');
   if (!tbody || !emptyState) return;
 
-  if (!inventorySupplyItems.length) {
+  const categoryFilter = (document.getElementById('stock-filter-category')?.value || '').trim();
+  const statusFilter = (document.getElementById('stock-filter-status')?.value || '').trim();
+  const searchFilter = (document.getElementById('stock-filter-search')?.value || '').trim().toLowerCase();
+
+  let visibleItems = filterSupplyItemsBySubview(inventorySupplyItems);
+  if (categoryFilter) {
+    visibleItems = visibleItems.filter((item) => String(item.category || '') === categoryFilter);
+  }
+  if (statusFilter === 'low') {
+    visibleItems = visibleItems.filter((item) => Boolean(item.is_low_stock));
+  } else if (statusFilter === 'ok') {
+    visibleItems = visibleItems.filter((item) => !item.is_low_stock);
+  }
+  if (searchFilter) {
+    visibleItems = visibleItems.filter((item) => {
+      const haystack = [
+        item.sku,
+        item.name,
+        item.manufacturer,
+        item.model_family,
+        item.storage_location,
+      ].map((v) => String(v || '').toLowerCase()).join(' ');
+      return haystack.includes(searchFilter);
+    });
+  }
+
+  if (!visibleItems.length) {
     tbody.innerHTML = '';
     emptyState.style.display = 'block';
     return;
   }
 
   emptyState.style.display = 'none';
-  tbody.innerHTML = inventorySupplyItems.map((item) => `
+  tbody.innerHTML = visibleItems.map((item) => `
     <tr>
       <td>${item.sku || '-'}</td>
       <td>${item.name || '-'}</td>
@@ -797,14 +1247,30 @@ function renderSupplyMovementsTable() {
   const emptyState = document.getElementById('supply-movements-empty-state');
   if (!tbody || !emptyState) return;
 
-  if (!inventorySupplyMovements.length) {
+  const typeFilter = (document.getElementById('mv-filter-type')?.value || '').trim().toLowerCase();
+  const searchFilter = (document.getElementById('mv-filter-search')?.value || '').trim().toLowerCase();
+
+  let visibleRows = filterSupplyMovementsBySubview(inventorySupplyMovements);
+  if (typeFilter) {
+    visibleRows = visibleRows.filter((mv) => String(mv.movement_type || '').toLowerCase() === typeFilter);
+  }
+  if (searchFilter) {
+    visibleRows = visibleRows.filter((mv) => {
+      const supply = String(mv.supply_id?.name || '').toLowerCase();
+      const reason = String(mv.reason || '').toLowerCase();
+      const notes = String(mv.notes || '').toLowerCase();
+      return supply.includes(searchFilter) || reason.includes(searchFilter) || notes.includes(searchFilter);
+    });
+  }
+
+  if (!visibleRows.length) {
     tbody.innerHTML = '';
     emptyState.style.display = 'block';
     return;
   }
 
   emptyState.style.display = 'none';
-  tbody.innerHTML = inventorySupplyMovements.map((mv) => `
+  tbody.innerHTML = visibleRows.map((mv) => `
     <tr>
       <td>${mv.created_at ? formatTime(new Date(mv.created_at)) : '-'}</td>
       <td>${mv.supply_id?.name || '-'}</td>
@@ -812,17 +1278,62 @@ function renderSupplyMovementsTable() {
       <td>${mv.quantity ?? 0}</td>
       <td>${mv.quantity_before ?? 0}</td>
       <td>${mv.quantity_after ?? 0}</td>
+      <td>${mv.printer_id?.asset_name || '-'}</td>
+      <td>${mv.reference || '-'}</td>
       <td>${mv.reason || '-'}</td>
     </tr>
   `).join('');
 }
 
 function populateSupplySelects() {
+  const inSelect = document.getElementById('supply-in-item');
   const moveSelect = document.getElementById('supply-move-item');
-  if (!moveSelect) return;
-  moveSelect.innerHTML = inventorySupplyItems.map((item) => (
+  const visibleItems = filterSupplyItemsBySubview(inventorySupplyItems);
+  const optionsHtml = visibleItems.map((item) => (
     `<option value="${item._id}">${item.name} (${item.sku})</option>`
   )).join('');
+  if (inSelect) inSelect.innerHTML = optionsHtml;
+  if (moveSelect) moveSelect.innerHTML = optionsHtml;
+}
+
+async function registerSupplyStockIn() {
+  try {
+    const supplyId = document.getElementById('supply-in-item')?.value;
+    if (!supplyId) {
+      showNotification('Selecione um insumo para entrada', 'error');
+      return;
+    }
+
+    const quantity = Number(document.getElementById('supply-in-quantity')?.value || 0);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      showNotification('Informe uma quantidade valida maior que zero', 'error');
+      return;
+    }
+
+    const response = await fetch(`/api/printers/inventory/supplies/${supplyId}/movements`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`,
+      },
+      body: JSON.stringify({
+        movement_type: 'in',
+        quantity,
+        reason: 'reposicao_compra',
+      }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.success === false) {
+      throw new Error(payload.message || 'Erro ao registrar entrada de estoque');
+    }
+
+    showNotification('Entrada de estoque registrada com sucesso', 'success');
+    await loadInventoryPanel();
+  } catch (error) {
+    console.error('Erro ao registrar entrada de estoque:', error);
+    showNotification(error.message || 'Erro ao registrar entrada de estoque', 'error');
+  }
 }
 
 function updateMaintenancePrinterOptions() {
@@ -968,7 +1479,48 @@ async function createSupplyItem() {
   }
 }
 
-async function registerSupplyMovement() {
+async function createPrinterEquipment() {
+  try {
+    const assetName = (document.getElementById('eq-name')?.value || '').trim();
+    const serialNumber = (document.getElementById('eq-serial')?.value || '').trim();
+    const connectionType = (document.getElementById('eq-connection')?.value || 'network').trim();
+    if (!assetName || !serialNumber || !connectionType) {
+      showNotification('Preencha Nome, Serial e Conexao para cadastrar equipamento', 'error');
+      return;
+    }
+
+    const body = {
+      asset_name: assetName,
+      serial_number: serialNumber,
+      manufacturer: (document.getElementById('eq-manufacturer')?.value || '').trim() || null,
+      model: (document.getElementById('eq-model')?.value || '').trim() || null,
+      connection_type: connectionType,
+      ip_address: (document.getElementById('eq-ip')?.value || '').trim() || null,
+      usb_path: (document.getElementById('eq-usb')?.value || '').trim() || null,
+    };
+
+    const response = await fetch('/api/printers/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`,
+      },
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.success === false) {
+      throw new Error(payload.message || 'Erro ao cadastrar equipamento');
+    }
+
+    showNotification('Equipamento cadastrado com sucesso', 'success');
+    await loadPrinters();
+  } catch (error) {
+    console.error('Erro ao cadastrar equipamento:', error);
+    showNotification(error.message || 'Erro ao cadastrar equipamento', 'error');
+  }
+}
+
+async function registerSupplyMovement(forcedType = null) {
   try {
     const supplyId = document.getElementById('supply-move-item')?.value;
     if (!supplyId) {
@@ -976,19 +1528,39 @@ async function registerSupplyMovement() {
       return;
     }
 
-    const movementType = document.getElementById('supply-move-type')?.value || 'in';
+    const movementType = forcedType || 'in';
+    if (!['in', 'out'].includes(movementType)) {
+      showNotification('Tipo de movimentacao invalido. Use Entrada ou Saida.', 'error');
+      return;
+    }
+
     const quantity = Number(document.getElementById('supply-move-quantity')?.value || 0);
-    const quantityAfter = Number(document.getElementById('supply-move-after')?.value || 0);
-    const reason = document.getElementById('supply-move-reason')?.value || '';
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      showNotification('Informe uma quantidade valida maior que zero', 'error');
+      return;
+    }
+
+    const reason = (document.getElementById('supply-move-reason')?.value || '').trim();
+    if (!reason) {
+      showNotification('Informe o motivo da movimentacao', 'error');
+      return;
+    }
+
+    const ticketNumber = (document.getElementById('supply-move-ticket')?.value || '').trim();
+    if (movementType === 'out' && !ticketNumber) {
+      showNotification('Informe o numero do chamado para dar baixa', 'error');
+      return;
+    }
+
     const notes = document.getElementById('supply-move-notes')?.value || '';
 
     const body = {
       movement_type: movementType,
       quantity,
       reason,
+      reference: ticketNumber || null,
       notes,
     };
-    if (movementType === 'adjustment') body.quantity_after = quantityAfter;
 
     const response = await fetch(`/api/printers/inventory/supplies/${supplyId}/movements`, {
       method: 'POST',
@@ -1004,7 +1576,12 @@ async function registerSupplyMovement() {
       throw new Error(payload.message || 'Erro ao registrar movimentacao');
     }
 
-    showNotification('Movimentacao registrada com sucesso', 'success');
+    showNotification(
+      movementType === 'in'
+        ? 'Entrada de estoque registrada com sucesso'
+        : 'Saida de estoque registrada com sucesso',
+      'success'
+    );
     await loadInventoryPanel();
   } catch (error) {
     console.error('Erro ao registrar movimentacao:', error);
@@ -1239,12 +1816,19 @@ async function discoverPrinters() {
  * Configura event listeners
  */
 function setupEventListeners() {
-  const tabListBtn = document.getElementById('btn-tab-list');
-  const tabDetailsBtn = document.getElementById('btn-tab-details');
-  const tabInventoryBtn = document.getElementById('btn-tab-inventory');
-  if (tabListBtn) tabListBtn.addEventListener('click', () => switchPrintersSubtab('list'));
-  if (tabDetailsBtn) tabDetailsBtn.addEventListener('click', () => switchPrintersSubtab('details'));
-  if (tabInventoryBtn) tabInventoryBtn.addEventListener('click', () => switchPrintersSubtab('inventory'));
+  const viewRoot = document.querySelector('#page-content .printers-dashboard');
+  if (viewRoot && viewRoot.dataset.listenersBound === '1') {
+    return;
+  }
+  if (viewRoot) {
+    viewRoot.dataset.listenersBound = '1';
+  }
+
+  const bind = (id, event, handler) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(event, handler);
+    return el;
+  };
 
   const tabDetailBackBtn = document.getElementById('tab-detail-btn-back');
   const tabDetailRefreshBtn = document.getElementById('tab-detail-btn-refresh');
@@ -1265,41 +1849,41 @@ function setupEventListeners() {
   }
 
   // Filtros
-  document.getElementById('filter-status').addEventListener('change', () => {
+  bind('filter-status', 'change', () => {
     renderPrintersTable(allPrinters);
   });
   
-  document.getElementById('filter-manufacturer').addEventListener('change', () => {
+  bind('filter-manufacturer', 'change', () => {
     renderPrintersTable(allPrinters);
   });
   
-  document.getElementById('filter-connection').addEventListener('change', () => {
+  bind('filter-connection', 'change', () => {
     renderPrintersTable(allPrinters);
   });
   
-  document.getElementById('filter-search').addEventListener('input', () => {
+  bind('filter-search', 'input', () => {
     renderPrintersTable(allPrinters);
   });
   
   // Botões
-  document.getElementById('btn-refresh-printers').addEventListener('click', loadPrinters);
+  bind('btn-refresh-printers', 'click', loadPrinters);
   const exportBtn = document.getElementById('btn-export-printers');
   if (exportBtn) exportBtn.addEventListener('click', exportPrintersCsv);
-  document.getElementById('btn-discover-printers').addEventListener('click', discoverPrinters);
-  document.getElementById('btn-register-printer').addEventListener('click', openRegisterModal);
+  bind('btn-discover-printers', 'click', discoverPrinters);
+  bind('btn-register-printer', 'click', openRegisterModal);
   const resetBtn = document.getElementById('btn-reset-printers');
   if (resetBtn) resetBtn.addEventListener('click', resetPrintersData);
   
   // Modal de detalhes
-  document.getElementById('modal-close-details').addEventListener('click', () => {
+  bind('modal-close-details', 'click', () => {
     document.getElementById('modal-printer-details').style.display = 'none';
   });
   
-  document.getElementById('modal-btn-close').addEventListener('click', () => {
+  bind('modal-btn-close', 'click', () => {
     document.getElementById('modal-printer-details').style.display = 'none';
   });
   
-  document.getElementById('modal-btn-refresh').addEventListener('click', async () => {
+  bind('modal-btn-refresh', 'click', async () => {
     await refreshPrinterStatus(currentPrinterId);
     document.getElementById('modal-printer-details').style.display = 'none';
   });
@@ -1313,9 +1897,9 @@ function setupEventListeners() {
   }
   
   // Modal de registro
-  document.getElementById('modal-close-register').addEventListener('click', closeRegisterModal);
-  document.getElementById('modal-btn-cancel-register').addEventListener('click', closeRegisterModal);
-  document.getElementById('modal-btn-save-register').addEventListener('click', registerPrinter);
+  bind('modal-close-register', 'click', closeRegisterModal);
+  bind('modal-btn-cancel-register', 'click', closeRegisterModal);
+  bind('modal-btn-save-register', 'click', registerPrinter);
 
   const discoveriesCloseBtn = document.getElementById('modal-close-discovered');
   const discoveriesCancelBtn = document.getElementById('modal-btn-cancel-discovered');
@@ -1328,35 +1912,44 @@ function setupEventListeners() {
   if (discoveriesSelectAll) discoveriesSelectAll.addEventListener('change', toggleSelectAllDiscoveries);
 
   const invRefreshBtn = document.getElementById('btn-refresh-inventory');
-  const invAddBtn = document.getElementById('btn-stock-add');
-  const invSubBtn = document.getElementById('btn-stock-subtract');
-  const invSaveBtn = document.getElementById('btn-stock-save');
-  const invMaintSaveBtn = document.getElementById('btn-maint-save');
   const supplyCreateBtn = document.getElementById('btn-supply-create');
-  const supplyMoveBtn = document.getElementById('btn-supply-move');
-  const invFilterType = document.getElementById('inv-filter-type');
-  const invFilterPrinter = document.getElementById('inv-filter-printer');
-  const invStockScope = document.getElementById('inv-stock-scope');
-  const invStockModel = document.getElementById('inv-stock-model');
+  const supplyInStockBtn = document.getElementById('btn-supply-in-stock');
+  const supplyOutBtn = document.getElementById('btn-supply-out');
+  const quickSuppliesBtn = document.getElementById('btn-quick-supplies');
+  const quickHistoryBtn = document.getElementById('btn-quick-history');
+  const stockFilterCategory = document.getElementById('stock-filter-category');
+  const stockFilterStatus = document.getElementById('stock-filter-status');
+  const stockFilterSearch = document.getElementById('stock-filter-search');
+  const equipmentCreateBtn = document.getElementById('btn-equipment-create');
+  const alertFilterToner = document.getElementById('alert-filter-toner');
+  const alertFilterImaging = document.getElementById('alert-filter-imaging');
+  const mvFilterType = document.getElementById('mv-filter-type');
+  const mvFilterSearch = document.getElementById('mv-filter-search');
+  const refreshPrinterAlertsBtn = document.getElementById('btn-refresh-printer-alerts');
+  const alertFilterType = document.getElementById('alert-filter-type');
+  const alertFilterSearch = document.getElementById('alert-filter-search');
 
   if (invRefreshBtn) invRefreshBtn.addEventListener('click', loadInventoryPanel);
-  if (invAddBtn) invAddBtn.addEventListener('click', () => adjustInventoryStock('add_one'));
-  if (invSubBtn) invSubBtn.addEventListener('click', () => adjustInventoryStock('subtract_one'));
-  if (invSaveBtn) invSaveBtn.addEventListener('click', () => adjustInventoryStock('apply'));
-  if (invMaintSaveBtn) invMaintSaveBtn.addEventListener('click', registerMaintenanceEvent);
   if (supplyCreateBtn) supplyCreateBtn.addEventListener('click', createSupplyItem);
-  if (supplyMoveBtn) supplyMoveBtn.addEventListener('click', registerSupplyMovement);
-  if (invFilterType) invFilterType.addEventListener('change', renderInventoryEventsTable);
-  if (invFilterPrinter) invFilterPrinter.addEventListener('input', renderInventoryEventsTable);
-  if (invStockScope && invStockModel) {
-    const updateModelEnabled = () => {
-      const isModel = invStockScope.value === 'model';
-      invStockModel.disabled = !isModel;
-      if (!isModel) invStockModel.value = '';
-    };
-    invStockScope.addEventListener('change', updateModelEnabled);
-    updateModelEnabled();
-  }
+  if (supplyInStockBtn) supplyInStockBtn.addEventListener('click', registerSupplyStockIn);
+  if (supplyOutBtn) supplyOutBtn.addEventListener('click', () => registerSupplyMovement('out'));
+  if (quickSuppliesBtn) quickSuppliesBtn.addEventListener('click', () => {
+    if (typeof App !== 'undefined' && typeof App.navigateTo === 'function') App.navigateTo('printers-supplies');
+  });
+  if (quickHistoryBtn) quickHistoryBtn.addEventListener('click', () => {
+    if (typeof App !== 'undefined' && typeof App.navigateTo === 'function') App.navigateTo('printers-history');
+  });
+  if (stockFilterCategory) stockFilterCategory.addEventListener('change', renderSuppliesTable);
+  if (stockFilterStatus) stockFilterStatus.addEventListener('change', renderSuppliesTable);
+  if (stockFilterSearch) stockFilterSearch.addEventListener('input', renderSuppliesTable);
+  if (equipmentCreateBtn) equipmentCreateBtn.addEventListener('click', createPrinterEquipment);
+  if (alertFilterToner) alertFilterToner.addEventListener('change', renderPrinterAlertsTable);
+  if (alertFilterImaging) alertFilterImaging.addEventListener('change', renderPrinterAlertsTable);
+  if (mvFilterType) mvFilterType.addEventListener('change', renderSupplyMovementsTable);
+  if (mvFilterSearch) mvFilterSearch.addEventListener('input', renderSupplyMovementsTable);
+  if (refreshPrinterAlertsBtn) refreshPrinterAlertsBtn.addEventListener('click', loadPrinters);
+  if (alertFilterType) alertFilterType.addEventListener('change', renderPrinterAlertsTable);
+  if (alertFilterSearch) alertFilterSearch.addEventListener('input', renderPrinterAlertsTable);
   
   // Fecha modais ao clicar fora
   document.querySelectorAll('.modal').forEach(modal => {
@@ -1412,11 +2005,6 @@ function showNotification(message, type = 'info') {
   }
 }
 
-// Inicializa quando o DOM estiver pronto
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initPrintersDashboard);
-} else {
-  initPrintersDashboard();
-}
+// Inicializacao controlada pelo App.onPageLoad('printers') em app.js
 
 

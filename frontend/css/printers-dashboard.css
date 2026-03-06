@@ -266,6 +266,23 @@
   font-size: 1rem;
 }
 
+.inventory-subtabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.inventory-subtab-btn.is-active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.inventory-view.is-hidden {
+  display: none !important;
+}
+
 .inventory-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));

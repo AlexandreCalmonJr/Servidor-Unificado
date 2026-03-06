@@ -1,0 +1,55 @@
+<!-- Printers History View -->
+<div class="printers-dashboard">
+  <div class="dashboard-header">
+    <div class="header-title">
+      <h1>Historico de Impressoras</h1>
+      <p class="subtitle">Historico de movimentacao de estoque</p>
+    </div>
+    <div class="header-actions">
+      <button id="btn-refresh-inventory" class="btn btn-primary">Atualizar Historico</button>
+    </div>
+  </div>
+
+  <section id="printers-tab-history" class="printer-subtab-panel is-active">
+    <div class="inventory-section">
+      <div class="printers-filters">
+        <div class="filter-group">
+          <label for="mv-filter-type">Tipo</label>
+          <select id="mv-filter-type" class="filter-select">
+            <option value="">Todos</option>
+            <option value="in">Entrada</option>
+            <option value="out">Saida</option>
+            <option value="consumption">Consumo</option>
+            <option value="transfer">Transferencia</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="mv-filter-search">Buscar Insumo/Motivo</label>
+          <input type="text" id="mv-filter-search" class="filter-input" placeholder="Nome do insumo ou motivo">
+        </div>
+      </div>
+
+      <div class="printers-table-container">
+        <table class="printers-table">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Insumo</th>
+              <th>Tipo</th>
+              <th>Qtd</th>
+              <th>Antes</th>
+              <th>Depois</th>
+              <th>Impressora</th>
+              <th>Chamado</th>
+              <th>Motivo</th>
+            </tr>
+          </thead>
+          <tbody id="supply-movements-tbody"></tbody>
+        </table>
+        <div id="supply-movements-empty-state" class="empty-state" style="display:none;">
+          <div class="empty-title">Sem movimentacoes de insumos</div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>

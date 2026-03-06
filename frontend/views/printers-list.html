@@ -1,0 +1,195 @@
+<!-- Printers List View -->
+<div class="printers-dashboard">
+  <div class="dashboard-header">
+    <div class="header-title">
+      <h1>Monitoramento de Impressoras</h1>
+      <p class="subtitle">Lista de impressoras e status operacional</p>
+    </div>
+
+    <div class="header-actions">
+      <button id="btn-refresh-printers" class="btn btn-primary"><span>Atualizar</span> Status</button>
+      <button id="btn-export-printers" class="btn btn-ghost"><span>Exportar</span> CSV</button>
+      <button id="btn-discover-printers" class="btn btn-ghost"><span>Buscar</span> Impressoras</button>
+      <button id="btn-register-printer" class="btn btn-primary"><span>Adicionar</span> Impressora</button>
+      <button id="btn-reset-printers" class="btn btn-danger"><span>Limpar</span> Cadastros</button>
+    </div>
+  </div>
+
+  <div class="printers-summary">
+    <div class="summary-card"><div class="card-content"><div class="card-label">Total</div><div class="card-value" id="total-printers">0</div></div></div>
+    <div class="summary-card"><div class="card-content"><div class="card-label">Online</div><div class="card-value" id="online-printers">0</div></div></div>
+    <div class="summary-card"><div class="card-content"><div class="card-label">Offline</div><div class="card-value" id="offline-printers">0</div></div></div>
+    <div class="summary-card"><div class="card-content"><div class="card-label">Manutencao</div><div class="card-value" id="maintenance-printers">0</div></div></div>
+  </div>
+
+  <div class="printers-filters">
+    <div class="filter-group">
+      <label for="filter-status">Status:</label>
+      <select id="filter-status" class="filter-select">
+        <option value="">Todos</option>
+        <option value="online">Online</option>
+        <option value="offline">Offline</option>
+        <option value="maintenance">Manutencao</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="filter-manufacturer">Fabricante:</label>
+      <select id="filter-manufacturer" class="filter-select">
+        <option value="">Todos</option>
+        <option value="HP">HP</option>
+        <option value="Samsung">Samsung</option>
+        <option value="Xerox">Xerox</option>
+        <option value="Brother">Brother</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="filter-connection">Conexao:</label>
+      <select id="filter-connection" class="filter-select">
+        <option value="">Todos</option>
+        <option value="network">Rede (IP)</option>
+        <option value="usb">USB</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="filter-search">Buscar:</label>
+      <input type="text" id="filter-search" class="filter-input" placeholder="Nome, modelo, IP...">
+    </div>
+  </div>
+
+  <section id="printers-tab-list" class="printer-subtab-panel is-active">
+    <div class="printers-table-container">
+      <table class="printers-table">
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>Serial</th>
+            <th>Fabricante</th>
+            <th>Modelo</th>
+            <th>Conexao</th>
+            <th>IP/USB</th>
+            <th>Unidade</th>
+            <th>Setor</th>
+            <th>Andar</th>
+            <th>Status</th>
+            <th>Toner</th>
+            <th>Unidade Imagem</th>
+            <th>Ultima Verificacao</th>
+            <th>Acoes</th>
+          </tr>
+        </thead>
+        <tbody id="printers-tbody"></tbody>
+      </table>
+
+      <div id="printers-empty-state" class="empty-state" style="display:none;">
+        <div class="empty-title">Nenhuma impressora registrada</div>
+        <div class="empty-description">Use "Buscar Impressoras" para descobrir na rede ou registre manualmente.</div>
+      </div>
+    </div>
+
+    <div class="printers-charts">
+      <div class="chart-card"><h3>Status das Impressoras</h3><canvas id="printer-chart-status"></canvas></div>
+      <div class="chart-card"><h3>Distribuicao por Fabricante</h3><canvas id="printer-chart-manufacturer"></canvas></div>
+      <div class="chart-card"><h3>Distribuicao por Conexao</h3><canvas id="printer-chart-connection"></canvas></div>
+      <div class="chart-card"><h3>Nivel de Toner Preto (Media)</h3><canvas id="printer-chart-toner"></canvas></div>
+    </div>
+  </section>
+</div>
+
+<!-- ===== MODAL: DETALHES DA IMPRESSORA ===== -->
+<div id="modal-printer-details" class="modal" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="modal-printer-name">Detalhes da Impressora</h2>
+      <button class="modal-close" id="modal-close-details">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="printer-details-grid">
+        <div class="detail-item"><label>Nome:</label><span id="detail-name">-</span></div>
+        <div class="detail-item"><label>Fabricante:</label><span id="detail-manufacturer">-</span></div>
+        <div class="detail-item"><label>Modelo:</label><span id="detail-model">-</span></div>
+        <div class="detail-item"><label>Serial:</label><span id="detail-serial">-</span></div>
+        <div class="detail-item"><label>Conexao:</label><span id="detail-connection">-</span></div>
+        <div class="detail-item"><label>IP/USB:</label><span id="detail-address">-</span></div>
+        <div class="detail-item"><label>Status:</label><span id="detail-status" class="status-badge">-</span></div>
+        <div class="detail-item"><label>Ultima Verificacao:</label><span id="detail-last-check">-</span></div>
+      </div>
+      <div class="toner-levels-section">
+        <h3>Niveis de Toner</h3>
+        <div id="toner-levels-container"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="modal-btn-close">Fechar</button>
+      <button class="btn btn-primary" id="modal-btn-refresh">Atualizar Status</button>
+      <button class="btn btn-ghost" id="modal-btn-edit">Editar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: REGISTRAR IMPRESSORA ===== -->
+<div id="modal-register-printer" class="modal" style="display:none;">
+  <div class="modal-content modal-medium">
+    <div class="modal-header">
+      <h2 id="modal-register-title">Registrar Nova Impressora</h2>
+      <button class="modal-close" id="modal-close-register">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="form-register-printer">
+        <div class="form-group"><label for="reg-name">Nome da Impressora *</label><input type="text" id="reg-name" class="form-input" required></div>
+        <div class="form-group"><label for="reg-serial">Serial *</label><input type="text" id="reg-serial" class="form-input" required></div>
+        <div class="form-group"><label for="reg-manufacturer">Fabricante *</label><select id="reg-manufacturer" class="form-input" required><option value="">Selecione...</option><option value="HP">HP</option><option value="Samsung">Samsung</option><option value="Xerox">Xerox</option><option value="Brother">Brother</option></select></div>
+        <div class="form-group"><label for="reg-model">Modelo</label><input type="text" id="reg-model" class="form-input"></div>
+        <div class="form-group"><label for="reg-hostname">Hostname</label><input type="text" id="reg-hostname" class="form-input"></div>
+        <div class="form-group"><label for="reg-mac">Endereco MAC</label><input type="text" id="reg-mac" class="form-input"></div>
+        <div class="form-group"><label for="reg-location">Local</label><input type="text" id="reg-location" class="form-input"></div>
+        <div class="form-group"><label for="reg-unit">Unidade</label><input type="text" id="reg-unit" class="form-input"></div>
+        <div class="form-group"><label for="reg-sector">Setor</label><input type="text" id="reg-sector" class="form-input"></div>
+        <div class="form-group"><label for="reg-floor">Andar</label><input type="text" id="reg-floor" class="form-input"></div>
+        <div class="form-group"><label for="reg-connection">Tipo de Conexao *</label><select id="reg-connection" class="form-input" required onchange="toggleConnectionFields()"><option value="">Selecione...</option><option value="network">Rede (IP)</option><option value="usb">USB</option></select></div>
+        <div class="form-group" id="group-ip-address" style="display:none;"><label for="reg-ip">Endereco IP</label><input type="text" id="reg-ip" class="form-input"></div>
+        <div class="form-group" id="group-usb-port" style="display:none;"><label for="reg-usb">Porta USB</label><input type="text" id="reg-usb" class="form-input"></div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="modal-btn-cancel-register">Cancelar</button>
+      <button class="btn btn-primary" id="modal-btn-save-register">Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: IMPRESSORAS DESCOBERTAS ===== -->
+<div id="modal-discovered-printers" class="modal" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Impressoras Descobertas</h2>
+      <button class="modal-close" id="modal-close-discovered">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p id="discoveries-count">0 encontrada(s)</p>
+      <div class="printers-table-container">
+        <table class="printers-table">
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="discoveries-select-all" checked></th>
+              <th>Nome</th>
+              <th>Fabricante</th>
+              <th>Modelo</th>
+              <th>Conexao</th>
+              <th>IP/USB</th>
+              <th>Unidade</th>
+              <th>Setor</th>
+              <th>Andar</th>
+              <th>Serial</th>
+            </tr>
+          </thead>
+          <tbody id="discovered-printers-tbody"></tbody>
+        </table>
+      </div>
+      <p class="text-warning">As impressoras selecionadas serao cadastradas em modo monocromatico (toner preto).</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="modal-btn-cancel-discovered">Cancelar</button>
+      <button class="btn btn-primary" id="modal-btn-register-discovered">Cadastrar selecionadas</button>
+    </div>
+  </div>
+</div>

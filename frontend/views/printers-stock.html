@@ -1,0 +1,72 @@
+<!-- Printers Stock View -->
+<div class="printers-dashboard">
+  <div class="dashboard-header">
+    <div class="header-title">
+      <h1>Estoque de Impressoras</h1>
+      <p class="subtitle">Visao geral do estoque com filtros e acoes rapidas</p>
+    </div>
+    <div class="header-actions">
+      <button id="btn-refresh-inventory" class="btn btn-primary">Atualizar Inventario</button>
+      <button id="btn-quick-supplies" class="btn btn-ghost">Ir para Insumos</button>
+      <button id="btn-quick-history" class="btn btn-ghost">Ir para Historico</button>
+    </div>
+  </div>
+
+  <section id="printers-tab-stock" class="printer-subtab-panel is-active">
+    <div class="inventory-section">
+      <div class="inventory-cards">
+        <div class="summary-card"><div class="card-content"><div class="card-label">Toner Preto em Estoque</div><div class="card-value" id="inv-stock-toner">0</div></div></div>
+        <div class="summary-card"><div class="card-content"><div class="card-label">Unidade de Imagem em Estoque</div><div class="card-value" id="inv-stock-imaging">0</div></div></div>
+        <div class="summary-card"><div class="card-content"><div class="card-label">Impressoras Backup</div><div class="card-value" id="inv-stock-backup">0</div></div></div>
+        <div class="summary-card"><div class="card-content"><div class="card-label">Alertas Toner/Imagem</div><div class="card-value" id="inv-low-total">0</div></div></div>
+      </div>
+
+      <div class="printers-filters">
+        <div class="filter-group">
+          <label for="stock-filter-category">Categoria</label>
+          <select id="stock-filter-category" class="filter-select">
+            <option value="">Todas</option>
+            <option value="toner_black">Toner Preto</option>
+            <option value="imaging_unit">Unidade de Imagem</option>
+            <option value="maintenance_kit">Kit de Manutencao</option>
+            <option value="backup_printer">Impressora Backup</option>
+            <option value="other">Outros</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="stock-filter-status">Status</label>
+          <select id="stock-filter-status" class="filter-select">
+            <option value="">Todos</option>
+            <option value="ok">OK</option>
+            <option value="low">Baixo</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="stock-filter-search">Buscar</label>
+          <input type="text" id="stock-filter-search" class="filter-input" placeholder="SKU, nome, fabricante...">
+        </div>
+      </div>
+
+      <div class="printers-table-container">
+        <table class="printers-table">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Nome</th>
+              <th>Categoria</th>
+              <th>Fabricante</th>
+              <th>Familia</th>
+              <th>Qtd Atual</th>
+              <th>Minimo</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="supplies-tbody"></tbody>
+        </table>
+        <div id="supplies-empty-state" class="empty-state" style="display:none;">
+          <div class="empty-title">Sem insumos cadastrados</div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>

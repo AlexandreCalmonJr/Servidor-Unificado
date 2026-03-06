@@ -79,7 +79,8 @@
   <div class="printer-subtabs">
     <button id="btn-tab-list" class="btn btn-ghost printer-subtab-btn is-active">Lista</button>
     <button id="btn-tab-details" class="btn btn-ghost printer-subtab-btn">Detalhes</button>
-    <button id="btn-tab-inventory" class="btn btn-ghost printer-subtab-btn">Estoque e Historico</button>
+    <button id="btn-tab-stock" class="btn btn-ghost printer-subtab-btn">Estoque</button>
+    <button id="btn-tab-history" class="btn btn-ghost printer-subtab-btn">Historico</button>
   </div>
 
   <section id="printers-tab-list" class="printer-subtab-panel is-active">
@@ -161,21 +162,31 @@
     </div>
   </section>
 
-  <section id="printers-tab-inventory" class="printer-subtab-panel">
+  <section id="printers-tab-stock" class="printer-subtab-panel">
     <div class="inventory-section">
       <div class="inventory-header">
-        <h2>Estoque e Historico</h2>
+        <h2>Estoque</h2>
         <button id="btn-refresh-inventory" class="btn btn-ghost">Atualizar Inventario</button>
       </div>
 
-      <div class="inventory-cards">
+      <div class="inventory-subtabs">
+        <button id="btn-inv-tab-supplies" class="btn btn-ghost inventory-subtab-btn is-active">Insumos</button>
+        <button id="btn-inv-tab-backups" class="btn btn-ghost inventory-subtab-btn">Backups</button>
+      </div>
+
+      <div class="inventory-cards inventory-view inventory-view-both">
         <div class="summary-card"><div class="card-content"><div class="card-label">Toner Preto em Estoque</div><div class="card-value" id="inv-stock-toner">0</div></div></div>
         <div class="summary-card"><div class="card-content"><div class="card-label">Unidade de Imagem em Estoque</div><div class="card-value" id="inv-stock-imaging">0</div></div></div>
         <div class="summary-card"><div class="card-content"><div class="card-label">Impressoras Backup</div><div class="card-value" id="inv-stock-backup">0</div></div></div>
         <div class="summary-card"><div class="card-content"><div class="card-label">Alertas Toner/Imagem</div><div class="card-value" id="inv-low-total">0</div></div></div>
       </div>
 
-      <div class="inventory-forms">
+      <div class="chart-card inventory-view inventory-view-backups is-hidden">
+        <h3>Controle de Backups</h3>
+        <p class="text-warning">Nesta visao, os eventos e ajustes ficam focados em impressoras de backup.</p>
+      </div>
+
+      <div class="inventory-forms inventory-view inventory-view-both">
         <div class="chart-card">
           <h3>Ajuste de Estoque</h3>
           <div class="inventory-form-grid">
@@ -211,7 +222,7 @@
         </div>
       </div>
 
-      <div class="inventory-forms">
+      <div class="inventory-forms inventory-view inventory-view-supplies">
         <div class="chart-card">
           <h3>Cadastro de Insumo</h3>
           <div class="inventory-form-grid">
@@ -245,46 +256,7 @@
         </div>
       </div>
 
-      <div class="printers-filters">
-        <div class="filter-group">
-          <label for="inv-filter-type">Tipo de Evento</label>
-          <select id="inv-filter-type" class="filter-select">
-            <option value="">Todos</option>
-            <option value="stock_adjustment">Ajuste Estoque</option>
-            <option value="toner_replacement">Troca Toner</option>
-            <option value="imaging_replacement">Troca Unidade Imagem</option>
-            <option value="maintenance">Manutencao</option>
-            <option value="alert">Alerta</option>
-          </select>
-        </div>
-        <div class="filter-group">
-          <label for="inv-filter-printer">Buscar Impressora</label>
-          <input type="text" id="inv-filter-printer" class="filter-input" placeholder="Nome ou serial">
-        </div>
-      </div>
-
-      <div class="printers-table-container">
-        <table class="printers-table">
-          <thead>
-            <tr>
-              <th>Data</th>
-              <th>Tipo</th>
-              <th>Impressora</th>
-              <th>Item</th>
-              <th>Delta</th>
-              <th>Estoque Apos</th>
-              <th>Motivo</th>
-              <th>Observacoes</th>
-            </tr>
-          </thead>
-          <tbody id="inventory-events-tbody"></tbody>
-        </table>
-        <div id="inventory-empty-state" class="empty-state" style="display:none;">
-          <div class="empty-title">Sem eventos de inventario</div>
-        </div>
-      </div>
-
-      <div class="printers-table-container">
+      <div class="printers-table-container inventory-view inventory-view-supplies">
         <table class="printers-table">
           <thead>
             <tr>
@@ -305,7 +277,55 @@
         </div>
       </div>
 
-      <div class="printers-table-container">
+    </div>
+  </section>
+
+  <section id="printers-tab-history" class="printer-subtab-panel">
+    <div class="inventory-section">
+      <div class="inventory-header">
+        <h2>Historico</h2>
+      </div>
+
+      <div class="printers-filters inventory-view inventory-view-both">
+        <div class="filter-group">
+          <label for="inv-filter-type">Tipo de Evento</label>
+          <select id="inv-filter-type" class="filter-select">
+            <option value="">Todos</option>
+            <option value="stock_adjustment">Ajuste Estoque</option>
+            <option value="toner_replacement">Troca Toner</option>
+            <option value="imaging_replacement">Troca Unidade Imagem</option>
+            <option value="maintenance">Manutencao</option>
+            <option value="alert">Alerta</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="inv-filter-printer">Buscar Impressora</label>
+          <input type="text" id="inv-filter-printer" class="filter-input" placeholder="Nome ou serial">
+        </div>
+      </div>
+
+      <div class="printers-table-container inventory-view inventory-view-both">
+        <table class="printers-table">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Tipo</th>
+              <th>Impressora</th>
+              <th>Item</th>
+              <th>Delta</th>
+              <th>Estoque Apos</th>
+              <th>Motivo</th>
+              <th>Observacoes</th>
+            </tr>
+          </thead>
+          <tbody id="inventory-events-tbody"></tbody>
+        </table>
+        <div id="inventory-empty-state" class="empty-state" style="display:none;">
+          <div class="empty-title">Sem eventos de inventario</div>
+        </div>
+      </div>
+
+      <div class="printers-table-container inventory-view inventory-view-supplies">
         <table class="printers-table">
           <thead>
             <tr>

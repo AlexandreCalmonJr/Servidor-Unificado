@@ -1,0 +1,72 @@
+<!-- Printers Alerts View -->
+<div class="printers-dashboard">
+  <div class="dashboard-header">
+    <div class="header-title">
+      <h1>Alertas de Impressoras</h1>
+      <p class="subtitle">Impressoras com toner/imagem baixo ou status critico</p>
+    </div>
+    <div class="header-actions">
+      <button id="btn-refresh-printer-alerts" class="btn btn-primary">Atualizar Alertas</button>
+    </div>
+  </div>
+
+  <section id="printers-tab-alerts" class="printer-subtab-panel is-active">
+    <div class="inventory-section">
+      <div class="printers-filters">
+        <div class="filter-group">
+          <label for="alert-filter-toner">Toner</label>
+          <select id="alert-filter-toner" class="filter-select">
+            <option value="">Todos</option>
+            <option value="low">Baixo (<= 15%)</option>
+            <option value="critical">Critico (<= 5%)</option>
+            <option value="ok">OK (> 15%)</option>
+            <option value="na">Sem leitura</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="alert-filter-imaging">Imagem</label>
+          <select id="alert-filter-imaging" class="filter-select">
+            <option value="">Todos</option>
+            <option value="low">Baixo (<= 15%)</option>
+            <option value="critical">Critico (<= 5%)</option>
+            <option value="ok">OK (> 15%)</option>
+            <option value="na">Sem leitura</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="alert-filter-type">Tipo</label>
+          <select id="alert-filter-type" class="filter-select">
+            <option value="">Todos</option>
+            <option value="supplies">Toner/Imagem</option>
+            <option value="status">Status</option>
+            <option value="critical">Critico</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="alert-filter-search">Buscar</label>
+          <input type="text" id="alert-filter-search" class="filter-input" placeholder="Impressora, serial, modelo...">
+        </div>
+      </div>
+
+      <div class="printers-table-container">
+        <table class="printers-table">
+          <thead>
+            <tr>
+              <th>Impressora</th>
+              <th>Serial</th>
+              <th>Status</th>
+              <th>Toner Preto</th>
+              <th>Unidade Imagem</th>
+              <th>Ultima Verificacao</th>
+              <th>Alerta</th>
+            </tr>
+          </thead>
+          <tbody id="printer-alerts-tbody"></tbody>
+        </table>
+        <div id="printer-alerts-empty-state" class="empty-state" style="display:none;">
+          <div class="empty-title">Sem impressoras em alerta</div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
