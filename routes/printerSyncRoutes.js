@@ -128,7 +128,10 @@ module.exports = (logger, modifyApiLimiter, deviceAuth) => {
             toner_levels: printer.toner_levels || {},
             usb_toner_supported: Boolean(printer.custom_data?.usb_toner_supported || printer.toner_levels),
             toner_source: printer.custom_data?.toner_source || null,
+            imaging_source: printer.custom_data?.imaging_source || null,
+            imaging_web_source_url: printer.custom_data?.imaging_web_source_url || null,
             toner_message: printer.custom_data?.toner_message || null,
+            ...(printer.custom_data || {}),
           };
 
           let asset;

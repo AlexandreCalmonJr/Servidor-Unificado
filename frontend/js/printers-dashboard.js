@@ -1770,29 +1770,6 @@ function exportPrintersCsv() {
   URL.revokeObjectURL(url);
   showNotification('CSV exportado com sucesso', 'success');
 }
-async function resetPrintersData() {
-  const confirmed = window.confirm('Isso vai apagar TODO o cadastro de impressoras. Deseja continuar?');
-  if (!confirmed) return;
-
-  try {
-    const response = await fetch('/api/printers/reset/all', {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${getAuthToken()}` },
-    });
-
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || payload.success === false) {
-      throw new Error(payload.message || 'Erro ao limpar cadastro de impressoras');
-    }
-
-    showNotification(`Cadastro limpo: ${payload.deleted_count || 0} registro(s) removido(s)`, 'success');
-    await loadPrinters();
-  } catch (error) {
-    console.error('Erro ao limpar cadastro:', error);
-    showNotification(error.message || 'Erro ao limpar cadastro', 'error');
-  }
-}
-
 function normalizeDiscoveryPrinter(printer) {
   const baseName = printer.hostname || printer.custom_data?.hostname || printer.asset_name || (printer.ip_address ? `Printer ${printer.ip_address}` : 'Printer');
   const serial = printer.serial_number || (printer.ip_address ? `NET-${printer.ip_address}` : `DISC-${Date.now()}`);
@@ -2013,8 +1990,6 @@ function setupEventListeners() {
   if (exportBtn) exportBtn.addEventListener('click', exportPrintersCsv);
   bind('btn-discover-printers', 'click', discoverPrinters);
   bind('btn-register-printer', 'click', openRegisterModal);
-  const resetBtn = document.getElementById('btn-reset-printers');
-  if (resetBtn) resetBtn.addEventListener('click', resetPrintersData);
   
   // Modal de detalhes
   bind('modal-close-details', 'click', () => {

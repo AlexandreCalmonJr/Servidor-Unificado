@@ -29,6 +29,14 @@ except Exception:
     ttk = None
     messagebox = None
 
+try:
+    import pystray
+    from PIL import Image, ImageDraw
+except Exception:
+    pystray = None
+    Image = None
+    ImageDraw = None
+
 # Configuração de logging
 logging.basicConfig(
     level=logging.INFO,

@@ -52,6 +52,19 @@ let tray = null;
 let win = null;
 let isQuitting = false;
 
+function resolveAppIconPath() {
+    const candidates = [
+        path.join(__dirname, '..', 'frontend', 'favicon.png'),
+        path.join(__dirname, 'src', 'assets', 'icon.png'),
+    ];
+    for (const iconPath of candidates) {
+        try {
+            if (require('fs').existsSync(iconPath)) return iconPath;
+        } catch (_) { /* noop */ }
+    }
+    return path.join(__dirname, 'src', 'assets', 'icon.png');
+}
+
 // ──────────────────────────────────────────────────
 // JANELA PRINCIPAL
 // ──────────────────────────────────────────────────
@@ -68,7 +81,7 @@ function createWindow() {
         frame: false,
         transparent: true,
         backgroundColor: '#00000000',
-        icon: path.join(__dirname, 'src/assets/icon.png'),
+        icon: resolveAppIconPath(),
     });
 
     win.loadFile('src/index.html');
@@ -414,7 +427,7 @@ function createWindow() {
 // ──────────────────────────────────────────────────
 
 function createTray() {
-    const iconPath = path.join(__dirname, 'src/assets/icon.png');
+    const iconPath = resolveAppIconPath();
     tray = new Tray(iconPath);
 
     const updateContextMenu = () => {
