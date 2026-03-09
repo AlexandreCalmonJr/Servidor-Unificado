@@ -140,6 +140,24 @@ class USBPrinterAgent:
             return f"usb-printer-agent-{hostname}"
         except:
             return "usb-printer-agent-unknown"
+
+    def detect_brand_from_text(self, text: str) -> str:
+        value = str(text or '').lower()
+        if 'hp' in value or 'hewlett' in value:
+            return 'HP'
+        if 'samsung' in value and any(tag in value for tag in ['4020', '4080', 'm4020', 'm4080', 'proxpress']):
+            return 'HP'
+        if 'samsung' in value:
+            return 'Samsung'
+        if 'brother' in value:
+            return 'Brother'
+        if 'xerox' in value:
+            return 'Xerox'
+        if 'canon' in value:
+            return 'Canon'
+        if 'ricoh' in value:
+            return 'Ricoh'
+        return 'Unknown'
     
     def discover_usb_printers(self) -> List[Dict]:
         """
@@ -148,29 +166,78 @@ class USBPrinterAgent:
         Returns:
             Lista de impressoras encontradas
         """
+        if os.name == 'nt':
+            return self._discover_usb_printers_windows()
+
         printers = []
-        
         try:
-            # Tenta usar lsusb
             output = subprocess.check_output(['lsusb'], text=True)
-            
+
             for line in output.split('\n'):
                 if not line.strip():
                     continue
-                
-                # Procura por fabricantes conhecidos
                 if any(brand in line for brand in ['HP', 'Samsung', 'Xerox', 'Brother', 'Canon', 'Ricoh']):
                     printer = self._parse_lsusb_line(line)
                     if printer:
                         printers.append(printer)
-            
+
             logger.info(f"Descobertas {len(printers)} impressoras USB")
-            
+
         except FileNotFoundError:
             logger.warning("lsusb não encontrado. Tente instalar com: sudo apt-get install usbutils")
         except Exception as e:
             logger.error(f"Erro ao descobrir impressoras: {e}")
-        
+
+        return printers
+
+    def _discover_usb_printers_windows(self) -> List[Dict]:
+        printers = []
+        command = (
+            "Get-CimInstance Win32_Printer "
+            "| Select-Object Name,DriverName,PortName,WorkOffline,PrinterStatus,DeviceID "
+            "| ConvertTo-Json -Depth 4"
+        )
+        try:
+            output = subprocess.check_output(
+                ['powershell', '-NoProfile', '-Command', command],
+                text=True,
+                timeout=12,
+            )
+            if not output.strip():
+                return []
+
+            parsed = json.loads(output)
+            items = parsed if isinstance(parsed, list) else [parsed]
+            for idx, item in enumerate(items):
+                port_name = str(item.get('PortName') or '').strip()
+                if 'usb' not in port_name.lower():
+                    continue
+
+                manufacturer = self.detect_brand_from_text(
+                    f"{item.get('Name') or ''} {item.get('DriverName') or ''}"
+                )
+                model = item.get('DriverName') or item.get('Name') or 'Unknown'
+                manufacturer, model = self.normalize_printer_brand(manufacturer, model)
+
+                printers.append({
+                    'id': item.get('DeviceID') or f"WIN-USB-{idx}",
+                    'serial_number': item.get('DeviceID') or f"WIN-USB-{idx}",
+                    'asset_name': item.get('Name') or f"USB Printer {idx + 1}",
+                    'manufacturer': manufacturer,
+                    'model': model,
+                    'connection_type': 'usb',
+                    'usb_path': port_name or None,
+                    'status': 'offline' if item.get('WorkOffline') else 'online',
+                    'last_check': datetime.now().isoformat(),
+                    'connection_details': {
+                        'port_name': port_name or None,
+                        'printer_status': item.get('PrinterStatus'),
+                        'device_id': item.get('DeviceID'),
+                    },
+                })
+            logger.info(f"Descobertas {len(printers)} impressoras USB (Windows)")
+        except Exception as e:
+            logger.error(f"Erro ao descobrir impressoras USB no Windows: {e}")
         return printers
     
     def _parse_lsusb_line(self, line: str) -> Optional[Dict]:
@@ -246,14 +313,34 @@ class USBPrinterAgent:
         status['last_check'] = datetime.now().isoformat()
         
         try:
-            # Verifica se o dispositivo ainda está conectado
-            vendor_id = printer['connection_details']['vendor_id']
-            output = subprocess.check_output(['lsusb'], text=True)
-            
-            if vendor_id in output:
-                status['status'] = 'online'
+            if os.name == 'nt':
+                port_name = str((printer.get('connection_details') or {}).get('port_name') or printer.get('usb_path') or '')
+                if port_name:
+                    command = (
+                        "Get-CimInstance Win32_Printer "
+                        f"| Where-Object {{ $_.PortName -eq '{port_name}' }} "
+                        "| Select-Object -First 1 Name,WorkOffline "
+                        "| ConvertTo-Json -Depth 2"
+                    )
+                    output = subprocess.check_output(
+                        ['powershell', '-NoProfile', '-Command', command],
+                        text=True,
+                        timeout=8,
+                    )
+                    if output.strip():
+                        obj = json.loads(output)
+                        status['status'] = 'offline' if obj.get('WorkOffline') else 'online'
+                    else:
+                        status['status'] = 'offline'
+                else:
+                    status['status'] = status.get('status') or 'unknown'
             else:
-                status['status'] = 'offline'
+                vendor_id = (printer.get('connection_details') or {}).get('vendor_id')
+                if not vendor_id:
+                    status['status'] = status.get('status') or 'unknown'
+                    return status
+                output = subprocess.check_output(['lsusb'], text=True)
+                status['status'] = 'online' if vendor_id in output else 'offline'
         except Exception as e:
             logger.debug(f"Erro ao verificar status: {e}")
             status['status'] = 'unknown'
@@ -440,7 +527,7 @@ class USBPrinterAgent:
             enriched['toner_levels'] = toner_levels
         return enriched
     
-    def run(self):
+    def run(self, stop_event: Optional[threading.Event] = None):
         """Executa o agente em loop contínuo"""
         logger.info(f"Iniciando agente USB Printer (ID: {self.device_id})")
         logger.info(f"Servidor: {self.server_url}")
@@ -448,6 +535,9 @@ class USBPrinterAgent:
         
         try:
             while True:
+                if stop_event and stop_event.is_set():
+                    logger.info("Sinal de parada recebido para o agente USB")
+                    break
                 try:
                     # Descobre impressoras
                     printers = self.discover_usb_printers()
@@ -463,14 +553,20 @@ class USBPrinterAgent:
                         self.send_printer_data(printers)
                     
                     # Aguarda próxima verificação
-                    time.sleep(self.interval)
+                    if stop_event:
+                        stop_event.wait(self.interval)
+                    else:
+                        time.sleep(self.interval)
                     
                 except KeyboardInterrupt:
                     logger.info("Agente interrompido pelo usuário")
                     break
                 except Exception as e:
                     logger.error(f"Erro no loop principal: {e}")
-                    time.sleep(self.interval)
+                    if stop_event:
+                        stop_event.wait(self.interval)
+                    else:
+                        time.sleep(self.interval)
                     
         except KeyboardInterrupt:
             logger.info("Encerrando agente...")
@@ -569,6 +665,79 @@ class USBPrinterAgent:
         return output
 
 
+def _resolve_tray_icon_path() -> Optional[str]:
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.normpath(os.path.join(script_dir, '..', 'frontend', 'favicon.png')),
+        os.path.normpath(os.path.join(script_dir, '..', 'clients', 'desktop', 'src', 'assets', 'icon.png')),
+    ]
+    for icon_path in candidates:
+        if os.path.exists(icon_path):
+            return icon_path
+    return None
+
+
+def _build_fallback_tray_icon():
+    if Image is None or ImageDraw is None:
+        return None
+    img = Image.new('RGB', (64, 64), (16, 83, 166))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle((8, 8, 56, 56), outline=(255, 255, 255), width=3)
+    draw.rectangle((18, 16, 46, 32), fill=(255, 255, 255))
+    draw.rectangle((16, 36, 48, 48), fill=(255, 255, 255))
+    return img
+
+
+def run_agent_with_tray(agent: USBPrinterAgent):
+    if pystray is None or Image is None:
+        logger.warning("pystray/Pillow não disponíveis. Instale com: pip install pystray pillow")
+        agent.run()
+        return
+
+    stop_event = threading.Event()
+
+    def worker_loop():
+        try:
+            agent.run(stop_event=stop_event)
+        except Exception as exc:
+            logger.error(f"Erro no loop do agente (tray): {exc}")
+
+    worker = threading.Thread(target=worker_loop, daemon=True)
+    worker.start()
+
+    icon_img = None
+    icon_path = _resolve_tray_icon_path()
+    try:
+        if icon_path:
+            icon_img = Image.open(icon_path)
+    except Exception:
+        icon_img = None
+    if icon_img is None:
+        icon_img = _build_fallback_tray_icon()
+
+    def on_send_now(icon, item):
+        threading.Thread(target=agent.run_once, daemon=True).start()
+
+    def on_exit(icon, item):
+        stop_event.set()
+        icon.stop()
+
+    def status_label(item):
+        return "USB Printer Agent - Rodando" if worker.is_alive() else "USB Printer Agent - Parado"
+
+    tray_menu = pystray.Menu(
+        pystray.MenuItem(status_label, None, enabled=False),
+        pystray.MenuItem("Enviar agora", on_send_now),
+        pystray.MenuItem("Sair", on_exit),
+    )
+
+    tray = pystray.Icon("usb_printer_agent", icon_img, "USB Printer Agent", tray_menu)
+    logger.info("Iniciando USB Printer Agent em tray")
+    tray.run()
+    stop_event.set()
+    worker.join(timeout=5)
+
+
 def main():
     """Função principal"""
     parser = argparse.ArgumentParser(
@@ -593,6 +762,7 @@ Exemplos de uso:
     parser.add_argument('--ui', action='store_true', help='Abre interface para informar IP, porta e token')
     parser.add_argument('--device-id', help='ID único do dispositivo (opcional)')
     parser.add_argument('--once', action='store_true', help='Executar uma única verificação e sair')
+    parser.add_argument('--tray', action='store_true', help='Executar em segundo plano com ícone na bandeja')
     parser.add_argument('--simulate', action='store_true', help='Enviar impressoras USB simuladas para teste')
     parser.add_argument('--simulate-count', type=int, default=2, help='Quantidade de impressoras simuladas (padrão: 2)')
     parser.add_argument('--interval', type=int, default=60, help='Intervalo de verificação em segundos (padrão: 60)')
@@ -787,6 +957,8 @@ Exemplos de uso:
     
     if args.simulate:
         agent.run_simulation(count=args.simulate_count)
+    elif args.tray:
+        run_agent_with_tray(agent)
     elif args.once:
         agent.run_once()
     else:
