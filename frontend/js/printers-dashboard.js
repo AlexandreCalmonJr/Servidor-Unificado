@@ -20,6 +20,10 @@ let legacyOpsMode = 'entrada';
 const TONER_MONO_ONLY = true;
 const BROWSER_PRINTER_DEBUG = true;
 
+function getCurrentPrintersView() {
+  return String(window.__printersView || "list").toLowerCase();
+}
+
 function getPrinterLevelsForDebug(printer) {
   const levels = printer?.toner_levels || printer?.custom_data?.toner_levels || {};
   return {
@@ -87,6 +91,15 @@ async function initPrintersDashboard() {
 
   await loadPrinters();
   setupEventListeners();
+  if (getCurrentPrintersView() === "details" && window.__selectedPrinterId) {
+    await showPrinterDetails(window.__selectedPrinterId, { navigate: false });
+  } else if (getCurrentPrintersView() === "details" && !window.__selectedPrinterId) {
+    showNotification("Selecione uma impressora na lista para abrir os detalhes", "info");
+    if (typeof App !== "undefined" && typeof App.navigateTo === "function") {
+      App.navigateTo("printers-list");
+      return;
+    }
+  }
 
   if (!printersDashboardInitialized) {
     printersDashboardInitialized = true;
@@ -287,7 +300,7 @@ function renderPrintersTable(printers) {
         <td><small>${lastCheckFormatted}</small></td>
         <td>
           <div class="table-actions">
-            <button class="action-btn action-btn-view" onclick="showPrinterDetails('${printer._id}')">👁️</button>
+            <button class="action-btn action-btn-view" onclick="showPrinterDetails('${printer._id}')" title="Ver detalhes" aria-label="Ver detalhes">&#128065;</button>
             <button class="action-btn action-btn-edit" onclick="openEditPrinter('${printer._id}')">Edit</button>
             <button class="action-btn action-btn-refresh" onclick="refreshPrinterStatus('${printer._id}')">🔄</button>
           </div>
@@ -727,7 +740,107 @@ function renderTonerChart() {
 /**
  * Mostra detalhes de uma impressora
  */
-async function showPrinterDetails(printerId) {
+function toSafeText(value, fallback = "-") {
+  if (value === null || value === undefined || value === "") return fallback;
+  return String(value);
+}
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = String(text || "");
+  return div.innerHTML;
+}
+
+function formatAbsoluteDateTime(value) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString("pt-BR");
+}
+
+function renderDetailTableRows(tbodyId, rowsHtml, emptyCols, emptyMessage) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  if (rowsHtml && rowsHtml.length > 0) {
+    tbody.innerHTML = rowsHtml.join("");
+    return;
+  }
+  tbody.innerHTML = `<tr><td colspan="${emptyCols}">${emptyMessage}</td></tr>`;
+}
+
+function renderPrinterServiceDetails(printer) {
+  const data = printer?.custom_data || {};
+  const inputTrays = Array.isArray(data.paper_trays_input) ? data.paper_trays_input : [];
+  const outputTrays = Array.isArray(data.paper_trays_output) ? data.paper_trays_output : [];
+  const hardware = data.hardware_resources && typeof data.hardware_resources === "object"
+    ? data.hardware_resources
+    : {};
+  const alerts = Array.isArray(data.alerts) ? data.alerts : [];
+  const ports = Array.isArray(data.open_ports) ? data.open_ports : [];
+
+  const inputRows = inputTrays.map((tray) => {
+    const pct = tray.percent === null || tray.percent === undefined ? "-" : `${tray.percent}%`;
+    return `
+      <tr>
+        <td>${escapeHtml(toSafeText(tray.description, `Bandeja ${tray.index || "-"}`))}</td>
+        <td>${escapeHtml(toSafeText(tray.capacity, "-"))}</td>
+        <td>${escapeHtml(toSafeText(tray.current_level, "-"))}</td>
+        <td>${escapeHtml(pct)}</td>
+        <td>${escapeHtml(toSafeText(tray.media_name, "-"))}</td>
+        <td>${escapeHtml(toSafeText(tray.media_type, "-"))}</td>
+        <td>${escapeHtml(toSafeText(tray.status, "-"))}</td>
+      </tr>
+    `;
+  });
+  renderDetailTableRows("detail-paper-input-tbody", inputRows, 7, "Sem dados de bandejas de entrada");
+
+  const outputRows = outputTrays.map((tray) => `
+    <tr>
+      <td>${escapeHtml(toSafeText(tray.description, `Saida ${tray.index || "-"}`))}</td>
+      <td>${escapeHtml(toSafeText(tray.capacity, "-"))}</td>
+      <td>${escapeHtml(toSafeText(tray.current_level, "-"))}</td>
+      <td>${escapeHtml(toSafeText(tray.status, "-"))}</td>
+    </tr>
+  `);
+  renderDetailTableRows("detail-paper-output-tbody", outputRows, 4, "Sem dados de bandejas de saida");
+
+  const alertsEl = document.getElementById("detail-alerts-list");
+  if (alertsEl) {
+    if (!alerts.length) {
+      alertsEl.innerHTML = '<p class="detail-muted">Sem alertas ativos</p>';
+    } else {
+      alertsEl.innerHTML = alerts.map((alert) => (
+        `<span class="detail-alert-chip">${escapeHtml(alert.type || "alerta")} (${escapeHtml(toSafeText(alert.percent, "-"))}%)</span>`
+      )).join("");
+    }
+  }
+
+  const setIfExists = (id, value, cssClass) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = value;
+    if (cssClass) el.className = cssClass;
+  };
+
+  setIfExists("detail-snmp", data.snmp_available === false ? "Indisponivel" : "Disponivel");
+  setIfExists("detail-response-ms", data.response_ms !== null && data.response_ms !== undefined ? `${data.response_ms} ms` : "-");
+  setIfExists("detail-firmware", data.firmware || "-");
+  setIfExists("detail-total-pages", printer.total_pages !== null && printer.total_pages !== undefined ? String(printer.total_pages) : "-");
+  setIfExists("detail-ram-mb", hardware.ram_mb !== null && hardware.ram_mb !== undefined ? `${hardware.ram_mb} MB` : "-");
+  setIfExists("detail-duplex", hardware.duplex_installed ? "Sim" : "Nao");
+  setIfExists("detail-open-ports", ports.length ? ports.join(", ") : "-");
+  setIfExists("detail-alert-count", String(alerts.length));
+}
+
+async function showPrinterDetails(printerId, options = {}) {
+  const navigate = options.navigate !== false;
+  if (navigate) {
+    window.__selectedPrinterId = printerId;
+    if (typeof App !== "undefined" && typeof App.navigateTo === "function") {
+      App.navigateTo("printers-details");
+      return;
+    }
+  }
+
   try {
     const response = await fetch(`/api/printers/${printerId}`, {
       headers: { "Authorization": `Bearer ${getAuthToken()}` }
@@ -737,9 +850,10 @@ async function showPrinterDetails(printerId) {
 
     const { printer } = await response.json();
     currentPrinterId = printerId;
+    window.__selectedPrinterId = printerId;
 
     const tonerLevels = printer.toner_levels || printer.custom_data?.toner_levels || {};
-    const lastCheck = formatTime(new Date(printer.last_check_time || printer.updated_at));
+    const lastCheck = `${formatTime(new Date(printer.last_check_time || printer.updated_at))} (${formatAbsoluteDateTime(printer.last_check_time || printer.updated_at)})`;
     const setIfExists = (id, value, cssClass) => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -748,12 +862,13 @@ async function showPrinterDetails(printerId) {
     };
 
     setIfExists("modal-printer-name", printer.asset_name || "-");
+    setIfExists("detail-page-title", `Detalhes: ${printer.asset_name || "-"}`);
     setIfExists("detail-name", printer.asset_name || "-");
     setIfExists("detail-manufacturer", printer.manufacturer || "N/A");
     setIfExists("detail-model", printer.model || "N/A");
     setIfExists("detail-serial", printer.serial_number || "N/A");
     setIfExists("detail-connection", printer.connection_type === "network" ? "Rede (IP)" : "USB");
-    setIfExists("detail-address", printer.ip_address || "N/A");
+    setIfExists("detail-address", printer.ip_address || printer.usb_path || "N/A");
     setIfExists("detail-status", String(printer.status || "unknown").toUpperCase(), `status-badge ${printer.status}`);
     setIfExists("detail-last-check", lastCheck);
 
@@ -762,7 +877,7 @@ async function showPrinterDetails(printerId) {
     setIfExists("tab-detail-model", printer.model || "N/A");
     setIfExists("tab-detail-serial", printer.serial_number || "N/A");
     setIfExists("tab-detail-connection", printer.connection_type === "network" ? "Rede (IP)" : "USB");
-    setIfExists("tab-detail-address", printer.ip_address || "N/A");
+    setIfExists("tab-detail-address", printer.ip_address || printer.usb_path || "N/A");
     setIfExists("tab-detail-status", String(printer.status || "unknown").toUpperCase(), `status-badge ${printer.status}`);
     setIfExists("tab-detail-last-check", lastCheck);
 
@@ -770,8 +885,12 @@ async function showPrinterDetails(printerId) {
     if (tonerContainer) tonerContainer.innerHTML = buildTonerLevelsHtml(tonerLevels);
     const tabTonerContainer = document.getElementById("tab-toner-levels-container");
     if (tabTonerContainer) tabTonerContainer.innerHTML = buildTonerLevelsHtml(tonerLevels);
+    renderPrinterServiceDetails(printer);
 
-    switchPrintersSubtab("details");
+    if (getCurrentPrintersView() !== "details") {
+      const modal = document.getElementById("modal-printer-details");
+      if (modal) modal.style.display = "flex";
+    }
   } catch (error) {
     console.error("Erro ao carregar detalhes:", error);
     showNotification("Erro ao carregar detalhes da impressora", "error");
@@ -1838,11 +1957,34 @@ function setupEventListeners() {
     tabDetailRefreshBtn.addEventListener('click', async () => {
       if (!currentPrinterId) return;
       await refreshPrinterStatus(currentPrinterId);
-      await showPrinterDetails(currentPrinterId);
+      await showPrinterDetails(currentPrinterId, { navigate: false });
     });
   }
   if (tabDetailEditBtn) {
     tabDetailEditBtn.addEventListener('click', () => {
+      if (!currentPrinterId) return;
+      openEditPrinter(currentPrinterId);
+    });
+  }
+
+  const detailsBackBtn = document.getElementById('detail-btn-back');
+  const detailsRefreshBtn = document.getElementById('detail-btn-refresh');
+  const detailsEditBtnPage = document.getElementById('detail-btn-edit');
+  if (detailsBackBtn) detailsBackBtn.addEventListener('click', () => {
+    if (typeof App !== 'undefined' && typeof App.navigateTo === 'function') {
+      App.navigateTo('printers-list');
+    }
+  });
+  if (detailsRefreshBtn) {
+    detailsRefreshBtn.addEventListener('click', async () => {
+      if (!currentPrinterId) return;
+      await refreshPrinterStatus(currentPrinterId);
+      await showPrinterDetails(currentPrinterId, { navigate: false });
+      await loadPrinters();
+    });
+  }
+  if (detailsEditBtnPage) {
+    detailsEditBtnPage.addEventListener('click', () => {
       if (!currentPrinterId) return;
       openEditPrinter(currentPrinterId);
     });
@@ -2006,5 +2148,6 @@ function showNotification(message, type = 'info') {
 }
 
 // Inicializacao controlada pelo App.onPageLoad('printers') em app.js
+
 
 

@@ -1,0 +1,54 @@
+<html>    
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+	<link rel="shortcut icon" href="/sws/images/fav.ico" type="image/x-icon" />
+	<title> HP Laser 408 </title>		
+	
+	<style>	
+	#sws_loading_wait{
+		position:absolute;
+		left:0%;
+		top:35%;
+		padding:2px;
+		z-index:-30000;
+	    	height:auto;
+		text-align:center;
+		width:100%;
+	}
+	#sws_loading_wait span {       
+	    font:bold 13px  Tahoma, Verdana, Arial, Helvetica, sans-serif;
+	    color:#000000;
+	    line-height:200%;
+	}	
+	#sws_loading_wait img {
+	    margin-bottom:5px;
+	}	
+
+	</style>
+
+
+	<script>
+		sws_redirect_location = "";
+	
+		document.write("<div id='sws_loading_wait'>"); 
+		document.write("<div><span>Loading... </span></div>"); 
+		document.write("<div><img src='images/sws/progress-bar_ani.gif'></div>"); 
+		document.write("<div><span>Embedded Web Service</span></div>"); 
+		document.write("</div>");
+	</script>
+	<!-- SWS css  -->
+	<link rel="stylesheet" type="text/css" href="css/sws-all.css" />
+
+	<script type="text/javascript" src="index.js"></script>
+
+</head>
+<body style="width:1280px;background:white;">
+	
+	<script>
+		var loader = document.getElementById('sws_loading_wait');
+		loader.style.display="none"; 
+	</script>
+
+</body>
+</html>

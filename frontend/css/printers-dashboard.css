@@ -394,6 +394,30 @@
   font-size: 0.8rem;
 }
 
+.detail-alerts-list {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.detail-alert-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.76rem;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.detail-muted {
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  margin: 0;
+}
+
 .text-warning {
   color: var(--warning);
   font-size: 0.84rem;

@@ -1,0 +1,198 @@
+{
+	
+	toner_black: {
+		opt: 1,
+		remaining: 82,
+		cnt: 2682,
+		capa: 15000,
+		id: "W1330X",
+		serial: "CRUM-250822A0BC3",
+		newError: ""
+	},
+	toner_cyan: {
+		opt: 0,
+		remaining: 0,
+		cnt: 0,
+		capa: 0,
+		id: "",
+		serial: "Unidentified",
+		newError: ""		
+	},
+	toner_magenta: {
+		opt: 0,
+		remaining: 0,
+		cnt: 0,
+		capa: 0,
+		id: "",
+		serial: "Unidentified",
+		newError: ""
+	},
+	toner_yellow: {
+		opt: 0,
+		remaining: 0,
+		cnt: 0,
+		capa: 0,
+		id: "",
+		serial: "Unidentified",
+		newError: ""
+	},
+
+	drum_black: {
+		opt: 1,
+		remaining: 29,
+		cnt: 11530,
+		capa: 30000,		
+		id: "W1332A",
+		serial: "CRUM-240910A1015",		
+		newError: ""
+	},
+	drum_cyan: {
+		opt: 0,
+		remaining: 0,
+		cnt: 0,
+		capa: 0,		
+		id: "",
+		serial: "Unidentified",		
+		newError: ""
+	},
+	drum_magenta: {
+		opt: 0,
+		remaining: 0,
+		cnt: 0,
+		capa: 0,		
+		id: "",
+		serial: "Unidentified",		
+		newError: ""
+	},
+	drum_yellow: {
+		opt: 0,
+		remaining: 0,
+		cnt: 0,
+		capa: 0,		
+		id: "",
+		serial: "Unidentified",		
+		newError: ""
+	},
+	itb_catridge: {
+		opt: 0,
+		remaining: 0,
+		cnt: 0,
+		capa: 0,		
+		id: "",   
+		serial: "Unidentified",
+		newError: ""
+	},
+	consume: {
+		fuser_kit : 11520,
+		btr_kit: 11520,
+		roller_tray1: 11519,
+		roller_tray2: 0,		
+		roller_tray3: 0,		
+		roller_tray4: 0,
+		roller_tray5: 0,		
+		roller_bypass: 1,
+		transfer_belt: 0,
+
+		forward_roller_tray1: 0,
+		forward_roller_tray2: 0,
+		forward_roller_tray3: 0,
+		forward_roller_tray4: 0,
+		forward_roller_tray5: 0,
+		forward_roller_mp: 1,
+
+		torque_limiter_tray1: 11519,
+		retard_roller_tray2: 0,
+		retard_roller_tray3: 0,
+		retard_roller_tray4: 0,
+		retard_roller_tray5: 0,
+		retard_roller_mp: 1,
+
+		cleaning_pad: 0,
+		
+		mp_rubber_pad_life : 0,
+		adf_roller_life : 0,
+		adf_rubber_pad_life : 0,
+		ozone_filter_life_status : 0,
+		finisher_stapler_cartridge_status : 0,
+		waste_toner_containier_status : 0
+
+		
+	},
+	consume_opt: {
+		tray2_opt: 2,
+		tray3_opt: 0,
+		tray4_opt: 0,
+		tray5_opt: 0,
+		hcf_opt: 0,
+
+		fuser_kit_max : 90000,
+		btr_kit_max: 100000,
+		roller_tray1_max: 90000,
+		roller_tray2_max: 0,
+		roller_tray3_max: 0,
+		roller_tray4_max: 0,
+		roller_tray5_max: 0,
+		roller_bypass_max: 0,
+
+		forward_roller_tray1_max: 0,
+		forward_roller_tray2_max: 0,
+		forward_roller_tray3_max: 0,
+		forward_roller_tray4_max: 0,
+		forward_roller_tray5_max: 0,
+		forward_roller_mp_max: 0,
+
+		torque_limiter_tray1_max: 60000,
+		retard_roller_tray2_max: 0,
+		retard_roller_tray3_max: 0,
+		retard_roller_tray4_max: 0,
+		retard_roller_tray5_max: 0,
+		retard_roller_mp_max: 0,
+
+		cleaning_pad_max: 0,
+		
+		mp_rubber_pad_life_max : 0,
+		adf_roller_life_max : 0,
+		adf_rubber_pad_life_max : 0,
+		ozone_filter_life_support_option : 0,
+		finisher_stapler_cartridge_support_option : 0,
+		waste_toner_containier_support_option : 0
+	},
+	GXI_SUPPORT_COLOR: 0,
+	GXI_INTRAY_MANUALFEEDING_TRAY_SUPPORT: 0,
+	GXI_DRUM_DEVELOPER_UNIT_LIFE_CNT: 0,
+	GXI_DRUM_DEVELOPER_LIFE_CNT: 0,
+	GXI_DRUM_DEVELOPER_UNIT_LIFE_CNT_SUPPORT: 0,
+	GXI_COVERAGE_PAGE_COUNT_0_1_BLACK: 76,
+	GXI_COVERAGE_PAGE_COUNT_0_1_CYAN: 0,
+	GXI_COVERAGE_PAGE_COUNT_0_1_MAGENTA: 0,
+	GXI_COVERAGE_PAGE_COUNT_0_1_YELLOW: 0,
+	GXI_COVERAGE_PAGE_COUNT_1_3_BLACK: 1002,
+	GXI_COVERAGE_PAGE_COUNT_1_3_CYAN: 0,
+	GXI_COVERAGE_PAGE_COUNT_1_3_MAGENTA: 0,
+	GXI_COVERAGE_PAGE_COUNT_1_3_YELLOW: 0,
+	GXI_COVERAGE_PAGE_COUNT_3_5_BLACK: 889,
+	GXI_COVERAGE_PAGE_COUNT_3_5_CYAN: 0,
+	GXI_COVERAGE_PAGE_COUNT_3_5_MAGENTA: 0,
+	GXI_COVERAGE_PAGE_COUNT_3_5_YELLOW: 0,
+	GXI_COVERAGE_PAGE_COUNT_5_7_BLACK: 359,
+	GXI_COVERAGE_PAGE_COUNT_5_7_CYAN: 0,
+	GXI_COVERAGE_PAGE_COUNT_5_7_MAGENTA: 0,
+	GXI_COVERAGE_PAGE_COUNT_5_7_YELLOW: 0,
+	GXI_COVERAGE_PAGE_COUNT_7_10_BLACK: 228,
+	GXI_COVERAGE_PAGE_COUNT_7_10_CYAN: 0,
+	GXI_COVERAGE_PAGE_COUNT_7_10_MAGENTA: 0,
+	GXI_COVERAGE_PAGE_COUNT_7_10_YELLOW: 0,
+	GXI_COVERAGE_PAGE_COUNT_10_25_BLACK: 121,
+	GXI_COVERAGE_PAGE_COUNT_10_25_CYAN: 0,
+	GXI_COVERAGE_PAGE_COUNT_10_25_MAGENTA: 0,
+	GXI_COVERAGE_PAGE_COUNT_10_25_YELLOW: 0,
+	GXI_COVERAGE_PAGE_COUNT_25_50_BLACK: 7,
+	GXI_COVERAGE_PAGE_COUNT_25_50_CYAN: 0,
+	GXI_COVERAGE_PAGE_COUNT_25_50_MAGENTA: 0,
+	GXI_COVERAGE_PAGE_COUNT_25_50_YELLOW: 0,
+	GXI_COVERAGE_PAGE_COUNT_50_100_BLACK: 0,
+	GXI_COVERAGE_PAGE_COUNT_50_100_CYAN: 0,
+	GXI_COVERAGE_PAGE_COUNT_50_100_MAGENTA: 0,
+	GXI_COVERAGE_PAGE_COUNT_50_100_YELLOW: 0
+}
+

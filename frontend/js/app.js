@@ -2,9 +2,10 @@
 
 const App = (() => {
     let currentPage = 'dashboard';
-    const printerSubPages = new Set(['printers-list', 'printers-stock', 'printers-supplies', 'printers-history', 'printers-alerts']);
+    const printerSubPages = new Set(['printers-list', 'printers-details', 'printers-stock', 'printers-supplies', 'printers-history', 'printers-alerts']);
     const printerViewByPage = {
         'printers-list': 'list',
+        'printers-details': 'details',
         'printers-stock': 'stock',
         'printers-supplies': 'supplies',
         'printers-history': 'history',
@@ -26,6 +27,7 @@ const App = (() => {
         reports: 'Relatórios',
         printers: 'Impressoras',
         'printers-list': 'Impressoras - Lista',
+        'printers-details': 'Impressoras - Detalhes',
         'printers-stock': 'Impressoras - Estoque',
         'printers-supplies': 'Impressoras - Insumos',
         'printers-history': 'Impressoras - Historico',
@@ -166,6 +168,7 @@ const App = (() => {
             const view = window.__printersView || 'list';
             const viewPathByKey = {
                 list: '/views/printers-list.html',
+                details: '/views/printers-details.html',
                 stock: '/views/printers-stock.html',
                 supplies: '/views/printers-supplies.html',
                 history: '/views/printers-history.html',

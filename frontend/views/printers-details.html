@@ -1,0 +1,91 @@
+<!-- Printers Details View -->
+<div class="printers-dashboard">
+  <div class="dashboard-header">
+    <div class="header-title">
+      <h1 id="detail-page-title">Detalhes da Impressora</h1>
+      <p class="subtitle">Leitura completa via monitoramento SNMP/servico de impressoras</p>
+    </div>
+    <div class="header-actions">
+      <button id="detail-btn-back" class="btn btn-ghost">Voltar para Lista</button>
+      <button id="detail-btn-refresh" class="btn btn-primary">Atualizar Status</button>
+      <button id="detail-btn-edit" class="btn btn-ghost">Editar</button>
+    </div>
+  </div>
+
+  <section id="printers-tab-details" class="printer-subtab-panel is-active">
+    <div class="chart-card">
+      <h3>Identificacao e Status</h3>
+      <div class="printer-details-grid">
+        <div class="detail-item"><label>Nome</label><span id="detail-name">-</span></div>
+        <div class="detail-item"><label>Fabricante</label><span id="detail-manufacturer">-</span></div>
+        <div class="detail-item"><label>Modelo</label><span id="detail-model">-</span></div>
+        <div class="detail-item"><label>Serial</label><span id="detail-serial">-</span></div>
+        <div class="detail-item"><label>Conexao</label><span id="detail-connection">-</span></div>
+        <div class="detail-item"><label>Endereco</label><span id="detail-address">-</span></div>
+        <div class="detail-item"><label>Status</label><span id="detail-status" class="status-badge unknown">UNKNOWN</span></div>
+        <div class="detail-item"><label>Ultima Verificacao</label><span id="detail-last-check">-</span></div>
+        <div class="detail-item"><label>Total de Paginas</label><span id="detail-total-pages">-</span></div>
+        <div class="detail-item"><label>SNMP</label><span id="detail-snmp">-</span></div>
+        <div class="detail-item"><label>Resposta (ms)</label><span id="detail-response-ms">-</span></div>
+        <div class="detail-item"><label>Firmware</label><span id="detail-firmware">-</span></div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h3>Niveis de Suprimento</h3>
+      <div id="toner-levels-container"></div>
+    </div>
+
+    <div class="chart-card">
+      <h3>Bandejas de Entrada</h3>
+      <div class="printers-table-container">
+        <table class="printers-table">
+          <thead>
+            <tr>
+              <th>Bandeja</th>
+              <th>Capacidade</th>
+              <th>Nivel Atual</th>
+              <th>%</th>
+              <th>Papel</th>
+              <th>Tipo</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="detail-paper-input-tbody">
+            <tr><td colspan="7">Sem dados de bandejas de entrada</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h3>Bandejas de Saida</h3>
+      <div class="printers-table-container">
+        <table class="printers-table">
+          <thead>
+            <tr>
+              <th>Saida</th>
+              <th>Capacidade</th>
+              <th>Nivel Atual</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="detail-paper-output-tbody">
+            <tr><td colspan="4">Sem dados de bandejas de saida</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h3>Recursos de Hardware</h3>
+      <div class="printer-details-grid">
+        <div class="detail-item"><label>RAM</label><span id="detail-ram-mb">-</span></div>
+        <div class="detail-item"><label>Duplex Instalado</label><span id="detail-duplex">-</span></div>
+        <div class="detail-item"><label>Portas Abertas</label><span id="detail-open-ports">-</span></div>
+        <div class="detail-item"><label>Alertas Ativos</label><span id="detail-alert-count">0</span></div>
+      </div>
+      <div id="detail-alerts-list" class="detail-alerts-list"></div>
+    </div>
+  </section>
+</div>
