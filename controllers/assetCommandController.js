@@ -2,6 +2,7 @@ const { getModelByType } = require('../utils/assetFactory');
 const AssetCommand = require('../models/AssetCommand');
 const Module = require('../models/AssetModuleConfig');
 const mongoose = require('mongoose');
+const { signCommand } = require('../utils/commandSignature');
 
 const PREDEFINED_COMMANDS = {
   restart_computer: { cmd: 'shutdown /r /t 30 /f', requiresElevation: true, timeout: 60000 },
@@ -217,16 +218,24 @@ exports.getPendingCommands = async (req, res) => {
       logger.info(`📤 ${commands.length} comandos enviados para ${serialNumber}`);
     }
 
-    res.json({
-      success: true,
-      commands: commands.map(cmd => ({
+    const payloadCommands = commands.map(cmd => {
+      const payload = {
         id: cmd._id,
         commandType: cmd.commandType,
         command: cmd.command,
         parameters: cmd.parameters,
         requiresElevation: cmd.requiresElevation,
         timeout: cmd.timeout
-      }))
+      };
+      const signature = signCommand(payload);
+      if (signature) payload.signature = signature.value;
+      if (signature) payload.signatureAlg = signature.alg;
+      return payload;
+    });
+
+    res.json({
+      success: true,
+      commands: payloadCommands
     });
   } catch (error) {
     logger.error('❌ Erro ao buscar comandos pendentes:', error);

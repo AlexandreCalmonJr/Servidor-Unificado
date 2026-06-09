@@ -41,7 +41,7 @@ const API = (() => {
             headers['Content-Type'] = 'application/json';
         }
 
-        const options = { method, headers };
+        const options = { method, headers, credentials: 'same-origin' };
 
         if (body) {
             options.body = isFormData ? body : JSON.stringify(body);
@@ -74,6 +74,16 @@ const API = (() => {
         return data;
     }
 
+    async function logout() {
+        try {
+            await request('/auth/logout', 'POST');
+        } catch (err) {
+            // Keep local cleanup even when the server is unavailable.
+        } finally {
+            clearAuth();
+        }
+    }
+
     return {
         get: (path) => request(path, 'GET'),
         post: (path, body) => request(path, 'POST', body),
@@ -82,6 +92,7 @@ const API = (() => {
         upload: (path, formData) => request(path, 'POST', formData, true),
         getToken,
         clearAuth,
+        logout,
         BASE_URL,
     };
 })();

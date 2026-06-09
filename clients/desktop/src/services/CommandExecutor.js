@@ -5,12 +5,62 @@
 //   cmd.id              (não _id)
 
 const { exec, execFile } = require('child_process');
+const crypto = require('crypto');
+const fs = require('fs');
 const os = require('os');
 const path = require('path');
+
+function normalizeForSignature(value) {
+  if (Array.isArray(value)) {
+    return value.map(normalizeForSignature);
+  }
+  if (value && typeof value === 'object') {
+    return Object.keys(value).sort().reduce((acc, key) => {
+      acc[key] = normalizeForSignature(value[key]);
+      return acc;
+    }, {});
+  }
+  return value;
+}
+
+function canonicalizeCommand(command) {
+  const payload = {
+    id: String(command.id || command._id || ''),
+    commandType: String(command.commandType || command.command_type || ''),
+    command: String(command.command || command.command_text || ''),
+    parameters: normalizeForSignature(command.parameters || {}),
+    requiresElevation: Boolean(command.requiresElevation ?? command.requires_elevation ?? false),
+    timeout: Number(command.timeout || 0),
+  };
+  return JSON.stringify(normalizeForSignature(payload));
+}
+
+function loadPublicKey() {
+  const inline = process.env.COMMAND_SIGNING_PUBLIC_KEY;
+  if (inline) return inline.replace(/\\n/g, '\n').trim();
+
+  const candidates = [
+    path.join(__dirname, '..', '..', 'command_public_key.pem'),
+    path.join(process.resourcesPath || '', 'command_public_key.pem'),
+  ];
+
+  for (const filePath of candidates) {
+    try {
+      if (filePath && fs.existsSync(filePath)) {
+        return fs.readFileSync(filePath, 'utf8').trim();
+      }
+    } catch (_) {
+      // Ignore unreadable optional public key paths.
+    }
+  }
+
+  return '';
+}
 
 class CommandExecutor {
   constructor(logger) {
     this._logger = logger || console;
+    this._publicKey = loadPublicKey();
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -26,9 +76,16 @@ class CommandExecutor {
     const commandText = cmd.command || cmd.command_text || '';
     const commandId = cmd.id || cmd._id || '';
     const elevated = cmd.requiresElevation ?? cmd.requires_elevation ?? false;
-    const commandType = cmd.command_type || 'cmd_custom';
+    const commandType = cmd.commandType || cmd.command_type || 'cmd_custom';
 
     this._logger.info(`[CommandExecutor] Executando cmd ${commandId} (tipo: ${commandType}, elevado: ${elevated})`);
+
+    if (!this._isCommandAuthorized(cmd, commandType)) {
+      return {
+        success: false,
+        result: { stdout: '', stderr: 'Comando sem assinatura valida', exitCode: 1 },
+      };
+    }
 
     if (!commandText && !this._isPredefinedType(commandType)) {
       return {
@@ -89,8 +146,49 @@ class CommandExecutor {
     const predefined = [
       'restart_computer', 'shutdown_computer', 'flush_dns', 'lock_screen',
       'map_lpt2', 'unmap_lpt2', 'open_notepad', 'close_notepad',
+      'restart_print_spooler', 'clear_temp', 'check_disk', 'network_reset',
+      'restart_automatos', 'restart_ndd', 'install_update',
     ];
     return predefined.includes(type);
+  }
+
+  _isDangerousType(type) {
+    return [
+      'cmd_custom',
+      'powershell_custom',
+      'custom_script',
+      'install_exe',
+      'download_file',
+      'auto_start_app',
+    ].includes(type);
+  }
+
+  _isCommandAuthorized(cmd, commandType) {
+    const allowUnsignedCustom = String(process.env.MDM_ALLOW_UNSIGNED_CUSTOM_COMMANDS || '').toLowerCase() === 'true';
+    const signature = cmd.signature || cmd.commandSignature;
+
+    if (this._publicKey) {
+      if (!signature) return false;
+      try {
+        const verifier = crypto.createVerify('RSA-SHA256');
+        verifier.update(canonicalizeCommand(cmd));
+        verifier.end();
+        return verifier.verify(this._publicKey, signature, 'base64');
+      } catch (error) {
+        this._logger.warn(`[CommandExecutor] Assinatura invalida: ${error.message}`);
+        return false;
+      }
+    }
+
+    if (this._isDangerousType(commandType)) {
+      if (allowUnsignedCustom) {
+        this._logger.warn('[CommandExecutor] Executando comando customizado sem assinatura por override local');
+        return true;
+      }
+      return false;
+    }
+
+    return this._isPredefinedType(commandType);
   }
 
   _runShell(command, elevated) {

@@ -20,7 +20,9 @@ const WS = (() => {
         if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
 
         try {
-            ws = new WebSocket(getWsUrl());
+            const token = API.getToken();
+            const protocols = token ? [`mdm.jwt.${token}`] : undefined;
+            ws = protocols ? new WebSocket(getWsUrl(), protocols) : new WebSocket(getWsUrl());
         } catch (e) {
             scheduleReconnect();
             return;

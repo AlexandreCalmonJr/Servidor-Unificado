@@ -9,9 +9,59 @@ const path = require('path');
 const Store = require('electron-store');
 const axios = require('axios');
 const os = require('os');
+const crypto = require('crypto');
 const logger = require('./src/services/Logger'); // Integrated Logger
 
 const store = new Store();
+
+function buildServerUrl(host, port) {
+    const normalizedHost = String(host || '').trim();
+    const normalizedPort = String(port || '3000').trim();
+    if (!normalizedHost) return '';
+    if (/^https?:\/\//i.test(normalizedHost)) return normalizedHost.replace(/\/+$/, '');
+
+    const allowHttp = String(process.env.MDM_ALLOW_HTTP || '').toLowerCase() === 'true';
+    const isLoopback = ['localhost', '127.0.0.1', '::1'].includes(normalizedHost);
+    const protocol = allowHttp || isLoopback ? 'http' : 'https';
+    return `${protocol}://${normalizedHost}:${normalizedPort}`;
+}
+
+function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+    const hash = crypto
+        .pbkdf2Sync(String(password || ''), salt, 120000, 32, 'sha256')
+        .toString('hex');
+    return { salt, hash };
+}
+
+function verifyPassword(password, storedHash, salt) {
+    if (!storedHash || !salt) return false;
+    const candidate = hashPassword(password, salt).hash;
+    const a = Buffer.from(candidate, 'hex');
+    const b = Buffer.from(storedHash, 'hex');
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function migrateAdminPassword(settings = {}) {
+    if (settings.adminPasswordHash && settings.adminPasswordSalt) {
+        return settings;
+    }
+
+    const legacyPassword = settings.adminPassword || process.env.ADMIN_PASSWORD;
+    if (!legacyPassword) {
+        return settings;
+    }
+
+    const { salt, hash } = hashPassword(legacyPassword);
+    const migrated = {
+        ...settings,
+        adminPasswordSalt: salt,
+        adminPasswordHash: hash,
+    };
+    delete migrated.adminPassword;
+    store.set('settings', migrated);
+    logger.info('Admin password migrated to hash storage');
+    return migrated;
+}
 
 // --- AUTO-PROVISIONAMENTO (EXTRAÇÃO DE TOKEN DO NOME DO ARQUIVO) ---
 // Formato esperado: "UnifiedAgent_192.168.0.1_3000_<TOKEN>.exe"
@@ -75,8 +125,9 @@ function createWindow() {
         minWidth: 900,
         minHeight: 600,
         webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false,
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js'),
         },
         frame: false,
         transparent: true,
@@ -127,7 +178,7 @@ function createWindow() {
     // ──────────────────────────────────────────────────
 
     ipcMain.handle('get-settings', () => {
-        return store.get('settings', {
+        return migrateAdminPassword(store.get('settings', {
             ip: '',
             port: '3000',
             token: '',
@@ -139,9 +190,8 @@ function createWindow() {
             forceLegacyMode: false,
             enableUsbMonitor: true,
             lockOnMinimize: true, // Default true for security
-            adminPassword: 'admin123', // Simple local storage for now
             zeroTouch: false
-        });
+        }));
     });
 
     ipcMain.handle('save-settings', async (event, settings) => {
@@ -165,8 +215,15 @@ function createWindow() {
             forceLegacyMode: settings.forceLegacyMode !== undefined ? settings.forceLegacyMode === true : currentSettings.forceLegacyMode,
             enableUsbMonitor: settings.enableUsbMonitor !== undefined ? settings.enableUsbMonitor === true : (currentSettings.enableUsbMonitor !== false),
             lockOnMinimize: settings.lockOnMinimize !== undefined ? settings.lockOnMinimize === true : currentSettings.lockOnMinimize,
-            adminPassword: settings.adminPassword || currentSettings.adminPassword || 'admin123'
+            adminPasswordSalt: currentSettings.adminPasswordSalt,
+            adminPasswordHash: currentSettings.adminPasswordHash,
         };
+
+        if (settings.adminPassword) {
+            const { salt, hash } = hashPassword(settings.adminPassword);
+            normalized.adminPasswordSalt = salt;
+            normalized.adminPasswordHash = hash;
+        }
 
         store.set('settings', normalized);
         logger.info('Settings updated', normalized);
@@ -195,7 +252,7 @@ function createWindow() {
 
     ipcMain.handle('fetch-modules', async (event, { ip, port, token }) => {
         try {
-            const serverUrl = `http://${ip}:${port}`;
+            const serverUrl = buildServerUrl(ip, port);
             const headers = {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
@@ -229,7 +286,7 @@ function createWindow() {
 
     ipcMain.handle('test-connection', async (event, { ip, port, token }) => {
         try {
-            const serverUrl = `http://${ip}:${port}`;
+            const serverUrl = buildServerUrl(ip, port);
             const headers = {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
@@ -337,10 +394,18 @@ function createWindow() {
     // ──────────────────────────────────────────────────
 
     ipcMain.handle('verify-admin', (event, password) => {
-        const settings = store.get('settings', {});
-        // Fallback to env or default
-        const adminPass = settings.adminPassword || process.env.ADMIN_PASSWORD || 'admin123';
-        return password === adminPass;
+        const settings = migrateAdminPassword(store.get('settings', {}));
+        if (!settings.adminPasswordHash || !settings.adminPasswordSalt) {
+            if (!process.env.ADMIN_PASSWORD) {
+                logger.warn('Admin password not configured. Set ADMIN_PASSWORD once to initialize local access.');
+                return false;
+            }
+            const { salt, hash } = hashPassword(process.env.ADMIN_PASSWORD);
+            store.set('settings.adminPasswordSalt', salt);
+            store.set('settings.adminPasswordHash', hash);
+            return verifyPassword(password, hash, salt);
+        }
+        return verifyPassword(password, settings.adminPasswordHash, settings.adminPasswordSalt);
     });
 
     // ──────────────────────────────────────────────────
@@ -350,7 +415,7 @@ function createWindow() {
     // Verifica se o token informado é um token de provisionamento
     ipcMain.handle('check-provisioning-token', async (event, { ip, port, token }) => {
         try {
-            const serverUrl = `http://${ip}:${port}`;
+            const serverUrl = buildServerUrl(ip, port);
             const response = await axios.get(
                 `${serverUrl}/api/provisioning/tokens/${token}/status`,
                 { timeout: 10000, proxy: false }
@@ -386,7 +451,7 @@ function createWindow() {
         try {
             const DataCollector = require('./src/services/DataCollector');
             const info = await DataCollector.getCoreSystemInfo();
-            const serverUrl = `http://${ip}:${port}`;
+            const serverUrl = buildServerUrl(ip, port);
             const payload = {
                 provisioning_token: token,
                 device_id: info.serial_number,

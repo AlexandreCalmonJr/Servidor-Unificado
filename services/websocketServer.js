@@ -1,33 +1,94 @@
-// services/websocketServer.js
+const crypto = require('crypto');
 const WebSocket = require('ws');
 const ManagedAsset = require('../models/ManagedAsset');
 const logger = require('../utils/logger');
+const { getSessionToken, verifyJwt } = require('../utils/authTokens');
+
+function timingSafeTokenEqual(receivedToken, expectedToken) {
+  const received = Buffer.from(String(receivedToken || ''), 'utf8');
+  const expected = Buffer.from(String(expectedToken || ''), 'utf8');
+  if (received.length !== expected.length) return false;
+  return crypto.timingSafeEqual(received, expected);
+}
+
+function getProtocolTokens(req) {
+  const raw = req.headers['sec-websocket-protocol'] || '';
+  return String(raw).split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+function authenticateHandshake(req) {
+  const sessionToken = getSessionToken(req);
+  if (sessionToken) {
+    const decoded = verifyJwt(sessionToken);
+    return {
+      kind: 'user',
+      id: decoded.id,
+      username: decoded.username,
+      role: decoded.role,
+    };
+  }
+
+  for (const protocol of getProtocolTokens(req)) {
+    if (protocol.startsWith('mdm.jwt.')) {
+      const decoded = verifyJwt(protocol.substring('mdm.jwt.'.length));
+      return {
+        kind: 'user',
+        id: decoded.id,
+        username: decoded.username,
+        role: decoded.role,
+      };
+    }
+
+    if (protocol.startsWith('mdm.device.')) {
+      const token = protocol.substring('mdm.device.'.length);
+      if (process.env.AUTH_TOKEN && timingSafeTokenEqual(token, process.env.AUTH_TOKEN)) {
+        return { kind: 'device', id: 'device' };
+      }
+    }
+  }
+
+  throw new Error('WebSocket authentication failed');
+}
 
 class WebSocketServer {
   constructor(server) {
     if (WebSocketServer.instance) {
       return WebSocketServer.instance;
     }
-    this.wss = new WebSocket.Server({ server, path: '/ws' });
-    this.clients = new Map(); // Mapear userId -> Set de conexões
+
+    this.wss = new WebSocket.Server({
+      server,
+      path: '/ws',
+      verifyClient: (info, done) => {
+        try {
+          info.req.auth = authenticateHandshake(info.req);
+          done(true);
+        } catch (error) {
+          logger.warn(`WebSocket rejected from ${info.req.socket.remoteAddress}: ${error.message}`);
+          done(false, 401, 'Unauthorized');
+        }
+      },
+    });
+    this.clients = new Map();
     WebSocketServer.instance = this;
     this._init();
   }
 
   _init() {
-    logger.info('🔌 WebSocket Server initialized');
+    logger.info('WebSocket Server initialized');
 
     this.wss.on('connection', (ws, req) => {
       const ip = req.socket.remoteAddress;
-      const userId = req.url.split('?')[1]?.split('=')[1]; // ?userId=xxx
+      const auth = req.auth || { kind: 'unknown' };
+      const userId = auth.kind === 'user' ? String(auth.id || '') : null;
 
-      logger.info(`🔌 New WebSocket connection from ${ip}`);
+      logger.info(`New WebSocket connection from ${ip} (${auth.kind})`);
 
       ws.isAlive = true;
+      ws.auth = auth;
       ws.userId = userId;
       ws.on('pong', () => { ws.isAlive = true; });
 
-      // Registrar cliente por userId
       if (userId) {
         if (!this.clients.has(userId)) {
           this.clients.set(userId, new Set());
@@ -45,7 +106,7 @@ class WebSocketServer {
       });
 
       ws.on('close', () => {
-        logger.info(`🔌 WebSocket connection closed from ${ip}`);
+        logger.info(`WebSocket connection closed from ${ip}`);
         if (userId && this.clients.has(userId)) {
           this.clients.get(userId).delete(ws);
           if (this.clients.get(userId).size === 0) {
@@ -62,7 +123,6 @@ class WebSocketServer {
       });
     });
 
-    // Heartbeat para detectar conexões mortas
     setInterval(() => {
       this.wss.clients.forEach((ws) => {
         if (!ws.isAlive) return ws.terminate();
@@ -73,7 +133,6 @@ class WebSocketServer {
   }
 
   async _handleMessage(ws, data) {
-    // Busca o ativo: por assetId (ObjectId), serialNumber ou hostname
     let asset;
     if (data.assetId) {
       asset = await ManagedAsset.findById(data.assetId);
@@ -88,13 +147,12 @@ class WebSocketServer {
       return;
     }
 
-    ws.assetId = asset ? asset._id : 'test_script_id';
+    ws.assetId = asset ? asset._id : null;
 
     switch (data.type) {
       case 'register':
       case 'heartbeat':
         if (asset) await this._updateAssetStatus(asset._id, 'online');
-        // Reply with heartbeat_ack so the tester script can resolve its promise
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'heartbeat_ack' }));
         }
@@ -102,7 +160,7 @@ class WebSocketServer {
 
       case 'shutdown':
         if (asset) {
-          logger.info(`🛑 Shutdown signal received for ${asset.asset_name}`);
+          logger.info(`Shutdown signal received for ${asset.asset_name}`);
           await this._updateAssetStatus(asset._id, 'offline');
         }
         ws.close();
@@ -145,7 +203,6 @@ class WebSocketServer {
     });
   }
 
-  // Enviar notificação para usuário específico
   notifyUser(userId, data) {
     if (this.clients.has(userId)) {
       const userClients = this.clients.get(userId);
@@ -157,7 +214,6 @@ class WebSocketServer {
     }
   }
 
-  // Enviar notificação para todos os usuários
   notifyAll(data) {
     this.broadcast(data);
   }

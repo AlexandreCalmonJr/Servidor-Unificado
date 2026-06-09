@@ -55,6 +55,7 @@ const exportRoutes = require('./routes/exportRoutes');
 const savedFilterRoutes = require('./routes/savedFilterRoutes');
 const printerRoutes = require('./routes/printerRoutes');
 const printerSyncRoutes = require('./routes/printerSyncRoutes');
+const { getSessionToken, authenticateJwtToken } = require('./utils/authTokens');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -120,11 +121,13 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       connectSrc: ["'self'", "http:", "https:", "ws:", "wss:"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https:"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https:"],
       scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https:"],
       fontSrc: ["'self'", "data:", "https:"],
       imgSrc: ["'self'", "data:", "https:", "http:", "blob:"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'self'"],
       workerSrc: ["'self'", "blob:"],
       childSrc: ["'self'", "blob:"],
       upgradeInsecureRequests: null,
@@ -144,9 +147,14 @@ app.use(metricsMiddleware);
 const corsOptions = {
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
-    if (process.env.CORS_ORIGIN && process.env.CORS_ORIGIN !== '*') {
-      const allowed = process.env.CORS_ORIGIN.split(',').map(o => o.trim());
-      return callback(allowed.includes(origin) ? null : new Error('Not allowed by CORS'), allowed.includes(origin));
+    const configured = process.env.CORS_ORIGIN || '';
+    if (configured && configured !== '*') {
+      const allowed = configured.split(',').map(o => o.trim()).filter(Boolean);
+      const isAllowed = allowed.includes(origin);
+      return callback(isAllowed ? null : new Error('Not allowed by CORS'), isAllowed);
+    }
+    if (process.env.NODE_ENV === 'production') {
+      return callback(new Error('CORS_ORIGIN must be explicit in production'), false);
     }
     callback(null, true);
   },
@@ -172,30 +180,9 @@ app.set('views', path.join(__dirname, 'frontend', 'views'));
 // ===== HEALTH / PROBES / MÉTRICAS =====
 
 app.get('/health', (req, res) => {
-  const uptime = process.uptime();
-  const mem = process.memoryUsage();
   const health = {
     status: mongoose.connection.readyState === 1 ? 'OK' : 'DEGRADED',
     timestamp: new Date().toISOString(),
-    uptime: Math.floor(uptime),
-    uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`,
-    services: {
-      mongodb: {
-        status: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-        readyState: mongoose.connection.readyState,
-      },
-      redis: {
-        status: cacheService.isReady() ? 'connected' : 'disconnected',
-        enabled: process.env.REDIS_ENABLED === 'true',
-      },
-    },
-    memory: {
-      heapUsed: `${Math.round(mem.heapUsed / 1024 / 1024)}MB`,
-      heapTotal: `${Math.round(mem.heapTotal / 1024 / 1024)}MB`,
-      rss: `${Math.round(mem.rss / 1024 / 1024)}MB`,
-    },
-    version: process.env.npm_package_version || '2.0.0',
-    environment: process.env.NODE_ENV || 'development',
   };
   res.status(health.status === 'OK' ? 200 : 503).json(health);
 });
@@ -208,9 +195,9 @@ app.get('/ready', (req, res) => {
 
 app.get('/live', (req, res) => res.status(200).json({ alive: true }));
 
-app.get('/metrics', (req, res) => res.json(getMetrics()));
+app.get('/metrics', auth, (req, res) => res.json(getMetrics()));
 
-app.get('/metrics/prometheus', (req, res) => {
+app.get('/metrics/prometheus', auth, (req, res) => {
   res.set('Content-Type', 'text/plain');
   res.send(getPrometheusMetrics());
 });
@@ -243,20 +230,37 @@ app.use('/api/printers', printerRoutes(logger, getApiLimiter, modifyApiLimiter, 
 app.use('/api/printers', printerSyncRoutes(logger, modifyApiLimiter, deviceAuth));
 
 // ===== PAINEL WEB (SPA) =====
+const requirePanelSession = async (req, res, next) => {
+  try {
+    const token = getSessionToken(req);
+    if (!token) return res.redirect('/panel/login.html');
+    req.user = await authenticateJwtToken(token);
+    return next();
+  } catch (error) {
+    return res.redirect('/panel/login.html');
+  }
+};
+
 app.get('/provision/:token', provisioningRoutes.renderProvisioningPage(logger));
 app.get('/dashboard', auth, serverRoutes.renderDashboard(logger));
 
-app.use('/panel', express.static(path.join(__dirname, 'frontend')));
+app.get('/panel/index.html', requirePanelSession, (req, res) =>
+  res.sendFile(path.join(__dirname, 'frontend', 'index.html'))
+);
+app.use('/panel/views', requirePanelSession, express.static(path.join(__dirname, 'frontend', 'views'), { index: false }));
+app.use('/panel', express.static(path.join(__dirname, 'frontend'), { index: false }));
 app.get('/panel', (req, res) =>
-  res.sendFile(path.join(__dirname, 'frontend', 'login.html'))
+  res.redirect('/panel/')
 );
 app.get('/panel/', (req, res) => {
-  const token = req.headers.authorization?.substring(7) || req.query.token || req.headers.auth_token;
-  const file = token ? 'index.html' : 'login.html';
-  res.sendFile(path.join(__dirname, 'frontend', file));
+  res.redirect('/panel/index.html');
 });
 
-app.use(express.static(path.join(__dirname, 'frontend')));
+app.get('/index.html', requirePanelSession, (req, res) =>
+  res.sendFile(path.join(__dirname, 'frontend', 'index.html'))
+);
+app.use('/views', requirePanelSession, express.static(path.join(__dirname, 'frontend', 'views'), { index: false }));
+app.use(express.static(path.join(__dirname, 'frontend'), { index: false }));
 app.get('/', (req, res) => res.redirect('/panel'));
 
 // ===== 404 =====

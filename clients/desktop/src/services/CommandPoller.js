@@ -93,7 +93,9 @@ class CommandPollerManager extends EventEmitter {
 
   _getBaseUrl() {
     const { serverIp, serverPort } = this._getConfig();
-    const proto = Number(serverPort) === 443 ? 'https' : 'http';
+    const allowHttp = String(process.env.MDM_ALLOW_HTTP || '').toLowerCase() === 'true';
+    const isLoopback = ['localhost', '127.0.0.1', '::1'].includes(serverIp);
+    const proto = Number(serverPort) === 443 || (!allowHttp && !isLoopback) ? 'https' : 'http';
     return `${proto}://${serverIp}:${serverPort}`;
   }
 

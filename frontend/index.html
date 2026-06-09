@@ -93,7 +93,7 @@
             </nav>
 
             <div class="sidebar-footer">
-                <button class="sidebar-toggle" id="sidebar-toggle">
+                <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Recolher menu lateral">
                     <span class="toggle-icon">◀</span>
                     <span class="toggle-label">Recolher</span>
                 </button>
@@ -105,7 +105,9 @@
             <!-- Topbar -->
             <header class="topbar">
                 <div class="topbar-left">
-                    <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+                    <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Abrir menu">
+                        ☰
+                    </button>
                     <span class="page-title" id="page-title">Dashboard</span>
                 </div>
                 <div class="topbar-right">
@@ -125,7 +127,7 @@
                             <div class="user-role" id="user-display-role"></div>
                         </div>
                     </div>
-                    <button class="btn btn-ghost btn-sm" id="logout-btn" title="Sair">⏻ Sair</button>
+                    <button class="btn btn-ghost btn-sm" id="logout-btn" title="Sair" aria-label="Sair">⏻ Sair</button>
                 </div>
             </header>
 
@@ -341,7 +343,7 @@
                         </div>
                     </div>
                     <!-- ADICIONADO: paginação da página dinâmica -->
-                    <div id="dynamic-pagination" class="pagination-container"></div>
+                    <div id="totems-pagination" class="pagination-container"></div>
                 </div>
 
                 <!-- ===== USERS ===== -->
@@ -381,7 +383,7 @@
                         </div>
                     </div>
                     <!-- ADICIONADO: paginação da página dinâmica -->
-                    <div id="dynamic-pagination" class="pagination-container"></div>
+                    <div id="users-pagination" class="pagination-container"></div>
                 </div>
 
                 <!-- ===== SERVER & APKs ===== -->

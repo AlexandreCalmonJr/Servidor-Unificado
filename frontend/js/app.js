@@ -148,8 +148,8 @@ const App = (() => {
     }
 
     function setupLogout() {
-        document.getElementById('logout-btn')?.addEventListener('click', () => {
-            API.clearAuth();
+        document.getElementById('logout-btn')?.addEventListener('click', async () => {
+            await API.logout();
             window.location.href = '/panel/login.html';
         });
     }
