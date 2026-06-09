@@ -247,14 +247,12 @@ app.get('/dashboard', auth, serverRoutes.renderDashboard(logger));
 app.get('/panel/index.html', requirePanelSession, (req, res) =>
   res.sendFile(path.join(__dirname, 'frontend', 'index.html'))
 );
+// Redirect /panel and /panel/ diretamente para /panel/index.html (antes do static para evitar loop)
+app.get('/panel', (req, res) =>
+  res.redirect('/panel/index.html')
+);
 app.use('/panel/views', requirePanelSession, express.static(path.join(__dirname, 'frontend', 'views'), { index: false }));
 app.use('/panel', express.static(path.join(__dirname, 'frontend'), { index: false }));
-app.get('/panel', (req, res) =>
-  res.redirect('/panel/')
-);
-app.get('/panel/', (req, res) => {
-  res.redirect('/panel/index.html');
-});
 
 app.get('/index.html', requirePanelSession, (req, res) =>
   res.sendFile(path.join(__dirname, 'frontend', 'index.html'))
