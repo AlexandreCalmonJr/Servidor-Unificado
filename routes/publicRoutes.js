@@ -41,7 +41,6 @@ const publicRoutes = (logger, getApiLimiter) => {
         });
         return res.status(500).json({
           error: 'Pasta public não encontrada',
-          path: publicDir
         });
       }
 
@@ -89,7 +88,6 @@ const publicRoutes = (logger, getApiLimiter) => {
 
       res.status(500).json({
         error: 'Erro ao listar APKs',
-        details: err.message
       });
     }
   });

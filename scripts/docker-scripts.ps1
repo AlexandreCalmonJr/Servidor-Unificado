@@ -35,6 +35,9 @@ function Initialize-Environment {
         $bytes = New-Object byte[] 64
         [Security.Cryptography.RNGCryptoServiceProvider]::Create().GetBytes($bytes)
         $JWT_SECRET = [BitConverter]::ToString($bytes) -replace '-',''
+        $authBytes = New-Object byte[] 48
+        [Security.Cryptography.RNGCryptoServiceProvider]::Create().GetBytes($authBytes)
+        $AUTH_TOKEN = [BitConverter]::ToString($authBytes) -replace '-',''
         
         @"
 # ===================================================================
@@ -42,7 +45,7 @@ function Initialize-Environment {
 # ===================================================================
 
 JWT_SECRET=$JWT_SECRET
-AUTH_TOKEN=hap@2025
+AUTH_TOKEN=$AUTH_TOKEN
 PORT=3000
 NODE_ENV=production
 LOG_LEVEL=info

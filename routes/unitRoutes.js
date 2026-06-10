@@ -58,8 +58,7 @@ const unitRoutes = (logger, getApiLimiter, modifyApiLimiter, auth) => {
       logger.error(`❌ Erro ao criar unidade: ${err.message}`);
       res.status(500).json({ 
         success: false,
-        message: 'Erro interno', 
-        details: err.message 
+        message: 'Erro interno'
       });
     }
   });

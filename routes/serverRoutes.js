@@ -75,7 +75,7 @@ const serverRoutes = (logger, getApiLimiter, auth) => {
       res.status(200).json(apks);
     } catch (err) {
       logger.error(`Erro ao listar APKs: ${err.message}`);
-      res.status(500).json({ success: false, message: 'Erro ao listar APKs', details: err.message });
+      res.status(500).json({ success: false, message: 'Erro ao listar APKs' });
     }
   });
 
@@ -100,7 +100,7 @@ const serverRoutes = (logger, getApiLimiter, auth) => {
       });
     } catch (err) {
       logger.error(`Erro no upload de APK: ${err.message}`);
-      res.status(500).json({ success: false, message: 'Erro ao fazer upload', details: err.message });
+      res.status(500).json({ success: false, message: 'Erro ao fazer upload' });
     }
   });
 
@@ -126,7 +126,7 @@ const serverRoutes = (logger, getApiLimiter, auth) => {
       res.status(200).json({ success: true, message: `APK "${filename}" excluído com sucesso` });
     } catch (err) {
       logger.error(`Erro ao excluir APK: ${err.message}`);
-      res.status(500).json({ success: false, message: 'Erro ao excluir APK', details: err.message });
+      res.status(500).json({ success: false, message: 'Erro ao excluir APK' });
     }
   });
 
