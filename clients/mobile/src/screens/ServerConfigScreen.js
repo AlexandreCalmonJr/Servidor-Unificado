@@ -165,7 +165,7 @@ export default function ServerConfigScreen({ navigation }) {
     const handleBarcodeScanned = ({ type, data }) => {
         setIsScanning(false);
         try {
-            // Esperado: {"provisioning_token": "...", "url": "http://IP:PORT/api/provisioning/enroll"}
+            // Esperado: {"provisioning_token": "...", "url": "https://IP:PORT/api/provisioning/enroll"}
             const parsed = JSON.parse(data);
             if (parsed.provisioning_token && parsed.url) {
                 const urlObj = new URL(parsed.url);

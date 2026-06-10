@@ -13,6 +13,21 @@ function getLocalIPAddress() {
   return '127.0.0.1';
 }
 
+function isLoopbackHost(host) {
+  const cleanHost = String(host || '').split(':')[0].replace(/^\[|\]$/g, '').toLowerCase();
+  return cleanHost === 'localhost' || cleanHost === '::1' || cleanHost.startsWith('127.');
+}
+
+function getPublicBaseUrl(req) {
+  const configured = process.env.PUBLIC_BASE_URL || process.env.SERVER_URL || process.env.APP_BASE_URL;
+  if (configured) return configured.replace(/\/+$/, '');
+
+  const forwardedProto = String(req?.get?.('x-forwarded-proto') || '').split(',')[0].trim();
+  const host = req?.get?.('host') || `${getLocalIPAddress()}:${process.env.PORT || 3000}`;
+  const protocol = forwardedProto || (req?.secure ? 'https' : (isLoopbackHost(host) ? 'http' : 'https'));
+  return `${protocol}://${host}`.replace(/\/+$/, '');
+}
+
 function ipToInt(ip) {
   if (!ip) return 0;
   const parts = ip.split('.').map(Number);
@@ -27,6 +42,7 @@ const isValidIPv4 = (ip) => {
 
 module.exports = {
   getLocalIPAddress,
+  getPublicBaseUrl,
   ipToInt,
   isValidIPv4
 };

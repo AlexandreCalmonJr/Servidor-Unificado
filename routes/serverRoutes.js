@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const ManagedAsset = require('../models/ManagedAsset');
 const AssetCommand = require('../models/AssetCommand');
-const { getLocalIPAddress } = require('../utils/helpers');
+const { getPublicBaseUrl } = require('../utils/helpers');
 
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
@@ -65,7 +65,7 @@ const serverRoutes = (logger, getApiLimiter, auth) => {
             const stats = await fs.stat(path.join(publicDir, file));
             return {
               name: file,
-              url: `http://${getLocalIPAddress()}:${process.env.PORT || 3000}/public/${file}`,
+              url: `${getPublicBaseUrl(req)}/public/${file}`,
               size: stats.size,
               lastModified: stats.mtime,
             };
@@ -95,7 +95,7 @@ const serverRoutes = (logger, getApiLimiter, auth) => {
         file: {
           name: req.file.filename,
           size: req.file.size,
-          url: `http://${getLocalIPAddress()}:${process.env.PORT || 3000}/public/${req.file.filename}`,
+          url: `${getPublicBaseUrl(req)}/public/${req.file.filename}`,
         },
       });
     } catch (err) {
@@ -143,11 +143,11 @@ module.exports.renderDashboard = (logger) => async (req, res) => {
     const files = await fs.readdir(publicDir);
     const apks = files.filter(f => f.endsWith('.apk')).map(f => ({
       name: f,
-      url: `http://${getLocalIPAddress()}:${process.env.PORT || 3000}/public/${f}`,
+      url: `${getPublicBaseUrl(req)}/public/${f}`,
     }));
     res.render('dashboard', {
       devices, apks,
-      serverUrl: `http://${getLocalIPAddress()}:${process.env.PORT || 3000}`,
+      serverUrl: getPublicBaseUrl(req),
     });
   } catch (err) {
     logger.error(`Erro ao carregar dashboard: ${err.message}`);

@@ -2,7 +2,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs').promises;
-const { getLocalIPAddress } = require('../utils/helpers');
+const { getPublicBaseUrl } = require('../utils/helpers');
 
 const publicRoutes = (logger, getApiLimiter) => {
   const router = express.Router();
@@ -63,7 +63,7 @@ const publicRoutes = (logger, getApiLimiter) => {
           const filePath = path.join(publicDir, file);
           const stats = await fs.stat(filePath);
 
-          const serverUrl = `http://${getLocalIPAddress()}:${process.env.PORT || 3000}`;
+          const serverUrl = getPublicBaseUrl(req);
 
           return {
             name: file,

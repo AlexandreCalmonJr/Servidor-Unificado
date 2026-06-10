@@ -22,7 +22,7 @@ if exist "%CONFIG_CMD%" (
 ) else (
   echo.
   echo === Primeira configuracao do USB Printer Agent ===
-  set /p AGENT_SERVER_URL=Servidor (ex: http://10.71.3.110:3000): 
+  set /p AGENT_SERVER_URL=Servidor (ex: https://10.71.3.110:3000): 
   set /p AGENT_TOKEN=Token do dispositivo: 
   set /p AGENT_DEVICE_ID=Device ID (ENTER para usar %COMPUTERNAME%): 
   set /p AGENT_INTERVAL=Intervalo em segundos (ENTER para 60): 

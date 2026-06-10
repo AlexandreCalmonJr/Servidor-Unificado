@@ -19,7 +19,10 @@ const http = require('http');
 const WebSocket = require('ws');
 
 const BASE = `http://localhost:${process.env.PORT || 3000}`;
-const AUTH_TOKEN = process.env.AUTH_TOKEN || 'hap@2025';
+const AUTH_TOKEN = process.env.AUTH_TOKEN;
+if (!AUTH_TOKEN) {
+    throw new Error('AUTH_TOKEN deve estar definido no ambiente para rodar o unified_tester.');
+}
 
 // Parsed Args
 const ARGS = process.argv.slice(2);
@@ -85,7 +88,7 @@ async function runApiAndWsTests(jwt) {
 
     // WEBSOCKET
     await new Promise((resolve, reject) => {
-        const ws = new WebSocket(`ws://localhost:${process.env.PORT || 3000}/ws`);
+        const ws = new WebSocket(`ws://localhost:${process.env.PORT || 3000}/ws`, [`mdm.jwt.${jwt}`]);
         const timeout = setTimeout(() => { ws.close(); reject(new Error('WS Timeout')); }, 5000);
         ws.on('open', () => {
             ws.send(JSON.stringify({ type: 'register', clientId: 'test_script' }));

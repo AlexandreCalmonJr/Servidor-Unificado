@@ -6,10 +6,10 @@
  * 3) leitura de impressoras via modulo printer (/api/modules/printer/assets)
  *
  * Uso:
- *   node scripts/test_desktop_agent_routes.js --server http://IP:3000 --token TOKEN --module MODULE_ID_OU_TYPE
+ *   node scripts/test_desktop_agent_routes.js --server https://IP:3000 --token TOKEN --module MODULE_ID_OU_TYPE
  *
  * Exemplo:
- *   node scripts/test_desktop_agent_routes.js --server http://10.71.3.110:3000 --token SEU_TOKEN --module desktop
+ *   node scripts/test_desktop_agent_routes.js --server https://10.71.3.110:3000 --token SEU_TOKEN --module desktop
  */
 
 const os = require('os');
@@ -67,7 +67,7 @@ async function main() {
   const moduleParam = String(args.module || '');
 
   if (!server || !token || !moduleParam) {
-    console.log('Uso: node scripts/test_desktop_agent_routes.js --server http://IP:3000 --token TOKEN --module MODULE_ID_OU_TYPE');
+    console.log('Uso: node scripts/test_desktop_agent_routes.js --server https://IP:3000 --token TOKEN --module MODULE_ID_OU_TYPE');
     process.exit(1);
   }
 

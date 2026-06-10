@@ -4,7 +4,7 @@
 # em sistemas Linux (Debian/Ubuntu)
 
 # --- Variáveis de Configuração (EDITAR ANTES DE EXECUTAR) ---
-SERVER_URL="http://SEU_IP_DO_SERVIDOR:3000" # Ex: http://192.168.1.100:3000
+SERVER_URL="https://SEU_IP_DO_SERVIDOR:3000" # Ex: https://192.168.1.100:3000
 DEVICE_TOKEN="SEU_TOKEN_DE_AUTENTICACAO_DO_DISPOSITIVO" # Token gerado no painel do Servidor-Unificado
 # DEVICE_ID será gerado automaticamente com base no hostname se não for fornecido
 # DEVICE_ID="NOME_UNICO_DESTE_COMPUTADOR" 

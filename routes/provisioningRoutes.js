@@ -4,19 +4,9 @@ const ManagedAsset = require('../models/ManagedAsset');
 const AssetCommand = require('../models/AssetCommand');
 const ProvisioningToken = require('../models/ProvisioningToken');
 const ConfigProfile = require('../models/ConfigProfile');
-const { getLocalIPAddress } = require('../utils/helpers');
+const { getPublicBaseUrl } = require('../utils/helpers');
 const locationService = require('../services/locationService');
 const notificationService = require('../services/notificationService');
-
-function getPublicBaseUrl(req) {
-  const configured = process.env.PUBLIC_BASE_URL || process.env.SERVER_URL || process.env.APP_BASE_URL;
-  if (configured) return configured.replace(/\/+$/, '');
-
-  const forwardedProto = String(req.get?.('x-forwarded-proto') || '').split(',')[0].trim();
-  const protocol = forwardedProto || (req.secure ? 'https' : 'http');
-  const host = req.get?.('host') || `${getLocalIPAddress()}:${process.env.PORT || 3000}`;
-  return `${protocol}://${host}`.replace(/\/+$/, '');
-}
 
 function withPanelOrDeviceAuth(auth, deviceAuth) {
   return (req, res, next) => {
