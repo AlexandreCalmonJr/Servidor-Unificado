@@ -115,18 +115,13 @@ function setZtStatus(text, progress) {
 
 async function performZeroTouchEnrollment(settings) {
     try {
-        setZtStatus('Conectando ao servidor MDM...', 30);
-        const testResult = await ipcRenderer.invoke('test-connection', {
-            ip: settings.ip, port: settings.port, token: settings.token,
-        });
-        if (!testResult.success) throw new Error(testResult.error || 'Servidor inacessível');
-
-        setZtStatus('Verificando token de provisionamento...', 50);
+        setZtStatus('Verificando token de provisionamento...', 30);
         const tokenCheck = await ipcRenderer.invoke('check-provisioning-token', {
             ip: settings.ip, port: settings.port, token: settings.token,
         });
 
         let moduleId = settings.moduleId;
+        let localAdminPassword = null;
 
         if (tokenCheck.isProvisioningToken) {
             setZtStatus('Registrando dispositivo no servidor...', 70);
@@ -137,13 +132,20 @@ async function performZeroTouchEnrollment(settings) {
             moduleId = enrollResult.module_id;
             // Troca o provisioning token pelo AUTH_TOKEN permanente do servidor
             if (enrollResult.device_token) settings = { ...settings, token: enrollResult.device_token };
+            if (enrollResult.local_admin_password) localAdminPassword = enrollResult.local_admin_password;
             setZtStatus(`Configurado! Perfil: ${enrollResult.config_profile}`, 90);
         } else {
             // Token já é JWT admin (legado) mas tem zero-touch flag
+            setZtStatus('Conectando ao servidor MDM...', 60);
+            const testResult = await ipcRenderer.invoke('test-connection', {
+                ip: settings.ip, port: settings.port, token: settings.token,
+            });
+            if (!testResult.success) throw new Error(testResult.error || 'Servidor inacessível');
             setZtStatus('Conexão configurada!', 90);
         }
 
         const updatedSettings = { ...settings, zeroTouch: false, moduleId: moduleId || settings.moduleId };
+        if (localAdminPassword) updatedSettings.adminPassword = localAdminPassword;
         await ipcRenderer.invoke('save-settings', updatedSettings);
 
         setZtStatus('Pronto! Iniciando...', 100);
@@ -291,6 +293,7 @@ async function handleObEnroll() {
             ..._obSettings,
             token: result.device_token || _obSettings.token, // troca prov token pelo AUTH_TOKEN
             moduleId: result.module_id || '',
+            adminPassword: result.local_admin_password || undefined,
             zeroTouch: false,
         });
 

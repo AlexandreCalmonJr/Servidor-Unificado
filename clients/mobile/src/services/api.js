@@ -6,6 +6,7 @@
 
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import { buildServerUrl } from '../utils/serverUrl';
 
 const api = axios.create({
     timeout: 15000,
@@ -18,10 +19,11 @@ const api = axios.create({
 api.interceptors.request.use(async (config) => {
     const host  = await SecureStore.getItemAsync('server_host');
     const port  = await SecureStore.getItemAsync('server_port');
+    const protocol = await SecureStore.getItemAsync('server_protocol');
     const token = await SecureStore.getItemAsync('auth_token');
 
     if (host && port) {
-        const baseUrl = `http://${host}:${port}`;
+        const baseUrl = buildServerUrl(host, port, protocol);
         config.baseURL = `${baseUrl}/api`;
     }
 
@@ -40,8 +42,9 @@ api.interceptors.request.use(async (config) => {
 export const getServerUrl = async () => {
     const host = await SecureStore.getItemAsync('server_host');
     const port = await SecureStore.getItemAsync('server_port');
+    const protocol = await SecureStore.getItemAsync('server_protocol');
     if (!host || !port) return null;
-    return `http://${host}:${port}`;
+    return buildServerUrl(host, port, protocol);
 };
 
 export const getAuthToken = async () => {

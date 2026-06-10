@@ -1,6 +1,6 @@
 // clients/mobile/src/screens/LoginScreen.js
 // Espelho de login_screen.dart + DeviceService.login() (main.dart)
-//   - Login local por senha (main.dart: password == 'hap@2025')
+//   - Login local por senha com hash armazenado no SecureStore
 //   - Sem chamada de rede — autenticação offline
 
 import React, { useState, useContext } from 'react';
@@ -28,7 +28,6 @@ export default function LoginScreen({ navigation }) {
         setErrorMessage('');
 
         try {
-            // DeviceService.login() (main.dart: password == 'hap@2025')
             const success = await login(password);
 
             if (success) {

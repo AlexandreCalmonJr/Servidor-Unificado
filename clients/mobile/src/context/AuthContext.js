@@ -13,11 +13,16 @@ import * as Network from 'expo-network';
 import * as Battery from 'expo-battery';
 import * as Cellular from 'expo-cellular';
 import { Platform } from 'react-native';
+import { buildServerUrl } from '../utils/serverUrl';
+import {
+    hasLocalAdminPassword,
+    setLocalAdminPassword as storeLocalAdminPassword,
+    verifyLocalAdminPassword,
+} from '../utils/localAdminPassword';
 
 export const AuthContext = createContext();
 
-// Chave de login local (main.dart → login: password == 'hap@2025')
-const LOCAL_PASSWORD = 'hap@2025';
+// Login local validado por hash armazenado no SecureStore.
 
 export const AuthProvider = ({ children }) => {
     const [isLoading, setIsLoading]       = useState(true);
@@ -47,7 +52,8 @@ export const AuthProvider = ({ children }) => {
             const registered = await SecureStore.getItemAsync('device_registered');
 
             if (host && port && token) {
-                const url = `http://${host}:${port}`;
+                const protocol = await SecureStore.getItemAsync('server_protocol');
+                const url = buildServerUrl(host, port, protocol);
                 setServerUrl(url);
                 setIsConfigured(true);
 
@@ -151,6 +157,7 @@ export const AuthProvider = ({ children }) => {
         return {
             serverHost:             (await SecureStore.getItemAsync('server_host'))             || '192.168.0.183',
             serverPort:             (await SecureStore.getItemAsync('server_port'))             || '3000',
+            serverProtocol:         (await SecureStore.getItemAsync('server_protocol'))         || '',
             authToken:              (await SecureStore.getItemAsync('auth_token'))              || '',
             imei:                   (await SecureStore.getItemAsync('imei'))                    || '',
             serialNumber:           (await SecureStore.getItemAsync('serial_number'))           || '',
@@ -166,6 +173,7 @@ export const AuthProvider = ({ children }) => {
         // Persiste no SecureStore (espelho SharedPreferences do Flutter)
         await SecureStore.setItemAsync('server_host',             String(newSettings.serverHost      || ''));
         await SecureStore.setItemAsync('server_port',             String(newSettings.serverPort      || '3000'));
+        await SecureStore.setItemAsync('server_protocol',         String(newSettings.serverProtocol  || ''));
         await SecureStore.setItemAsync('auth_token',              String(newSettings.authToken        || ''));
         await SecureStore.setItemAsync('imei',                    String(newSettings.imei             || ''));
         await SecureStore.setItemAsync('serial_number',           String(newSettings.serialNumber     || ''));
@@ -175,7 +183,15 @@ export const AuthProvider = ({ children }) => {
         await SecureStore.setItemAsync('heartbeat_interval',      String(newSettings.heartbeatInterval || 3));
         await SecureStore.setItemAsync('command_check_interval',  String(newSettings.commandCheckInterval || 1));
 
-        const url = `http://${newSettings.serverHost}:${newSettings.serverPort}`;
+        if (newSettings.localAdminPassword) {
+            await storeLocalAdminPassword(newSettings.localAdminPassword);
+        }
+
+        const url = buildServerUrl(
+            newSettings.serverHost,
+            newSettings.serverPort,
+            newSettings.serverProtocol
+        );
         setServerUrl(url);
         setIsConfigured(true);
         setSettings(newSettings);
@@ -183,11 +199,12 @@ export const AuthProvider = ({ children }) => {
     };
 
     // ──────────────────────────────────────────────────
-    // LOGIN LOCAL  (main.dart → login: password == 'hap@2025')
+    // LOGIN LOCAL
     // ──────────────────────────────────────────────────
 
     const login = async (password) => {
-        const success = password === LOCAL_PASSWORD;
+        const configured = await hasLocalAdminPassword();
+        const success = configured && await verifyLocalAdminPassword(password);
         if (success) {
             await SecureStore.setItemAsync('is_logged_in', 'true');
             setIsLoggedIn(true);
@@ -226,6 +243,8 @@ export const AuthProvider = ({ children }) => {
             login,
             logout,
             saveSettings,
+            setLocalAdminPassword: storeLocalAdminPassword,
+            verifyLocalAdminPassword,
             finishRegistration,
             getDeviceInfo,
             refreshDeviceInfo: _refreshDeviceInfo,

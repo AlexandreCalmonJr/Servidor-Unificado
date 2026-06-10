@@ -8,8 +8,29 @@ const { getLocalIPAddress } = require('../utils/helpers');
 const locationService = require('../services/locationService');
 const notificationService = require('../services/notificationService');
 
-const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
+function getPublicBaseUrl(req) {
+  const configured = process.env.PUBLIC_BASE_URL || process.env.SERVER_URL || process.env.APP_BASE_URL;
+  if (configured) return configured.replace(/\/+$/, '');
+
+  const forwardedProto = String(req.get?.('x-forwarded-proto') || '').split(',')[0].trim();
+  const protocol = forwardedProto || (req.secure ? 'https' : 'http');
+  const host = req.get?.('host') || `${getLocalIPAddress()}:${process.env.PORT || 3000}`;
+  return `${protocol}://${host}`.replace(/\/+$/, '');
+}
+
+function withPanelOrDeviceAuth(auth, deviceAuth) {
+  return (req, res, next) => {
+    auth(req, res, (err) => {
+      if (!err) return next();
+      if (deviceAuth) return deviceAuth(req, res, next);
+      return next(err);
+    });
+  };
+}
+
+const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth, deviceAuth) => {
   const router = express.Router();
+  const completeAuth = withPanelOrDeviceAuth(auth, deviceAuth);
 
   // ── Gerar token de provisionamento ───────────────────────────────
   router.post('/generate-token', auth, modifyApiLimiter, async (req, res) => {
@@ -38,7 +59,7 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
 
       res.status(201).json({
         token, organization, config_profile, max_uses, expires_at,
-        provisioning_url: `http://${getLocalIPAddress()}:${process.env.PORT || 3000}/provision/${token}`,
+        provisioning_url: `${getPublicBaseUrl(req)}/provision/${token}`,
       });
     } catch (err) {
       logger.error(`Erro ao gerar token: ${err.message}`);
@@ -122,6 +143,12 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
       const targetType = configProfile.module_type || 'desktop';
       const targetModuleId = configProfile.module_id;
 
+      const localAdminPassword = crypto.randomBytes(12).toString('base64url');
+      const localAdminPasswordSalt = crypto.randomBytes(16).toString('hex');
+      const localAdminPasswordHash = crypto
+        .pbkdf2Sync(localAdminPassword, localAdminPasswordSalt, 120000, 32, 'sha256')
+        .toString('hex');
+
       const assetData = {
         asset_type: targetType,
         module_id: targetModuleId,
@@ -147,6 +174,8 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
           configuration_profile: token.config_profile,
           provisioning_status: 'in_progress',
           enrollment_date: new Date().toISOString(),
+          local_admin_password_salt: localAdminPasswordSalt,
+          local_admin_password_hash: localAdminPasswordHash,
         },
       };
 
@@ -224,16 +253,17 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
         module_type: configProfile.module_type || 'desktop',
         // Token de autenticação para uso contínuo pelo agente após enrollment
         device_token: process.env.AUTH_TOKEN,
+        local_admin_password: localAdminPassword,
         commands_count: initialCommands.length,
       });
     } catch (err) {
       logger.error(`Erro no provisionamento: ${err.message}`);
-      res.status(500).json({ error: 'Erro interno do servidor', details: err.message });
+      res.status(500).json({ error: 'Erro interno do servidor' });
     }
   });
 
   // ── Finalizar provisionamento ────────────────────────────────────
-  router.post('/complete', auth, modifyApiLimiter, async (req, res) => {
+  router.post('/complete', completeAuth, modifyApiLimiter, async (req, res) => {
     try {
       const { device_id, serial_number, success, error_message } = req.body;
       if (!serial_number || !device_id) {
@@ -253,7 +283,7 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth) => {
       res.status(200).json({ message: 'Status de provisionamento atualizado' });
     } catch (err) {
       logger.error(`Erro ao finalizar provisionamento: ${err.message}`);
-      res.status(500).json({ error: 'Erro interno do servidor', details: err.message });
+      res.status(500).json({ error: 'Erro interno do servidor' });
     }
   });
 
@@ -325,7 +355,7 @@ module.exports.renderProvisioningPage = (logger) => async (req, res) => {
     res.render('provision', {
       token: req.params.token,
       organization: provisioningToken.organization,
-      server_url: `http://${getLocalIPAddress()}:${process.env.PORT || 3000}`,
+      server_url: getPublicBaseUrl(req),
     });
   } catch (err) {
     logger.error(`Erro na página de provisionamento: ${err.message}`);

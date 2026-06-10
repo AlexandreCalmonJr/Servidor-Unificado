@@ -72,6 +72,83 @@ def _deobfuscate_token(token_obf: str, key_hint: str) -> str:
         return ''
 
 
+def _windows_dpapi_protect(secret: str) -> str:
+    if os.name != 'nt' or not secret:
+        return ''
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class DATA_BLOB(ctypes.Structure):
+            _fields_ = [
+                ('cbData', wintypes.DWORD),
+                ('pbData', ctypes.POINTER(ctypes.c_char)),
+            ]
+
+        raw = secret.encode('utf-8')
+        raw_buffer = ctypes.create_string_buffer(raw)
+        in_blob = DATA_BLOB(len(raw), ctypes.cast(raw_buffer, ctypes.POINTER(ctypes.c_char)))
+        out_blob = DATA_BLOB()
+
+        ok = ctypes.windll.crypt32.CryptProtectData(
+            ctypes.byref(in_blob),
+            None,
+            None,
+            None,
+            None,
+            0,
+            ctypes.byref(out_blob),
+        )
+        if not ok:
+            return ''
+        try:
+            protected = ctypes.string_at(out_blob.pbData, out_blob.cbData)
+            return base64.urlsafe_b64encode(protected).decode('ascii')
+        finally:
+            ctypes.windll.kernel32.LocalFree(out_blob.pbData)
+    except Exception as exc:
+        logger.warning(f"DPAPI nao disponivel para salvar token: {exc}")
+        return ''
+
+
+def _windows_dpapi_unprotect(secret_obf: str) -> str:
+    if os.name != 'nt' or not secret_obf:
+        return ''
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class DATA_BLOB(ctypes.Structure):
+            _fields_ = [
+                ('cbData', wintypes.DWORD),
+                ('pbData', ctypes.POINTER(ctypes.c_char)),
+            ]
+
+        raw = base64.urlsafe_b64decode(secret_obf.encode('ascii'))
+        raw_buffer = ctypes.create_string_buffer(raw)
+        in_blob = DATA_BLOB(len(raw), ctypes.cast(raw_buffer, ctypes.POINTER(ctypes.c_char)))
+        out_blob = DATA_BLOB()
+
+        ok = ctypes.windll.crypt32.CryptUnprotectData(
+            ctypes.byref(in_blob),
+            None,
+            None,
+            None,
+            None,
+            0,
+            ctypes.byref(out_blob),
+        )
+        if not ok:
+            return ''
+        try:
+            return ctypes.string_at(out_blob.pbData, out_blob.cbData).decode('utf-8')
+        finally:
+            ctypes.windll.kernel32.LocalFree(out_blob.pbData)
+    except Exception as exc:
+        logger.warning(f"DPAPI nao conseguiu ler token salvo: {exc}")
+        return ''
+
+
 def load_ui_config(key_hint: str) -> Dict:
     path = _config_file_path()
     if not os.path.exists(path):
@@ -79,7 +156,9 @@ def load_ui_config(key_hint: str) -> Dict:
     try:
         with open(path, 'r', encoding='utf-8') as fh:
             data = json.load(fh)
-        token = _deobfuscate_token(data.get('token_obf', ''), key_hint)
+        token = _windows_dpapi_unprotect(data.get('token_dpapi', ''))
+        if not token:
+            token = _deobfuscate_token(data.get('token_obf', ''), key_hint)
         return {
             'server': data.get('server', ''),
             'port': str(data.get('port', '3000')),
@@ -100,8 +179,18 @@ def save_ui_config(server: str, port: str, token: str, device_id: str, interval:
         'device_id': device_id,
         'interval': int(interval),
         'remember': bool(remember),
-        'token_obf': _obfuscate_token(token, key_hint) if remember else '',
     }
+    if remember and token:
+        token_dpapi = _windows_dpapi_protect(token)
+        if token_dpapi:
+            payload['token_dpapi'] = token_dpapi
+            payload['token_protection'] = 'dpapi'
+        else:
+            payload['token_obf'] = _obfuscate_token(token, key_hint)
+            payload['token_protection'] = 'xor-fallback'
+            logger.warning("Token salvo com fallback legado; prefira Windows DPAPI quando disponivel.")
+    else:
+        payload['token_protection'] = 'none'
     with open(path, 'w', encoding='utf-8') as fh:
         json.dump(payload, fh, indent=2, ensure_ascii=False)
 
@@ -120,7 +209,7 @@ class USBPrinterAgent:
         Inicializa o agente
         
         Args:
-            server_url: URL do servidor (ex: http://192.168.1.100:3000)
+            server_url: URL do servidor (ex: https://192.168.1.100:3000)
             device_token: Token de autenticação do dispositivo
             device_id: ID único do dispositivo (gerado automaticamente se não fornecido)
         """
@@ -747,17 +836,17 @@ def main():
 Exemplos de uso:
 
   # Executar em modo contínuo
-  python3 usb_printer_agent.py --server http://192.168.1.100:3000 --token seu_token
+  python3 usb_printer_agent.py --server https://192.168.1.100:3000 --token seu_token
 
   # Executar uma única verificação
-  python3 usb_printer_agent.py --server http://192.168.1.100:3000 --token seu_token --once
+  python3 usb_printer_agent.py --server https://192.168.1.100:3000 --token seu_token --once
 
   # Com ID de dispositivo customizado
-  python3 usb_printer_agent.py --server http://192.168.1.100:3000 --token seu_token --device-id meu-computador
+  python3 usb_printer_agent.py --server https://192.168.1.100:3000 --token seu_token --device-id meu-computador
         '''
     )
     
-    parser.add_argument('--server', help='URL do servidor (ex: http://192.168.1.100:3000)')
+    parser.add_argument('--server', help='URL do servidor (ex: https://192.168.1.100:3000)')
     parser.add_argument('--token', help='Token de autenticação do dispositivo')
     parser.add_argument('--ui', action='store_true', help='Abre interface para informar IP, porta e token')
     parser.add_argument('--device-id', help='ID único do dispositivo (opcional)')
@@ -776,7 +865,12 @@ Exemplos de uso:
             return ''
         if host_or_url.startswith('http://') or host_or_url.startswith('https://'):
             return host_or_url.rstrip('/')
-        protocol = 'http://'
+        host_only = host_or_url
+        if ':' in host_or_url and host_or_url.count(':') == 1 and host_or_url.split(':')[1].isdigit():
+            host_only = host_or_url.split(':')[0]
+        allow_http = os.getenv('MDM_ALLOW_HTTP', '').lower() == 'true'
+        is_loopback = host_only.lower() in ('localhost', '127.0.0.1', '::1', '[::1]')
+        protocol = 'http://' if allow_http or is_loopback else 'https://'
         if ':' in host_or_url and host_or_url.count(':') == 1 and host_or_url.split(':')[1].isdigit():
             return f"{protocol}{host_or_url}".rstrip('/')
         if not port:
@@ -948,7 +1042,7 @@ Exemplos de uso:
     
     # Cria e executa agente
     agent = USBPrinterAgent(
-        server_url=args.server,
+        server_url=build_server_url(args.server, ''),
         device_token=args.token,
         device_id=args.device_id
     )

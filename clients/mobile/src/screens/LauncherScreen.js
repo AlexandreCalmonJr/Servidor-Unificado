@@ -24,10 +24,9 @@ import {
 
 const { width, height } = Dimensions.get('window');
 const COLS = 4; // apps por linha
-const LOCAL_PASSWORD = 'hap@2025'; // mesma senha do LoginScreen
 
 export default function LauncherScreen({ navigation }) {
-    const { deviceInfo } = useContext(AuthContext);
+    const { deviceInfo, verifyLocalAdminPassword } = useContext(AuthContext);
 
     const [apps,        setApps]        = useState([]);
     const [loading,     setLoading]     = useState(true);
@@ -142,7 +141,7 @@ export default function LauncherScreen({ navigation }) {
     // ── Autenticação admin ────────────────────────────────
 
     const handleAdminLogin = async () => {
-        if (adminPassword === LOCAL_PASSWORD) {
+        if (await verifyLocalAdminPassword(adminPassword)) {
             setShowAdminModal(false);
             setAdminPassword('');
             setAdminError('');

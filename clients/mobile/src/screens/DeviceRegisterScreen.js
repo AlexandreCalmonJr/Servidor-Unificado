@@ -20,7 +20,7 @@ import api from '../services/api';
 import { AuthContext } from '../context/AuthContext';
 
 export default function DeviceRegisterScreen({ navigation }) {
-    const { finishRegistration } = useContext(AuthContext);
+    const { finishRegistration, setLocalAdminPassword } = useContext(AuthContext);
 
     const [deviceName, setDeviceName] = useState('');
     const [model, setModel] = useState('');
@@ -161,6 +161,13 @@ export default function DeviceRegisterScreen({ navigation }) {
             if (response.data?.success || response.status === 200 || response.status === 201 || response.data?.message?.includes('sucesso')) {
                 // Unified API retorna { success: true, asset: { id: ... } } ou o Provisionamento retorna device_id
                 const deviceId = response.data?.asset?.id || response.data?.asset?._id || response.data?.device_id || serialNumber;
+
+                if (usedEnroll && response.data?.device_token) {
+                    await SecureStore.setItemAsync('auth_token', response.data.device_token);
+                }
+                if (usedEnroll && response.data?.local_admin_password) {
+                    await setLocalAdminPassword(response.data.local_admin_password);
+                }
 
                 // Finaliza o provisionamento na API (opcional, dependendo do design, mas o enroll já cria o dispositivo)
                 if (usedEnroll) {

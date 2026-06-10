@@ -1,0 +1,46 @@
+📱 Você sabe o que é MDM?
+
+MDM = Mobile Device Management (Gerenciamento de Dispositivos Móveis). Mas na prática, vai muito além de celulares.
+
+Se você trabalha em uma empresa que tem totens de autoatendimento, notebooks para funcionários, painéis digitais, impressoras ou desktops espalhados por várias unidades… sabe o pesadelo que é gerenciar tudo separadamente.
+
+Pensando nisso, desenvolvi o **To de Olho MDM** — uma plataforma que centraliza o gerenciamento de TODOS os dispositivos da empresa em um único lugar.
+
+---
+
+🔧 **Como funciona?**
+
+É uma arquitetura agente-servidor:
+- Um **agente leve** é instalado em cada dispositivo (desktop com Electron, celular com React Native)
+- O **servidor central** (Node.js) se comunica com todos os agentes via API e WebSocket em tempo real
+- Você controla tudo por um **painel web** com dashboard, gráficos e notificações
+
+---
+
+⚡ **O que dá pra fazer?**
+
+✅ **Comandos remotos** — reboot, instalar app, limpar cache, rodar script, mapear impressora, bloquear dispositivo e mais 30+ comandos
+
+✅ **Monitoramento em tempo real** — status online/offline, localização automática (via mapeamento de rede), níveis de toner de impressoras
+
+✅ **Provisionamento automático** — token de acesso, QR Code para celular, enrollment em segundos
+
+✅ **Perfis de configuração** — restrinja câmera, Bluetooth, USB, apps permitidos/bloqueados
+
+✅ **Impressoras via SNMP** — descubra impressoras na rede, veja nível de toner e papel, controle estoque de insumos
+
+---
+
+🛡️ **Segurança:** Autenticação JWT, controle de acesso por papel (admin/user), comandos criptografados com RSA, rate limiting e proteções contra ataques web
+
+📦 **Onde roda?** No seu servidor local, em Docker, ou na nuvem (Railway) — você escolhe
+
+---
+
+🛠 **Stack:** Node.js | Express | MongoDB | Redis | Electron | React Native (Expo)
+
+Esse projeto foi construído do zero com foco em resolver um problema real de empresas que precisam gerenciar dispositivos em escala, sem depender de soluções caras ou fechadas.
+
+Se você trabalha com TI, infraestrutura ou gestão de ativos, bora trocar uma ideia! 💬
+
+#MDM #GestãoDeDispositivos #NodeJS #ReactNative #Electron #TI #Infraestrutura #Inovação

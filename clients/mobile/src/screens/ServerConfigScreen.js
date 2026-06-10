@@ -13,12 +13,14 @@ import * as SecureStore from 'expo-secure-store';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { AuthContext } from '../context/AuthContext';
+import { buildServerUrl, normalizeServerInput } from '../utils/serverUrl';
 
 export default function ServerConfigScreen({ navigation }) {
     const { saveSettings, settings } = useContext(AuthContext);
 
     const [serverHost, setServerHost] = useState('192.168.0.183');
     const [serverPort, setServerPort] = useState('3000');
+    const [serverProtocol, setServerProtocol] = useState('');
     const [authToken, setAuthToken] = useState('');
     const [loading, setLoading] = useState(false);
     const [testResult, setTestResult] = useState(null); // 'success' | 'error' | null
@@ -36,9 +38,11 @@ export default function ServerConfigScreen({ navigation }) {
     const loadSavedConfig = async () => {
         const host = await SecureStore.getItemAsync('server_host');
         const port = await SecureStore.getItemAsync('server_port');
+        const protocol = await SecureStore.getItemAsync('server_protocol');
         const token = await SecureStore.getItemAsync('auth_token');
         if (host) setServerHost(host);
         if (port) setServerPort(port);
+        if (protocol) setServerProtocol(protocol);
         if (token) setAuthToken(token);
     };
 
@@ -54,20 +58,59 @@ export default function ServerConfigScreen({ navigation }) {
         setTestResult(null);
 
         try {
-            const baseUrl = `http://${serverHost.trim()}:${serverPort.trim()}`;
-            const response = await fetch(`${baseUrl}/api/auth/validate`, {
+            const normalized = normalizeServerInput(serverHost.trim(), serverPort.trim(), serverProtocol);
+            const baseUrl = normalized.url;
+            const token = authToken.trim();
+
+            if (token.length >= 32) {
+                const provisioningResponse = await fetch(
+                    `${baseUrl}/api/provisioning/tokens/${encodeURIComponent(token)}/status`,
+                    { method: 'GET' }
+                );
+
+                if (provisioningResponse.ok) {
+                    setServerHost(normalized.host);
+                    setServerPort(normalized.port);
+                    setServerProtocol(normalized.protocol);
+                    setTestResult('success');
+                    setTestMessage('Token de provisionamento válido.');
+                    return;
+                }
+
+                if (provisioningResponse.status === 410) {
+                    setTestResult('error');
+                    setTestMessage('Token de provisionamento expirado ou esgotado.');
+                    return;
+                }
+            }
+
+            let response = await fetch(`${baseUrl}/api/auth/validate`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${authToken.trim()}`,
-                    'AUTH_TOKEN': authToken.trim(),
+                    'Authorization': `Bearer ${token}`,
+                    'AUTH_TOKEN': token,
                 },
             });
 
-            if (response.status === 401) {
+            if (response.status === 401 || response.status === 403) {
+                response = await fetch(`${baseUrl}/api/modules/active`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'AUTH_TOKEN': token,
+                    },
+                });
+            }
+
+            if (response.status === 401 || response.status === 403) {
                 setTestResult('error');
                 setTestMessage('Token inválido ou expirado.');
             } else if (response.ok) {
+                setServerHost(normalized.host);
+                setServerPort(normalized.port);
+                setServerProtocol(normalized.protocol);
                 setTestResult('success');
                 setTestMessage('✅ Conexão bem-sucedida!');
             } else {
@@ -91,9 +134,11 @@ export default function ServerConfigScreen({ navigation }) {
 
         setLoading(true);
         try {
+            const normalized = normalizeServerInput(serverHost.trim(), serverPort.trim(), serverProtocol);
             await saveSettings({
-                serverHost: serverHost.trim(),
-                serverPort: serverPort.trim(),
+                serverHost: normalized.host,
+                serverPort: normalized.port,
+                serverProtocol: normalized.protocol,
                 authToken: authToken.trim(),
             });
             // Não precisa navegar manualmente; o AuthContext atualiza o estado (isConfigured)
@@ -125,10 +170,11 @@ export default function ServerConfigScreen({ navigation }) {
             if (parsed.provisioning_token && parsed.url) {
                 const urlObj = new URL(parsed.url);
                 const host = urlObj.hostname;
-                const port = urlObj.port || '80';
+                const port = urlObj.port || (urlObj.protocol === 'https:' ? '443' : '80');
 
                 setServerHost(host);
                 setServerPort(port);
+                setServerProtocol(urlObj.protocol.replace(':', ''));
                 setAuthToken(parsed.provisioning_token);
 
                 // Alert success via test messages
@@ -231,7 +277,7 @@ export default function ServerConfigScreen({ navigation }) {
                 </View>
 
                 <Text style={styles.hint}>
-                    URL gerada: http://{serverHost || '...'}:{serverPort || '...'}
+                    URL gerada: {buildServerUrl(serverHost || '...', serverPort || '...', serverProtocol)}
                 </Text>
 
                 <TouchableOpacity

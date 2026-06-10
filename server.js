@@ -216,7 +216,7 @@ app.use('/api', assetCommandRoutes(logger, modifyApiLimiter, auth, deviceAuth));
 
 // ===== ROTAS DO PAINEL =====
 app.use('/api/monitoring', monitoringRoutes(logger, modifyApiLimiter, auth));
-app.use('/api/provisioning', provisioningRoutes(logger, modifyApiLimiter, enrollLimiter, auth));
+app.use('/api/provisioning', provisioningRoutes(logger, modifyApiLimiter, enrollLimiter, auth, deviceAuth));
 app.use('/api/config-profiles', configProfileRoutes(logger, modifyApiLimiter, auth));
 app.use('/api/units', unitRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
 app.use('/api/bssid-mappings', bssidRoutes(logger, getApiLimiter, modifyApiLimiter, auth));

@@ -294,18 +294,31 @@ function createWindow() {
             };
 
             logger.info(`Testing connection to ${serverUrl}`);
-            const response = await axios.get(`${serverUrl}/api/auth/validate`, {
-                headers,
-                timeout: 10000,
-                proxy: false,
-            });
+            try {
+                const response = await axios.get(`${serverUrl}/api/auth/validate`, {
+                    headers,
+                    timeout: 10000,
+                    proxy: false,
+                });
 
-            if (response.status === 401) throw new Error('Token inválido ou expirado.');
+                if (response.status === 401) throw new Error('Token inválido ou expirado.');
+            } catch (authError) {
+                const status = authError.response?.status;
+                if (status !== 401 && status !== 403) {
+                    throw authError;
+                }
+
+                await axios.get(`${serverUrl}/api/modules/active`, {
+                    headers,
+                    timeout: 10000,
+                    proxy: false,
+                });
+            }
             return { success: true };
 
         } catch (e) {
             logger.error('Connection test failed', e.message);
-            if (e.response?.status === 401) {
+            if (e.response?.status === 401 || e.response?.status === 403) {
                 return { success: false, error: 'Token inválido ou expirado.' };
             }
             return { success: false, error: `Falha ao conectar: ${e.message}` };
@@ -478,6 +491,7 @@ function createWindow() {
                 module_type: response.data.module_type,
                 // Token de autenticação para uso contínuo pós-enrollment
                 device_token: response.data.device_token,
+                local_admin_password: response.data.local_admin_password,
                 commands_count: response.data.commands_count,
             };
         } catch (e) {
