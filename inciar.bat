@@ -1,1 +1,1 @@
-node server.js
+@call "%~dp0iniciar.bat"

@@ -4,7 +4,7 @@ const ManagedAsset = require('../models/ManagedAsset');
 const AssetCommand = require('../models/AssetCommand');
 const ProvisioningToken = require('../models/ProvisioningToken');
 const ConfigProfile = require('../models/ConfigProfile');
-const { getPublicBaseUrl } = require('../utils/helpers');
+const { getPublicBaseUrl, getLocalIPAddress } = require('../utils/helpers');
 const locationService = require('../services/locationService');
 const notificationService = require('../services/notificationService');
 

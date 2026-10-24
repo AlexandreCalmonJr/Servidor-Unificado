@@ -10,7 +10,7 @@ function cleanIpAddress(rawIp) {
   if (!rawIp) return null;
   if (rawIp.startsWith('::ffff:')) return rawIp.substring(7);
   if (rawIp.includes(',')) return rawIp.split(',')[0].trim();
-  return rawIp.replace(/[\[\]]/g, '');
+  return rawIp.replace(/[[\]]/g, '');
 }
 
 const _calculateStatus = ({ printer_status, last_seen }) => {

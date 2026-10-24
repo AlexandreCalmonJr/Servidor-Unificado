@@ -18,6 +18,8 @@ class CommandPollerManager extends EventEmitter {
     this._logger = console;
     this._settings = null;
     this._pollingTimer = null;
+    this._ws = null;
+    this._wsReconnectTimer = null;
     this._running = false;
     this._serialNumber = null;
     this._executor = null; // ✅ ADICIONADO
@@ -224,6 +226,7 @@ class CommandPollerManager extends EventEmitter {
       this._logger.warn(`[CommandPoller] Erro na primeira sincronização: ${e.message}`);
     }
 
+    this._initWebSocket();
     this._poll();
   }
 
@@ -233,8 +236,91 @@ class CommandPollerManager extends EventEmitter {
       clearTimeout(this._pollingTimer);
       this._pollingTimer = null;
     }
+    this._closeWebSocket();
     this.lastRunStatus = 'Parado';
     this._logger.info('[CommandPoller] Parado');
+  }
+
+  _getWsUrl() {
+    const { serverIp, serverPort } = this._getConfig();
+    const allowHttp = String(process.env.MDM_ALLOW_HTTP || '').toLowerCase() === 'true';
+    const isLoopback = ['localhost', '127.0.0.1', '::1'].includes(serverIp);
+    const proto = Number(serverPort) === 443 || (!allowHttp && !isLoopback) ? 'wss' : 'ws';
+    return `${proto}://${serverIp}:${serverPort}/ws`;
+  }
+
+  _initWebSocket() {
+    if (!this._running) return;
+    this._closeWebSocket();
+
+    try {
+      const WebSocketClient = global.WebSocket || require('ws');
+      const { token } = this._getConfig();
+      const wsUrl = this._getWsUrl();
+      const protocols = token ? [`mdm.device.${token}`] : [];
+
+      this._logger.info(`[CommandPoller] 🔌 Conectando WebSocket em ${wsUrl}...`);
+      this._ws = new WebSocketClient(wsUrl, protocols);
+
+      this._ws.onopen = () => {
+        this._logger.info('[CommandPoller] ⚡ WebSocket conectado com sucesso!');
+        const registerPayload = {
+          type: 'register',
+          role: 'device',
+          serialNumber: this._serialNumber || os.hostname(),
+          hostname: os.hostname(),
+        };
+        try {
+          this._ws.send(JSON.stringify(registerPayload));
+        } catch (_) {}
+      };
+
+      this._ws.onmessage = (event) => {
+        try {
+          const raw = typeof event.data === 'string' ? event.data : event.data?.toString();
+          const message = JSON.parse(raw);
+          if (message.type === 'new_command') {
+            this._logger.info(`[CommandPoller] ⚡ Comando recebido em tempo real via WebSocket: ${message.commandId}`);
+            this._poll();
+          }
+        } catch (e) {
+          this._logger.debug(`[CommandPoller] Mensagem WS recebida: ${event.data}`);
+        }
+      };
+
+      this._ws.onerror = (err) => {
+        this._logger.debug(`[CommandPoller] WebSocket error: ${err.message || 'connection failed'}`);
+      };
+
+      this._ws.onclose = () => {
+        this._logger.debug('[CommandPoller] WebSocket fechado. Agendando reconexão...');
+        if (this._running) {
+          this._wsReconnectTimer = setTimeout(() => this._initWebSocket(), 10000);
+        }
+      };
+    } catch (err) {
+      this._logger.debug(`[CommandPoller] Não foi possível inicializar WebSocket: ${err.message}`);
+      if (this._running) {
+        this._wsReconnectTimer = setTimeout(() => this._initWebSocket(), 15000);
+      }
+    }
+  }
+
+  _closeWebSocket() {
+    if (this._wsReconnectTimer) {
+      clearTimeout(this._wsReconnectTimer);
+      this._wsReconnectTimer = null;
+    }
+    if (this._ws) {
+      try {
+        this._ws.onopen = null;
+        this._ws.onmessage = null;
+        this._ws.onerror = null;
+        this._ws.onclose = null;
+        this._ws.close();
+      } catch (_) {}
+      this._ws = null;
+    }
   }
 
   // ──────────────────────────────────────────────────────────────────────────

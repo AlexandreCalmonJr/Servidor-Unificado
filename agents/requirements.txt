@@ -1,0 +1,4 @@
+# Requisitos do Agente USB Printer (Python 3.8+)
+requests>=2.31.0
+pystray>=0.19.5
+Pillow>=10.2.0

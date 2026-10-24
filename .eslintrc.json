@@ -24,12 +24,19 @@
         "node/no-missing-require": "off",
         "node/no-unpublished-require": "off",
         "security/detect-object-injection": "off",
-        "no-process-exit": "off"
+        "no-process-exit": "off",
+        "node/no-unsupported-features/es-builtins": "off",
+        "node/no-unsupported-features/node-builtins": "off"
     },
     "ignorePatterns": [
         "node_modules/",
         "logs/",
         "public/",
+        "frontend/",
+        "clients/",
+        "legacy/",
+        "docs/",
+        "scripts/_tmp*/**",
         "*.min.js"
     ]
 }

@@ -2,9 +2,20 @@ const rateLimit = require('express-rate-limit');
 const RedisStore = require('rate-limit-redis');
 const { client: redisClient, isReady } = require('../services/cacheService');
 
+const deviceKeyGenerator = (req) => {
+  const serial = req.body?.serial_number || req.body?.serialNumber || req.query?.serialNumber || req.headers['x-device-serial'];
+  if (serial) return `device:${serial}`;
+
+  const token = req.headers['auth_token'] || (req.headers['authorization']?.startsWith('Bearer ') ? req.headers['authorization'].slice(7) : null);
+  if (token && token.length > 10) return `token:${token.slice(0, 16)}`;
+
+  return req.ip;
+};
+
 const getApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 500,
+  max: 1000,
+  keyGenerator: deviceKeyGenerator,
   message: 'Muitas requisicoes de leitura, tente novamente mais tarde.',
   standardHeaders: true,
   legacyHeaders: false,
@@ -12,7 +23,8 @@ const getApiLimiter = rateLimit({
 
 const modifyApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 1000,
+  keyGenerator: deviceKeyGenerator,
   message: 'Muitas tentativas de modificacao, tente novamente mais tarde.',
   standardHeaders: true,
   legacyHeaders: false,

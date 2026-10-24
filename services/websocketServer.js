@@ -133,6 +133,19 @@ class WebSocketServer {
   }
 
   async _handleMessage(ws, data) {
+    if (!data || typeof data !== 'object') return;
+
+    // Tratamento de conexões administrativas (Painel Web / SPA)
+    if (data.role === 'panel' || (typeof data.clientId === 'string' && data.clientId.startsWith('panel')) || ws.auth?.kind === 'user') {
+      ws.isPanel = true;
+      if (data.type === 'register' || data.type === 'panel_init') {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'registered', role: 'panel', status: 'ok' }));
+        }
+      }
+      return;
+    }
+
     let asset;
     if (data.assetId) {
       asset = await ManagedAsset.findById(data.assetId);
@@ -148,6 +161,7 @@ class WebSocketServer {
     }
 
     ws.assetId = asset ? asset._id : null;
+    ws.serialNumber = asset ? (asset.serial_number || asset.serialNumber) : (data.serialNumber || null);
 
     switch (data.type) {
       case 'register':
@@ -198,6 +212,24 @@ class WebSocketServer {
   broadcast(data) {
     this.wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(data));
+      }
+    });
+  }
+
+  notifyAsset(assetId, data) {
+    const targetId = String(assetId || '');
+    this.wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN && String(client.assetId || '') === targetId) {
+        client.send(JSON.stringify(data));
+      }
+    });
+  }
+
+  notifySerial(serialNumber, data) {
+    const targetSerial = String(serialNumber || '').trim().toLowerCase();
+    this.wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN && String(client.serialNumber || '').trim().toLowerCase() === targetSerial) {
         client.send(JSON.stringify(data));
       }
     });

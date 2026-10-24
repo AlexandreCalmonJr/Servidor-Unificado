@@ -2,6 +2,9 @@
   "name": "servidor-unificado-mdm",
   "version": "2.0.0",
   "main": "server.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
@@ -44,6 +47,7 @@
     "net-snmp": "^3.26.1",
     "node-cache": "^5.1.2",
     "node-cron": "^4.6.0",
+    "on-finished": "^2.4.1",
     "rate-limit-redis": "^4.2.3",
     "redis": "^5.9.0",
     "winston": "^3.8.2",

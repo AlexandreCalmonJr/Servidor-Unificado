@@ -46,7 +46,22 @@ function signCommand(command) {
   };
 }
 
+function verifyCommand(command, signature, publicKey) {
+  if (!signature || !signature.value || !publicKey) return false;
+  try {
+    const key = String(publicKey).replace(/\\n/g, '\n').trim();
+    const verifier = crypto.createVerify('RSA-SHA256');
+    verifier.update(canonicalizeCommand(command));
+    verifier.end();
+    return verifier.verify(key, signature.value, 'base64');
+  } catch (error) {
+    return false;
+  }
+}
+
 module.exports = {
   canonicalizeCommand,
   signCommand,
+  verifyCommand,
 };
+

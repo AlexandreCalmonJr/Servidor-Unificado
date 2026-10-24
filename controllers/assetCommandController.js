@@ -153,6 +153,34 @@ exports.createCommand = async (req, res) => {
 
     await command.save();
 
+    // Notifica instantaneamente o agente conectado via WebSocket
+    try {
+      const WebSocketServer = require('../services/websocketServer');
+      const wsServer = WebSocketServer.instance;
+      if (wsServer) {
+        const payload = {
+          type: 'new_command',
+          commandId: command._id,
+          commandType: command.commandType,
+          serialNumber: command.serialNumber,
+          moduleId: command.moduleId,
+        };
+        wsServer.notifyAsset(command.assetId, payload);
+        if (command.serialNumber) {
+          wsServer.notifySerial(command.serialNumber, payload);
+        }
+        wsServer.broadcast({
+          type: 'command_enqueued',
+          commandId: command._id,
+          assetId: command.assetId,
+          serialNumber: command.serialNumber,
+          commandType: command.commandType,
+        });
+      }
+    } catch (wsErr) {
+      logger.warn(`Falha ao despachar evento WebSocket de comando: ${wsErr.message}`);
+    }
+
     logger.info('✅ Comando criado e enfileirado', {
       commandId: command._id,
       serialNumber: command.serialNumber,

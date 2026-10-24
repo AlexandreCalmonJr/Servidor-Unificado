@@ -59,6 +59,13 @@ class ValidationError extends AppError {
  */
 const errorHandler = (logger) => {
   return (err, req, res, next) => {
+    // Mapeia erros de autenticação para 401 operacional antes do contexto
+    if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError' || err.name === 'NoTokenError') {
+      err.statusCode = 401;
+      err.status = 'fail';
+      err.isOperational = true;
+    }
+
     // Define valores padrão
     err.statusCode = err.statusCode || 500;
     err.status = err.status || 'error';

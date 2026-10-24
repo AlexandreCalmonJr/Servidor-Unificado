@@ -26,7 +26,7 @@ class LocationService {
     try {
       let normalized = mac.trim().toUpperCase();
       normalized = normalized.replace(/[^0-9A-F:-]/g, '');
-      normalized = normalized.replace(/[-\.]/g, ':');
+      normalized = normalized.replace(/[-.]/g, ':');
 
       if (!/^([0-9A-F]{2}[:]){5}[0-9A-F]{2}$/.test(normalized)) {
         if (/^[0-9A-F]{12}$/.test(normalized)) {

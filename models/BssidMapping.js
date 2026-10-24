@@ -14,7 +14,7 @@ BssidMappingSchema.pre('save', function(next) {
   if (this.isModified('mac_address_radio') && this.mac_address_radio) {
     this.mac_address_radio = this.mac_address_radio
       .toUpperCase()
-      .replace(/[-\.]/g, ':') // Substitui hifens e pontos por dois-pontos
+      .replace(/[-.]/g, ':') // Substitui hifens e pontos por dois-pontos
       .trim();
   }
   next();
