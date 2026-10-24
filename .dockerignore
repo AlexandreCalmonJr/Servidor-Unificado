@@ -20,3 +20,11 @@ backups
 railway.toml
 .vscode
 .idea
+
+# Clientes e Agentes Externos (possuem build próprio)
+clients/
+agents/
+legacy/
+docs/
+tests/
+task-*.md

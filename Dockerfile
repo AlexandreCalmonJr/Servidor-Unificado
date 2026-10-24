@@ -1,5 +1,5 @@
 # ===== STAGE 1: Dependencies =====
-FROM node:18-alpine AS dependencies
+FROM node:20-alpine AS dependencies
 
 # Instalar dependências do sistema necessárias
 RUN apk add --no-cache \
@@ -16,7 +16,7 @@ COPY package*.json ./
 RUN npm ci --legacy-peer-deps
 
 # ===== STAGE 2: Build =====
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /usr/src/app
 
@@ -30,7 +30,7 @@ COPY . .
 RUN npm prune --production --legacy-peer-deps
 
 # ===== STAGE 3: Production =====
-FROM node:18-alpine AS production
+FROM node:20-alpine AS production
 
 # Metadados
 LABEL maintainer="mdm-team@exemplo.com" \
