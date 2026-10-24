@@ -1,1 +1,0 @@
-@call "%~dp0iniciar.bat"
