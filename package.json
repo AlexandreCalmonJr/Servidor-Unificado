@@ -15,6 +15,7 @@
     "create-indexes": "node scripts/createIndexes.js",
     "test": "node tests/test_full_suite.js",
     "test:endpoints": "node tests/test_server_endpoints.js",
+    "test:load": "node tests/load_stress_suite.js",
     "dashboard:demo": "node tests/test_dashboard_with_data.js",
     "audit:security": "npm audit --audit-level=moderate"
   },
