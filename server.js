@@ -136,6 +136,7 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
   crossOriginOpenerPolicy: false,
   crossOriginResourcePolicy: { policy: "cross-origin" },
+  originAgentCluster: false,
 }));
 
 app.use(mongoSanitize());

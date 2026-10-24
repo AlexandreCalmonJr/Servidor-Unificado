@@ -5,17 +5,8 @@ const API = (() => {
     // Em produção (Railway, Heroku, etc.) window.location.port é "" — não
     // adicionar porta nenhuma. Em dev local usa a porta atual ou 3000.
     function buildBaseUrl() {
-        const { protocol, hostname, port } = window.location;
-        const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
-
-        if (isLocalhost && port) {
-            return `${protocol}//${hostname}:${port}/api`;
-        }
-        if (isLocalhost) {
-            return `${protocol}//${hostname}:3000/api`;
-        }
-        // Produção: sem porta explícita — o proxy reverso roteia
-        return `${protocol}//${hostname}/api`;
+        const { protocol, host } = window.location;
+        return `${protocol}//${host}/api`;
     }
 
     const BASE_URL = buildBaseUrl();
