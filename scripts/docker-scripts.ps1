@@ -1,332 +1,187 @@
 # ===================================================================
-# SCRIPTS AUXILIARES PARA DOCKER (Windows PowerShell)
+# SCRIPTS DE AUTOMACAO DOCKER - MDM SERVIDOR UNIFICADO (PowerShell)
 # ===================================================================
 
-param([string]$Command, [string]$Arg)
+param(
+    [Parameter(Position=0)]
+    [ValidateSet("up", "down", "restart", "build", "logs", "status", "test", "health", "shell", "menu")]
+    [string]$Command = "menu",
 
-# Funções de cor
-function Write-ColorOutput($message, $color = "White") {
-    Write-Host $message -ForegroundColor $color
+    [Parameter(Position=1)]
+    [string]$Service = "mdm-server"
+)
+
+# Cores
+function Write-Color($msg, $color = "Cyan") {
+    Write-Host $msg -ForegroundColor $color
 }
 
-# ===================================================================
-# INIT - Inicialização
-# ===================================================================
-function Initialize-Environment {
-    Write-ColorOutput "🚀 Inicializando ambiente Docker..." "Blue"
-    
-    # Verificar Docker
+# 1. Garantir que o Docker esteja no PATH da sessao
+function Ensure-DockerPath {
     if (!(Get-Command docker -ErrorAction SilentlyContinue)) {
-        Write-ColorOutput "❌ Docker não encontrado. Instale: https://docs.docker.com/get-docker/" "Red"
-        exit 1
-    }
-    
-    # Verificar Docker Compose
-    if (!(Get-Command docker-compose -ErrorAction SilentlyContinue)) {
-        Write-ColorOutput "❌ Docker Compose não encontrado." "Red"
-        exit 1
-    }
-    
-    # Criar .env se não existir
-    if (!(Test-Path .env)) {
-        Write-ColorOutput "⚠️ Arquivo .env não encontrado. Criando..." "Yellow"
-        
-        # Gerar JWT_SECRET
-        $bytes = New-Object byte[] 64
-        [Security.Cryptography.RNGCryptoServiceProvider]::Create().GetBytes($bytes)
-        $JWT_SECRET = [BitConverter]::ToString($bytes) -replace '-',''
-        $authBytes = New-Object byte[] 48
-        [Security.Cryptography.RNGCryptoServiceProvider]::Create().GetBytes($authBytes)
-        $AUTH_TOKEN = [BitConverter]::ToString($authBytes) -replace '-',''
-        
-        @"
-# ===================================================================
-# CONFIGURAÇÃO DOCKER - GERADA AUTOMATICAMENTE
-# ===================================================================
-
-JWT_SECRET=$JWT_SECRET
-AUTH_TOKEN=$AUTH_TOKEN
-PORT=3000
-NODE_ENV=production
-LOG_LEVEL=info
-
-# Redis (habilitado por padrão no Docker)
-REDIS_ENABLED=true
-REDIS_URL=redis://redis:6379
-
-# MongoDB (use o nome do serviço do docker-compose)
-MONGO_URI=mongodb://mongodb:27017/mdm
-"@ | Out-File -FilePath .env -Encoding UTF8
-        
-        Write-ColorOutput "✅ Arquivo .env criado com JWT_SECRET aleatório" "Green"
-        Write-ColorOutput "⚠️ IMPORTANTE: Altere o AUTH_TOKEN antes de usar em produção!" "Yellow"
-    }
-    
-    # Criar diretórios
-    New-Item -ItemType Directory -Force -Path logs, public, backups | Out-Null
-    
-    Write-ColorOutput "✅ Ambiente preparado!" "Green"
-}
-
-# ===================================================================
-# START - Iniciar serviços
-# ===================================================================
-function Start-Services {
-    Write-ColorOutput "🚀 Iniciando serviços..." "Blue"
-    docker-compose up -d
-    
-    Write-ColorOutput "`n⏳ Aguardando serviços ficarem prontos..." "Yellow"
-    Start-Sleep -Seconds 5
-    
-    Get-Status
-}
-
-# ===================================================================
-# STOP - Parar serviços
-# ===================================================================
-function Stop-Services {
-    Write-ColorOutput "🛑 Parando serviços..." "Yellow"
-    docker-compose down
-    Write-ColorOutput "✅ Serviços parados" "Green"
-}
-
-# ===================================================================
-# RESTART - Reiniciar serviços
-# ===================================================================
-function Restart-Services {
-    Write-ColorOutput "🔄 Reiniciando serviços..." "Yellow"
-    docker-compose restart
-    Start-Sleep -Seconds 3
-    Get-Status
-}
-
-# ===================================================================
-# STATUS - Ver status
-# ===================================================================
-function Get-Status {
-    Write-ColorOutput "`n📊 Status dos Serviços`n" "Blue"
-    docker-compose ps
-    
-    Write-ColorOutput "`n🩺 Health Checks`n" "Blue"
-    
-    # Check MDM Server
-    try {
-        $response = Invoke-WebRequest -Uri "http://localhost:3000/health" -UseBasicParsing -TimeoutSec 2
-        if ($response.StatusCode -eq 200) {
-            $url = "http://localhost:3000"
-            Write-ColorOutput "✅ MDM Server: Rodando ($url)" "Green"
+        $pathsToCheck = @(
+            "$env:LOCALAPPDATA\Programs\DockerDesktop\resources\bin",
+            "C:\Program Files\Docker\Docker\resources\bin"
+        )
+        foreach ($p in $pathsToCheck) {
+            if (Test-Path "$p\docker.exe") {
+                $env:Path = "$p;$env:Path"
+                break
+            }
         }
-    } catch {
-        Write-ColorOutput "❌ MDM Server: Não acessível" "Red"
-    }
-    
-    # Check MongoDB
-    try {
-        $result = docker-compose exec -T mongodb mongosh --eval "db.adminCommand('ping')" 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            Write-ColorOutput "✅ MongoDB: Conectado" "Green"
-        } else {
-            Write-ColorOutput "❌ MongoDB: Não conectado" "Red"
-        }
-    } catch {
-        Write-ColorOutput "❌ MongoDB: Não conectado" "Red"
-    }
-    
-    # Check Redis
-    try {
-        $result = docker-compose exec -T redis redis-cli ping 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            Write-ColorOutput "✅ Redis: Conectado" "Green"
-        } else {
-            Write-ColorOutput "❌ Redis: Não conectado" "Red"
-        }
-    } catch {
-        Write-ColorOutput "❌ Redis: Não conectado" "Red"
     }
 }
 
-# ===================================================================
-# LOGS - Ver logs
-# ===================================================================
+Ensure-DockerPath
+
+# 2. Validar se o Docker Daemon esta ativo
+function Test-DockerDaemon {
+    try {
+        $info = docker info --format "{{.ServerVersion}}" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $info) {
+            return $true
+        }
+    } catch {}
+    return $false
+}
+
+# 3. Configurar portas para evitar colisao com servicos nativos
+function Configure-Ports {
+    $mongoBusy = Get-NetTCPConnection -LocalPort 27017 -ErrorAction SilentlyContinue | Where-Object { $_.State -eq "Listen" }
+    if ($mongoBusy) {
+        $env:MONGO_PORT = "27018"
+        Write-Color "[INFO] MongoDB nativo detectado na porta 27017. O MongoDB do Docker usara a porta 27018." "Yellow"
+    } else {
+        $env:MONGO_PORT = "27017"
+    }
+
+    $serverBusy = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | Where-Object { $_.State -eq "Listen" }
+    if ($serverBusy) {
+        Write-Color "[AVISO] Atencao: A porta 3000 ja esta em uso por outro processo no host." "Yellow"
+    }
+}
+
+# 4. Operacoes
+function Start-Stack {
+    Configure-Ports
+    Write-Color "`n[START] Subindo stack completa no Docker (Servidor + MongoDB + Redis)..." "Cyan"
+    docker compose up -d
+    if ($LASTEXITCODE -eq 0) {
+        Write-Color "[SUCESSO] Containers inicializados com sucesso!" "Green"
+        Write-Color "   - Painel Web: http://localhost:3000/panel" "Green"
+        Write-Color "   - Health:     http://localhost:3000/health" "Green"
+        Write-Color "   - Metricas:   http://localhost:3000/metrics" "Green"
+    } else {
+        Write-Color "[ERRO] Falha ao iniciar os containers." "Red"
+    }
+}
+
+function Stop-Stack {
+    Write-Color "`n[STOP] Parando containers Docker..." "Yellow"
+    docker compose down
+    Write-Color "[OK] Containers parados com sucesso." "Green"
+}
+
+function Build-Image {
+    Write-Color "`n[BUILD] Compilando imagem mdm-server com Node 20..." "Cyan"
+    docker compose build mdm-server
+    if ($LASTEXITCODE -eq 0) {
+        Write-Color "[OK] Imagem compilada com sucesso!" "Green"
+    }
+}
+
 function Show-Logs {
-    param([string]$Service = "mdm-server")
-    Write-ColorOutput "📋 Logs de $Service..." "Blue"
-    docker-compose logs -f $Service
+    Write-Color "`n[LOGS] Exibindo logs do servico $Service (Pressione Ctrl+C para sair)..." "Cyan"
+    docker compose logs -f $Service
 }
 
-# ===================================================================
-# SHELL - Acessar shell
-# ===================================================================
-function Enter-Shell {
-    Write-ColorOutput "🖥️ Acessando shell do servidor..." "Blue"
-    docker-compose exec mdm-server sh
+function Show-Status {
+    Write-Color "`n[STATUS] Status dos Containers:" "Cyan"
+    docker compose ps
 }
 
-# ===================================================================
-# CREATE-ADMIN - Criar admin
-# ===================================================================
-function New-AdminUser {
-    Write-ColorOutput "👤 Criando usuário administrador..." "Blue"
-    docker-compose exec mdm-server node scripts/createAdminUser.js
-}
-
-# ===================================================================
-# BACKUP - Fazer backup
-# ===================================================================
-function New-Backup {
-    $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-    Write-ColorOutput "💾 Criando backup em backups/$timestamp..." "Blue"
-    
-    docker-compose exec -T mongodb mongodump --out="/backups/$timestamp"
-    
-    Write-ColorOutput "✅ Backup criado com sucesso!" "Green"
-}
-
-# ===================================================================
-# RESTORE - Restaurar backup
-# ===================================================================
-function Restore-Backup {
-    param([string]$BackupDir)
-    
-    if ([string]::IsNullOrEmpty($BackupDir)) {
-        Write-ColorOutput "❌ Erro: Especifique o diretório do backup" "Red"
-        Write-ColorOutput "Uso: .\scripts\docker-scripts.ps1 restore <dir>" "Yellow"
-        Write-ColorOutput "`nBackups disponíveis:" "Blue"
-        Get-ChildItem backups
-        return
+function Test-Health {
+    Write-Color "`n[HEALTH] Verificando probes de saude do servidor Docker..." "Cyan"
+    try {
+        $health = Invoke-RestMethod -Uri "http://localhost:3000/health" -Method Get
+        Write-Color "  [OK] /health: $($health | ConvertTo-Json -Compress)" "Green"
+        $ready = Invoke-RestMethod -Uri "http://localhost:3000/ready" -Method Get
+        Write-Color "  [OK] /ready:  $($ready | ConvertTo-Json -Compress)" "Green"
+        $live = Invoke-RestMethod -Uri "http://localhost:3000/live" -Method Get
+        Write-Color "  [OK] /live:   $($live | ConvertTo-Json -Compress)" "Green"
+    } catch {
+        Write-Color "  [ERRO] Servidor nao respondeu na porta 3000: $($_.Exception.Message)" "Red"
     }
-    
-    Write-ColorOutput "📥 Restaurando backup de $BackupDir..." "Yellow"
-    Write-ColorOutput "⚠️ ATENÇÃO: Isso substituirá os dados atuais!" "Red"
-    
-    $confirm = Read-Host "Tem certeza? (s/N)"
-    if ($confirm -ne "s") {
-        Write-ColorOutput "❌ Restauração cancelada" "Yellow"
-        return
+}
+
+function Run-Tests {
+    Write-Color "`n[TEST] Executando bateria de testes contra o container Docker..." "Cyan"
+    npm test
+}
+
+function Open-Shell {
+    Write-Color "`n[SHELL] Abrindo shell no container mdm-server..." "Cyan"
+    docker compose exec mdm-server sh
+}
+
+# Menu Interativo
+function Show-Menu {
+    while ($true) {
+        Clear-Host
+        Write-Color "======================================================================" "Blue"
+        Write-Color "     MDM SERVIDOR UNIFICADO - GERENCIADOR POWERSHELL DOCKER" "Cyan"
+        Write-Color "======================================================================" "Blue"
+        
+        if (!(Test-DockerDaemon)) {
+            Write-Color "`n[AVISO] Docker Desktop nao esta rodando ou ainda esta iniciando." "Yellow"
+            Write-Color "Por favor, inicie o aplicativo Docker Desktop antes de continuar.`n" "Yellow"
+        } else {
+            Write-Color "`n[DOCKER] Daemon: ATIVO E RESPONDENDO" "Green"
+        }
+
+        Write-Host "Escolha uma opcao:"
+        Write-Host "  1. Iniciar Stack (docker compose up -d)"
+        Write-Host "  2. Parar Stack (docker compose down)"
+        Write-Host "  3. Reconstruir Imagem do Servidor (Build)"
+        Write-Host "  4. Ver Logs em Tempo Real"
+        Write-Host "  5. Status dos Containers"
+        Write-Host "  6. Testar Probes de Saude (/health)"
+        Write-Host "  7. Executar Bateria de Testes (npm test)"
+        Write-Host "  8. Abrir Shell no Container"
+        Write-Host "  0. Sair"
+        Write-Host ""
+        
+        $choice = Read-Host "Digite a opcao desejada [0-8]"
+        switch ($choice) {
+            "1" { Start-Stack; Pause }
+            "2" { Stop-Stack; Pause }
+            "3" { Build-Image; Pause }
+            "4" { Show-Logs }
+            "5" { Show-Status; Pause }
+            "6" { Test-Health; Pause }
+            "7" { Run-Tests; Pause }
+            "8" { Open-Shell }
+            "0" { return }
+            default { Write-Color "Opcao invalida!" "Red"; Start-Sleep -Seconds 1 }
+        }
     }
-    
-    docker-compose exec -T mongodb mongorestore "/backups/$BackupDir"
-    Write-ColorOutput "✅ Backup restaurado!" "Green"
 }
 
-# ===================================================================
-# CLEAN - Limpar tudo
-# ===================================================================
-function Clear-Environment {
-    Write-ColorOutput "🧹 Limpando ambiente Docker..." "Yellow"
-    Write-ColorOutput "⚠️ ATENÇÃO: Isso irá APAGAR TODOS OS DADOS!" "Red"
-    
-    $confirm = Read-Host "Tem certeza? Digite 'LIMPAR' para confirmar"
-    if ($confirm -ne "LIMPAR") {
-        Write-ColorOutput "❌ Limpeza cancelada" "Yellow"
-        return
-    }
-    
-    docker-compose down -v
-    docker system prune -f
-    
-    Write-ColorOutput "✅ Ambiente limpo!" "Green"
+# Ponto de Entrada CLI
+if (!(Test-DockerDaemon)) {
+    Write-Color "[ERRO] O Docker Daemon nao esta respondendo. Inicie o Docker Desktop." "Red"
+    exit 1
 }
-
-# ===================================================================
-# UPDATE - Atualizar
-# ===================================================================
-function Update-Services {
-    Write-ColorOutput "🔄 Atualizando serviços..." "Blue"
-    
-    docker-compose pull
-    docker-compose build --no-cache
-    docker-compose up -d
-    
-    Write-ColorOutput "✅ Atualização concluída!" "Green"
-}
-
-# ===================================================================
-# REBUILD - Reconstruir (NOVO)
-# ===================================================================
-function Rebuild-Services {
-    Write-ColorOutput "🔨 Reconstruindo imagens do zero..." "Blue"
-    
-    docker-compose down
-    docker-compose build --no-cache
-    docker-compose up -d
-    
-    Start-Sleep -Seconds 5
-    Get-Status
-    
-    Write-ColorOutput "✅ Reconstrução concluída!" "Green"
-}
-
-# ===================================================================
-# STATS - Estatísticas
-# ===================================================================
-function Get-Stats {
-    Write-ColorOutput " Estatísticas de Recursos`n" "Blue"
-    docker stats --no-stream
-    
-    Write-ColorOutput " Uso de Disco`n" "Blue"
-    docker system df
-}
-
-# ===================================================================
-# HELP - Ajuda
-# ===================================================================
-function Show-Help {
-    Write-Host @"
-===============================================================
-           DOCKER SCRIPTS - SERVIDOR MDM
-===============================================================
-
-Uso: .\scripts\docker-scripts.ps1 [comando] [argumentos]
-
-Comandos Disponíveis:
-
-  init            Inicializar ambiente
-  start           Iniciar todos os serviços
-  stop            Parar todos os serviços
-  restart         Reiniciar todos os serviços
-  rebuild         Reconstruir imagens do zero
-  status          Ver status e health checks
-  logs [serviço]  Ver logs (padrão: mdm-server)
-  shell           Acessar shell do container
-  create-admin    Criar usuário administrador
-  backup          Fazer backup do MongoDB
-  restore <dir>   Restaurar backup
-  clean           Limpar tudo (ATENCAO: APAGA DADOS)
-  update          Atualizar e reiniciar
-  stats           Ver estatísticas
-  help            Mostrar esta ajuda
-
-Exemplos:
-
-  .\scripts\docker-scripts.ps1 init
-  .\scripts\docker-scripts.ps1 start
-  .\scripts\docker-scripts.ps1 logs mongodb
-  .\scripts\docker-scripts.ps1 rebuild
-  .\scripts\docker-scripts.ps1 backup
-
-===============================================================
-"@ -ForegroundColor Cyan
-}
-
-# ===================================================================
-# MAIN - Processar comando
-# ===================================================================
 
 switch ($Command) {
-    "init"         { Initialize-Environment }
-    "start"        { Start-Services }
-    "stop"         { Stop-Services }
-    "restart"      { Restart-Services }
-    "rebuild"      { Rebuild-Services }
-    "status"       { Get-Status }
-    "logs"         { Show-Logs -Service $Arg }
-    "shell"        { Enter-Shell }
-    "create-admin" { New-AdminUser }
-    "backup"       { New-Backup }
-    "restore"      { Restore-Backup -BackupDir $Arg }
-    "clean"        { Clear-Environment }
-    "update"       { Update-Services }
-    "stats"        { Get-Stats }
-    "backup"       { Backup-Services }
+    "up"      { Start-Stack }
+    "down"    { Stop-Stack }
+    "restart" { Stop-Stack; Start-Stack }
+    "build"   { Build-Image }
+    "logs"    { Show-Logs }
+    "status"  { Show-Status }
+    "test"    { Run-Tests }
+    "health"  { Test-Health }
+    "shell"   { Open-Shell }
+    "menu"    { Show-Menu }
 }

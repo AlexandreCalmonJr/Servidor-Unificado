@@ -23,7 +23,7 @@ if %errorlevel% neq 0 (
     )
 )
 
-:: 2. Testar se o Daemon do Docker está respondendo
+:: 2. Testar se o Daemon do Docker est?? respondendo
 docker info >nul 2>nul
 if %errorlevel% neq 0 (
     echo [ALERTA] O Docker Desktop parece estar fechado ou inicializando.
@@ -40,7 +40,7 @@ if %errorlevel% neq 0 (
 )
 echo [OK] Docker Daemon ativo e respondendo!
 
-:: 3. Prevenção de conflito de portas
+:: 3. Preven????o de conflito de portas
 netstat -ano | findstr /r ":3000 " | findstr /i "LISTENING" >nul
 if %errorlevel% equ 0 (
     echo [AVISO] A porta 3000 ja esta em uso na maquina local.
@@ -55,6 +55,17 @@ if %errorlevel% equ 0 (
 ) else (
     set "MONGO_PORT=27017"
 )
+
+:: Suporte a argumentos CLI diretos (ex: iniciar_docker.bat up)
+if /i "%1"=="up" goto START_CONTAINERS
+if /i "%1"=="start" goto START_CONTAINERS
+if /i "%1"=="down" goto STOP_CONTAINERS
+if /i "%1"=="stop" goto STOP_CONTAINERS
+if /i "%1"=="logs" goto VIEW_LOGS
+if /i "%1"=="test" goto RUN_TESTS
+if /i "%1"=="build" goto BUILD_IMAGE
+if /i "%1"=="status" goto STATUS_CONTAINERS
+if /i "%1"=="ps" goto STATUS_CONTAINERS
 
 :MENU
 echo.
@@ -93,18 +104,21 @@ if %errorlevel% equ 0 (
     echo   Health:     http://localhost:3000/health
     echo ======================================================================
 )
+if not "%~1"=="" goto :EOF
 goto MENU
 
 :VIEW_LOGS
 echo.
 echo [INFO] Exibindo logs do servidor (Pressione Ctrl+C para voltar)...
 docker compose logs -f mdm-server
+if not "%~1"=="" goto :EOF
 goto MENU
 
 :RUN_TESTS
 echo.
 echo [INFO] Executando bateria de testes integrados...
 npm test
+if not "%~1"=="" goto :EOF
 goto MENU
 
 :STOP_CONTAINERS
@@ -112,6 +126,7 @@ echo.
 echo [INFO] Parando todos os containers...
 docker compose down
 echo [OK] Containers parados com sucesso.
+if not "%~1"=="" goto :EOF
 goto MENU
 
 :BUILD_IMAGE
@@ -123,4 +138,5 @@ goto MENU
 :STATUS_CONTAINERS
 echo.
 docker compose ps
+if not "%~1"=="" goto :EOF
 goto MENU
