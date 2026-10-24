@@ -1,6 +1,9 @@
-require('dotenv').config();
-
 const path = require('path');
+const dotenv = require('dotenv');
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
+dotenv.config();
+
+const { PUBLIC_DIR, FRONTEND_DIR } = require('./config/paths');
 const cron = require('node-cron');
 
 // ===== VALIDAÇÃO DE AMBIENTE =====
@@ -29,7 +32,7 @@ const { errorHandler } = require('./middleware/error');
 const auth = require('./middleware/auth');
 const deviceAuth = require('./middleware/deviceAuth');
 const { getApiLimiter, modifyApiLimiter, enrollLimiter } = require('./middleware/rateLimiters');
-const assetStatusUpdater = require('./scripts/assetStatusUpdater');
+const assetStatusUpdater = require('../scripts/assetStatusUpdater');
 const { getLocalIPAddress } = require('./utils/helpers');
 const cacheService = require('./services/cacheService');
 const WebSocketServer = require('./services/websocketServer');
@@ -98,7 +101,7 @@ const connectDB = async () => {
       logger.info('Reconectado ao MongoDB');
     });
 
-    const createAdminUser = require('./scripts/createAdminUser');
+    const createAdminUser = require('../scripts/createAdminUser');
     await createAdminUser();
 
   } catch (err) {
@@ -172,11 +175,11 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Arquivos estáticos com cache
-app.use('/public', staticCacheMiddleware(86400), express.static(path.join(__dirname, 'public')));
+app.use('/public', staticCacheMiddleware(86400), express.static(PUBLIC_DIR));
 
 // View engine
 app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'frontend', 'views'));
+app.set('views', path.join(FRONTEND_DIR, 'views'));
 
 // ===== HEALTH / PROBES / MÉTRICAS =====
 
@@ -246,20 +249,20 @@ app.get('/provision/:token', provisioningRoutes.renderProvisioningPage(logger));
 app.get('/dashboard', auth, serverRoutes.renderDashboard(logger));
 
 app.get('/panel/index.html', requirePanelSession, (req, res) =>
-  res.sendFile(path.join(__dirname, 'frontend', 'index.html'))
+  res.sendFile(path.join(FRONTEND_DIR, 'index.html'))
 );
 // Redirect /panel and /panel/ diretamente para /panel/index.html (antes do static para evitar loop)
 app.get('/panel', (req, res) =>
   res.redirect('/panel/index.html')
 );
-app.use('/panel/views', requirePanelSession, express.static(path.join(__dirname, 'frontend', 'views'), { index: false }));
-app.use('/panel', express.static(path.join(__dirname, 'frontend'), { index: false }));
+app.use('/panel/views', requirePanelSession, express.static(path.join(FRONTEND_DIR, 'views'), { index: false }));
+app.use('/panel', express.static(FRONTEND_DIR, { index: false }));
 
 app.get('/index.html', requirePanelSession, (req, res) =>
-  res.sendFile(path.join(__dirname, 'frontend', 'index.html'))
+  res.sendFile(path.join(FRONTEND_DIR, 'index.html'))
 );
-app.use('/views', requirePanelSession, express.static(path.join(__dirname, 'frontend', 'views'), { index: false }));
-app.use(express.static(path.join(__dirname, 'frontend'), { index: false }));
+app.use('/views', requirePanelSession, express.static(path.join(FRONTEND_DIR, 'views'), { index: false }));
+app.use(express.static(FRONTEND_DIR, { index: false }));
 app.get('/', (req, res) => res.redirect('/panel'));
 
 // ===== 404 =====

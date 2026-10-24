@@ -5,6 +5,7 @@ const AssetCommand = require('../models/AssetCommand');
 const ProvisioningToken = require('../models/ProvisioningToken');
 const ConfigProfile = require('../models/ConfigProfile');
 const { getPublicBaseUrl, getLocalIPAddress } = require('../utils/helpers');
+const { PUBLIC_DIR } = require('../config/paths');
 const locationService = require('../services/locationService');
 const notificationService = require('../services/notificationService');
 
@@ -309,7 +310,7 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth, devic
         return res.status(401).send('Token de provisionamento inválido ou expirado.');
       }
 
-      const filePath = require('path').join(__dirname, '..', 'public', 'downloads', 'UnifiedDesktop.exe');
+      const filePath = require('path').join(PUBLIC_DIR, 'downloads', 'UnifiedDesktop.exe');
       try {
         await require('fs').promises.access(filePath);
       } catch {

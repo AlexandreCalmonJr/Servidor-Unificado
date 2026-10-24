@@ -687,7 +687,7 @@ async function main() {
   }
 
   if (commandNeedsService) {
-    PrinterService = require('../../services/printerService');
+    PrinterService = require('../../backend/services/printerService');
     const logger = {
       info: (...msg) => !jsonMode && console.log('[info]', ...msg),
       warn: (...msg) => !jsonMode && console.warn('[warn]', ...msg),
@@ -696,7 +696,7 @@ async function main() {
     service = new PrinterService(logger);
   }
   if (command === 'get-id') {
-    ManagedAsset = require('../../models/ManagedAsset');
+    ManagedAsset = require('../../backend/models/ManagedAsset');
   }
 
   switch (command) {

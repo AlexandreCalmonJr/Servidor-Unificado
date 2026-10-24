@@ -4,9 +4,9 @@ const mongoose = require('mongoose');
 const chalk = require('chalk');
 
 // Importar todos os models
-const { Device } = require('../models/Device');
-const User = require('../models/User');
-const AssetModuleConfig = require('../models/AssetModuleConfig');
+const { Device } = require('../backend/models/Device');
+const User = require('../backend/models/User');
+const AssetModuleConfig = require('../backend/models/AssetModuleConfig');
 // Outros models se necessário
 
 /**

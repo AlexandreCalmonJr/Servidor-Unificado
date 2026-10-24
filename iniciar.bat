@@ -45,7 +45,7 @@ echo Pressione Ctrl+C para encerrar o processo com segurança.
 echo ======================================================================
 echo.
 
-node server.js
+node backend/server.js
 
 if %errorlevel% neq 0 (
     echo.

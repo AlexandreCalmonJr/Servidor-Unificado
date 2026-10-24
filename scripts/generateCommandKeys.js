@@ -20,7 +20,7 @@ function generateKeys() {
     }
   });
 
-  const keysDir = path.join(__dirname, '..', 'config', 'keys');
+  const keysDir = path.join(__dirname, '..', 'backend', 'config', 'keys');
   if (!fs.existsSync(keysDir)) {
     fs.mkdirSync(keysDir, { recursive: true });
   }

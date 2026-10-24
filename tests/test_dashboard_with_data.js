@@ -122,20 +122,20 @@ function printBanner() {
 //  FASE 1: SEED NO BANCO
 // ═════════════════════════════════════════════════════════════════════════════
 async function seedEverything() {
-  const ManagedAsset = require('../models/ManagedAsset');
-  const AssetModuleConfig = require('../models/AssetModuleConfig');
-  const AssetCommand = require('../models/AssetCommand');
-  const ConfigProfile = require('../models/ConfigProfile');
-  const ProvisioningToken = require('../models/ProvisioningToken');
-  const BssidMapping = require('../models/BssidMapping');
-  const UnitMapping = require('../models/UnitMapping');
-  const IpMapping = require('../models/IpMapping');
-  const LocationHistory = require('../models/LocationHistory');
-  const SavedFilter = require('../models/SavedFilter');
-  const PrinterSupplyItem = require('../models/PrinterSupplyItem');
-  const PrinterSupplyMovement = require('../models/PrinterSupplyMovement');
-  const PrinterInventoryEvent = require('../models/PrinterInventoryEvent');
-  const User = require('../models/User');
+  const ManagedAsset = require('../backend/models/ManagedAsset');
+  const AssetModuleConfig = require('../backend/models/AssetModuleConfig');
+  const AssetCommand = require('../backend/models/AssetCommand');
+  const ConfigProfile = require('../backend/models/ConfigProfile');
+  const ProvisioningToken = require('../backend/models/ProvisioningToken');
+  const BssidMapping = require('../backend/models/BssidMapping');
+  const UnitMapping = require('../backend/models/UnitMapping');
+  const IpMapping = require('../backend/models/IpMapping');
+  const LocationHistory = require('../backend/models/LocationHistory');
+  const SavedFilter = require('../backend/models/SavedFilter');
+  const PrinterSupplyItem = require('../backend/models/PrinterSupplyItem');
+  const PrinterSupplyMovement = require('../backend/models/PrinterSupplyMovement');
+  const PrinterInventoryEvent = require('../backend/models/PrinterInventoryEvent');
+  const User = require('../backend/models/User');
 
   section('Populando banco de dados');
 

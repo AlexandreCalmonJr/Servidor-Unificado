@@ -8,12 +8,12 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 
 // ✅ CONSOLIDADO - Usar apenas ManagedAsset
-const ManagedAsset = require('../models/ManagedAsset');
-const AssetModule = require('../models/AssetModule');
+const ManagedAsset = require('../backend/models/ManagedAsset');
+const AssetModule = require('../backend/models/AssetModule');
 
-const AssetModuleConfig = require('../models/AssetModuleConfig');
-const UnitMapping = require('../models/UnitMapping');
-const BssidMapping = require('../models/BssidMapping');
+const AssetModuleConfig = require('../backend/models/AssetModuleConfig');
+const UnitMapping = require('../backend/models/UnitMapping');
+const BssidMapping = require('../backend/models/BssidMapping');
 
 // ===== CONFIG =====
 const COUNTS = {

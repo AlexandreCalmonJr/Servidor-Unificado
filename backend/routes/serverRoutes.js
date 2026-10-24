@@ -7,10 +7,11 @@ const fs = require('fs').promises;
 const ManagedAsset = require('../models/ManagedAsset');
 const AssetCommand = require('../models/AssetCommand');
 const { getPublicBaseUrl } = require('../utils/helpers');
+const { PUBLIC_DIR } = require('../config/paths');
 
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
-    const publicDir = path.join(__dirname, '..', 'public');
+    const publicDir = PUBLIC_DIR;
     try { await fs.access(publicDir); } catch { await fs.mkdir(publicDir, { recursive: true }); }
     cb(null, publicDir);
   },
@@ -56,7 +57,7 @@ const serverRoutes = (logger, getApiLimiter, auth) => {
   // ── Listar APKs (painel admin) ────────────────────────────────────
   router.get('/apks', auth, getApiLimiter, async (req, res) => {
     try {
-      const publicDir = path.join(__dirname, '..', 'public');
+      const publicDir = PUBLIC_DIR;
       const files = await fs.readdir(publicDir);
       const apks = await Promise.all(
         files
@@ -116,7 +117,7 @@ const serverRoutes = (logger, getApiLimiter, auth) => {
         return res.status(400).json({ success: false, message: 'Nome de arquivo inválido' });
       }
 
-      const filePath = path.join(__dirname, '..', 'public', filename);
+      const filePath = path.join(PUBLIC_DIR, filename);
       try { await fs.access(filePath); } catch {
         return res.status(404).json({ success: false, message: 'Arquivo não encontrado' });
       }
@@ -139,7 +140,7 @@ module.exports = serverRoutes;
 module.exports.renderDashboard = (logger) => async (req, res) => {
   try {
     const devices = await ManagedAsset.find().lean();
-    const publicDir = path.join(__dirname, '..', 'public');
+    const publicDir = PUBLIC_DIR;
     const files = await fs.readdir(publicDir);
     const apks = files.filter(f => f.endsWith('.apk')).map(f => ({
       name: f,

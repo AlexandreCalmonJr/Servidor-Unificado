@@ -8,9 +8,9 @@ const path = require('path');
 // Carrega variáveis de ambiente
 dotenv.config();
 
-const ManagedAsset = require('../../models/ManagedAsset');
-const AssetModuleConfig = require('../../models/AssetModuleConfig');
-const PrinterService = require('../../services/printerService');
+const ManagedAsset = require('../../backend/models/ManagedAsset');
+const AssetModuleConfig = require('../../backend/models/AssetModuleConfig');
+const PrinterService = require('../../backend/services/printerService');
 
 async function runTest() {
   console.log('🚀 Iniciando teste do módulo de impressoras...');

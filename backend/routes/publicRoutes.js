@@ -3,6 +3,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs').promises;
 const { getPublicBaseUrl } = require('../utils/helpers');
+const { PUBLIC_DIR } = require('../config/paths');
 
 const publicRoutes = (logger, getApiLimiter) => {
   const router = express.Router();
@@ -24,7 +25,7 @@ const publicRoutes = (logger, getApiLimiter) => {
 
   router.get('/public/apks.json', getApiLimiter, async (req, res) => {
     try {
-      const publicDir = path.join(__dirname, '..', 'public');
+      const publicDir = PUBLIC_DIR;
 
       logger.debug('Listando APKs na pasta public', {
         path: publicDir,

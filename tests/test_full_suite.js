@@ -116,9 +116,9 @@ async function runAllTests() {
   // ────────────────────────────────────────────────────────────
   log('\n3. Criptografia Assimétrica de Comandos Remotos (RSA-SHA256):', 'blue');
   try {
-    const { signCommand, verifyCommand } = require('../utils/commandSignature');
-    const privPath = path.join(__dirname, '..', 'config', 'keys', 'command_private_key.pem');
-    const pubPath = path.join(__dirname, '..', 'config', 'keys', 'command_public_key.pem');
+    const { signCommand, verifyCommand } = require('../backend/utils/commandSignature');
+    const privPath = path.join(__dirname, '..', 'backend', 'config', 'keys', 'command_private_key.pem');
+    const pubPath = path.join(__dirname, '..', 'backend', 'config', 'keys', 'command_public_key.pem');
 
     const privKey = fs.readFileSync(privPath, 'utf8');
     const pubKey = fs.readFileSync(pubPath, 'utf8');

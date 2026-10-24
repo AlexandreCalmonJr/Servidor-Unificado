@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const compression = require('compression');
 const cors = require('cors');
+const { PUBLIC_DIR, FRONTEND_DIR } = require('./paths');
 
 const { modifyApiLimiter, getApiLimiter, enrollLimiter } = require('../middleware/rateLimiters');
 const auth = require('../middleware/auth');
@@ -40,9 +41,9 @@ const expressConfig = (app, logger) => {
   app.use(cors());
   app.use(express.json());
   app.set('view engine', 'ejs');
-  app.set('views', path.join(__dirname, '..', 'views'));
-  app.use(express.static(path.join(__dirname, '..', 'public', 'web')));
-  app.use('/public', express.static(path.join(__dirname, '..', 'public')));
+  app.set('views', path.join(FRONTEND_DIR, 'views'));
+  app.use(express.static(path.join(PUBLIC_DIR, 'web')));
+  app.use('/public', express.static(PUBLIC_DIR));
   app.use(requestLogger);
 
   // ── Rotas públicas ───────────────────────────────────────────────

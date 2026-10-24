@@ -1,10 +1,10 @@
 // File: jobs/assetStatusUpdater.js
 // CORREÇÃO (Item 15): Removida a lógica de cron daqui
 const cron = require('node-cron');
-const logger = require('../utils/logger'); // Ajuste o path se o logger estiver em outro lugar (ex: ./utils/logger)
+const logger = require('../backend/utils/logger'); // Ajuste o path se o logger estiver em outro lugar (ex: ./utils/logger)
 
 // ✅ CONSOLIDADO - Usar apenas ManagedAsset
-const ManagedAsset = require('../models/ManagedAsset');
+const ManagedAsset = require('../backend/models/ManagedAsset');
 const models = [ManagedAsset];
 
 /**
