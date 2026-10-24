@@ -13,7 +13,8 @@
     "format": "prettier --write \"**/*.{js,json,md}\"",
     "format:check": "prettier --check \"**/*.{js,json,md}\"",
     "create-indexes": "node scripts/createIndexes.js",
-    "test": "node tests/test_server_endpoints.js",
+    "test": "node tests/test_full_suite.js",
+    "test:endpoints": "node tests/test_server_endpoints.js",
     "dashboard:demo": "node tests/test_dashboard_with_data.js",
     "audit:security": "npm audit --audit-level=moderate"
   },

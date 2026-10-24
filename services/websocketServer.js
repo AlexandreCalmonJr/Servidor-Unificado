@@ -155,7 +155,7 @@ class WebSocketServer {
       asset = await ManagedAsset.findOne({ hostname: data.hostname });
     }
 
-    if (!asset && data.clientId !== 'test_script') {
+    if (!asset && data.clientId !== 'test_script' && ws.auth?.kind !== 'device') {
       logger.warn(`Asset not found for WS message: ${JSON.stringify(data)}`);
       return;
     }

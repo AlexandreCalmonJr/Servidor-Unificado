@@ -40,7 +40,7 @@ const enrollLimiter = rateLimit({
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: process.env.NODE_ENV === 'production' ? 10 : 100,
   keyGenerator: (req) => `${req.ip}:${String(req.body?.username || '').toLowerCase()}`,
   message: 'Muitas tentativas de login, tente novamente apos 15 minutos.',
   standardHeaders: true,

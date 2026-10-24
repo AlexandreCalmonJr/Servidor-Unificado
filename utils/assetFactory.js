@@ -96,7 +96,7 @@ function getModuleInfo(moduleType) {
  * @returns {boolean}
  */
 function isSupported(moduleType) {
-  return ASSET_TYPES.hasOwnProperty(moduleType.toLowerCase().trim());
+  return Object.prototype.hasOwnProperty.call(ASSET_TYPES, moduleType.toLowerCase().trim());
 }
 
 /**
