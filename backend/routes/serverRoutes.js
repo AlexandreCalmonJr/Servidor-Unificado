@@ -41,12 +41,37 @@ const serverRoutes = (logger, getApiLimiter, auth) => {
       const totalIdle = cpus.reduce((s, c) => s + c.times.idle, 0);
       const totalTick = cpus.reduce((s, c) => s + Object.values(c.times).reduce((t, v) => t + v, 0), 0);
 
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const activeFilter = { is_deleted: { $ne: true } };
+
+      const [deviceCount, activeDevices, provisionedDevices, pendingCommands] = await Promise.all([
+        ManagedAsset.countDocuments(activeFilter),
+        ManagedAsset.countDocuments({
+          ...activeFilter,
+          status: { $in: ['online', 'active'] },
+          last_seen: { $gte: fiveMinutesAgo },
+        }),
+        ManagedAsset.countDocuments({
+          ...activeFilter,
+          $or: [
+            { token_status: { $in: ['active', 'legacy'] } },
+            { device_token_hash: { $ne: null } },
+            { provisioning_status: 'enrolled' },
+          ],
+        }),
+        AssetCommand.countDocuments({ status: 'pending' }),
+      ]);
+
       res.status(200).json({
         cpu_usage: totalTick ? parseFloat(((1 - totalIdle / totalTick) * 100).toFixed(2)) : 0,
         memory_usage: parseFloat(((1 - os.freemem() / os.totalmem()) * 100).toFixed(2)),
-        uptime: os.uptime(),
-        device_count: await ManagedAsset.countDocuments(),
-        pending_commands: await AssetCommand.countDocuments({ status: 'pending' }),
+        uptime: Math.round(process.uptime()),
+        process_uptime: Math.round(process.uptime()),
+        host_uptime: Math.round(os.uptime()),
+        device_count: deviceCount,
+        active_devices: activeDevices,
+        provisioned_devices: provisionedDevices,
+        pending_commands: pendingCommands,
       });
     } catch (err) {
       logger.error(`Erro ao obter métricas: ${err.message}`);

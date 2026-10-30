@@ -206,10 +206,12 @@ managedAssetSchema.index({ last_seen: -1 });
 managedAssetSchema.index({ location: 1 });
 managedAssetSchema.index({ asset_name: 'text', serial_number: 'text' });
 
-// 🗑️ Índices para soft delete
+// 🗑️ Índices para soft delete e consultas de alta performance (P3)
 managedAssetSchema.index({ deleted_at: 1 });
 managedAssetSchema.index({ is_deleted: 1 });
 managedAssetSchema.index({ module_id: 1, is_deleted: 1 });
+managedAssetSchema.index({ module_id: 1, is_deleted: 1, status: 1, last_seen: -1 });
+managedAssetSchema.index({ is_deleted: 1, asset_type: 1, last_seen: -1 });
 
 // ─── Virtual ──────────────────────────────────────────────────────────
 managedAssetSchema.virtual('is_currently_online').get(function () {

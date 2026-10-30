@@ -13,7 +13,8 @@ const {
   updateAsset,
 } = require('../utils/assetFactory');
 const { getSupportedTypes } = require('../utils/assetFactory');
-const { cursorPaginate, parseCursorParams, formatCursorResponse } = require('../utils/paginationHelper');
+const { cursorPaginate, parseCursorParams, formatCursorResponse, ASSET_SUMMARY_PROJECTION } = require('../utils/paginationHelper');
+const cacheService = require('../services/cacheService');
 
 const { getModuleStats, getActiveModules } = require('../controllers/assetModuleController');
 
@@ -28,6 +29,18 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       return AssetModuleConfig.findById(param);
     }
     return AssetModuleConfig.findOne({ type: param });
+  };
+
+  // ===== HELPER: Invalidação Ativa de Cache (P3) =====
+  const invalidateModuleCache = async (moduleId) => {
+    try {
+      if (moduleId) {
+        await cacheService.del(`stats:${moduleId}`);
+      }
+      await cacheService.del('modules:list');
+    } catch (e) {
+      logger.warn(`Falha na invalidação de cache: ${e.message}`);
+    }
   };
 
   // ===== AUTENTICAÇÃO FLEXÍVEL =====
@@ -69,22 +82,27 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
 
   router.get('/active', flexibleAuth, getApiLimiter, getActiveModules);
 
-  // GET /api/modules — lista módulos com contagem de ativos ISOLADA por module_id
+  // GET /api/modules — lista módulos com contagem agregada de ativos (SEM N+1)
   router.get('/', flexibleAuth, getApiLimiter, async (req, res) => {
     try {
-      const modules = await AssetModuleConfig.find().sort({ created_at: -1 }).lean();
+      const ManagedAsset = require('../models/ManagedAsset');
+      const [modules, counts] = await Promise.all([
+        AssetModuleConfig.find().sort({ created_at: -1 }).lean(),
+        ManagedAsset.aggregate([
+          { $match: { is_deleted: { $ne: true } } },
+          { $group: { _id: '$module_id', count: { $sum: 1 } } },
+        ]),
+      ]);
 
-      const modulesWithCount = await Promise.all(
-        modules.map(async (m) => {
-          const Model = getModelByType(m.type);
-          // ✅ CORREÇÃO: filtra por module_id e ignora deletados
-          const count = Model ? await Model.countDocuments({
-            module_id: m._id,
-            is_deleted: { $ne: true }
-          }) : 0;
-          return { ...m, id: m._id, asset_count: count };
-        })
-      );
+      const countMap = new Map();
+      for (const item of counts) {
+        if (item._id) countMap.set(item._id.toString(), item.count);
+      }
+
+      const modulesWithCount = modules.map((m) => {
+        const count = countMap.get(m._id.toString()) || 0;
+        return { ...m, id: m._id, asset_count: count };
+      });
 
       logger.info(`Módulos listados: ${modulesWithCount.length} por ${req.user.username}`);
       res.json({ success: true, modules: modulesWithCount });
@@ -101,7 +119,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
 
       const Model = getModelByType(module.type);
-      // ✅ CORREÇÃO: conta apenas ativos deste módulo específico ignorando deletados
       const assetCount = Model ? await Model.countDocuments({
         module_id: module._id,
         is_deleted: { $ne: true }
@@ -115,7 +132,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
     }
   });
 
-  // GET /api/modules/:moduleId/stats
+  // GET /api/modules/:moduleId/stats — Agregação única via $facet no MongoDB
   router.get('/:moduleId/stats', flexibleAuth, getApiLimiter, async (req, res) => {
     try {
       const module = await findModuleParam(req.params.moduleId);
@@ -125,7 +142,6 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       if (!Model) return res.status(400).json({ success: false, message: 'Tipo não suportado' });
 
       // 💾 Verificar cache
-      const cacheService = require('../services/cacheService');
       const cacheKey = `stats:${module._id}`;
       const cachedStats = await cacheService.get(cacheKey);
       if (cachedStats) {
@@ -133,25 +149,67 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
         return res.json({ success: true, ...cachedStats, fromCache: true });
       }
 
-      // ✅ CORREÇÃO: stats isolados por module_id e ignorando deletados
+      // ✅ Agregação única no MongoDB em um único roundtrip
       const moduleFilter = {
         module_id: module._id,
-        is_deleted: { $ne: true }
+        is_deleted: { $ne: true },
       };
 
-      const [total, online, offline, maintenance] = await Promise.all([
-        Model.countDocuments(moduleFilter),
-        Model.countDocuments({ ...moduleFilter, status: { $in: ['online', 'active'] } }),
-        Model.countDocuments({ ...moduleFilter, status: { $in: ['offline', 'inactive', 'failed', 'unknown'] } }),
-        Model.countDocuments({ ...moduleFilter, status: 'maintenance' }),
+      const [aggResult] = await Model.aggregate([
+        { $match: moduleFilter },
+        {
+          $facet: {
+            total: [{ $count: 'count' }],
+            online: [
+              { $match: { status: { $in: ['online', 'active'] } } },
+              { $count: 'count' },
+            ],
+            offline: [
+              { $match: { status: { $in: ['offline', 'inactive', 'failed', 'unknown'] } } },
+              { $count: 'count' },
+            ],
+            maintenance: [
+              { $match: { status: 'maintenance' } },
+              { $count: 'count' },
+            ],
+            healthy: [
+              { $match: { health_status: 'healthy' } },
+              { $count: 'count' },
+            ],
+            degraded: [
+              { $match: { health_status: 'degraded' } },
+              { $count: 'count' },
+            ],
+            error: [
+              { $match: { health_status: 'error' } },
+              { $count: 'count' },
+            ],
+          },
+        },
       ]);
 
-      const stats = { total, online, offline, maintenance };
+      const total = aggResult?.total?.[0]?.count || 0;
+      const online = aggResult?.online?.[0]?.count || 0;
+      const offline = aggResult?.offline?.[0]?.count || 0;
+      const maintenance = aggResult?.maintenance?.[0]?.count || 0;
+      const healthy = aggResult?.healthy?.[0]?.count || 0;
+      const degraded = aggResult?.degraded?.[0]?.count || 0;
+      const errorCount = aggResult?.error?.[0]?.count || 0;
+
+      const stats = {
+        total,
+        online,
+        offline,
+        maintenance,
+        healthy,
+        degraded,
+        error: errorCount,
+      };
 
       // 💾 Cachear por 60 segundos
       await cacheService.set(cacheKey, stats, 60);
 
-      logger.info(`📊 Stats calculados para ${module.name}`);
+      logger.info(`📊 Stats calculados via agregação única para ${module.name}`);
       res.json({ success: true, ...stats, fromCache: false });
     } catch (error) {
       logger.error(`Erro ao buscar stats: ${error.message}`);
@@ -276,8 +334,13 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
         ];
       }
 
+      const query = Model.find(filter);
+      if (req.query.full !== 'true' && req.query.full !== true) {
+        query.select(ASSET_SUMMARY_PROJECTION);
+      }
+
       const [assets, total] = await Promise.all([
-        Model.find(filter).sort({ last_seen: -1 }).skip((page - 1) * limit).limit(+limit).lean(),
+        query.sort({ last_seen: -1 }).skip((page - 1) * limit).limit(+limit).lean(),
         Model.countDocuments(filter),
       ]);
 
@@ -313,6 +376,10 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
         module_id: module._id,
         is_deleted: { $ne: true }
       });
+
+      if (req.query.full !== 'true' && req.query.full !== true) {
+        query.select(ASSET_SUMMARY_PROJECTION);
+      }
 
       if (status) query = query.where('status').equals(status);
       if (search) {
@@ -379,6 +446,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
         let asset;
         if (existing) {
           asset = await updateAsset(moduleType, existing._id, req.body, { agentIngest });
+          await invalidateModuleCache(moduleId);
           logger.info(`✏️ Ativo ATUALIZADO: ${asset.asset_name} (S/N: ${asset.serial_number}) no módulo ${moduleId}`);
           return res.json({
             success: true,
@@ -388,6 +456,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
           });
         } else {
           asset = await createAsset(moduleType, req.body, { agentIngest });
+          await invalidateModuleCache(moduleId);
           logger.info(`✨ Ativo CRIADO: ${asset.asset_name} (S/N: ${asset.serial_number}) no módulo ${moduleId}`);
           return res.status(201).json({
             success: true,
@@ -440,6 +509,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       try {
         const moduleType = req.moduleType;
         const asset = await updateAsset(moduleType, req.params.assetId, req.body, { resolveLocation: false });
+        await invalidateModuleCache(req.params.moduleId);
         logger.info(`Ativo atualizado (painel): ${asset.asset_name} por ${req.user.username}`);
         res.json({ success: true, message: 'Atualizado', asset: transformAssetForOutput(asset) });
       } catch (error) {
@@ -485,6 +555,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       });
       if (!asset) return res.status(404).json({ success: false, message: 'Ativo não encontrado neste módulo' });
 
+      await invalidateModuleCache(module._id);
       logger.info(`Ativo excluído: ${asset.asset_name} por ${req.user.username}`);
       res.json({ success: true, message: 'Excluído' });
     } catch (error) {
@@ -607,6 +678,8 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
         timestamp: new Date(),
       });
 
+      await invalidateModuleCache(module._id);
+
       res.json({
         success: true,
         message: isQuarantine ? 'Dispositivo colocado em quarentena' : 'Dispositivo removido da quarentena',
@@ -639,6 +712,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       // Desconecta qualquer sessão WebSocket ativa do dispositivo imediatamente
       WebSocketServer.disconnectAsset(assetId, 4001, 'Credencial revogada pelo administrador');
 
+      await invalidateModuleCache(module._id);
       logger.warn(`Credencial do ativo REVOGADA: ${asset.asset_name} (${asset.serial_number}) por ${req.user.username}`);
 
       res.json({
@@ -682,6 +756,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
       // Desconecta conexões antigas
       WebSocketServer.disconnectAsset(assetId, 4002, 'Credencial rotacionada');
 
+      await invalidateModuleCache(module._id);
       logger.info(`Credencial do ativo ROTACIONADA: ${asset.asset_name} (${asset.serial_number}) por ${req.user.username}`);
 
       res.json({
