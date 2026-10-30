@@ -13,11 +13,10 @@ function cleanIpAddress(rawIp) {
   return rawIp.replace(/[[\]]/g, '');
 }
 
-const _calculateStatus = ({ printer_status, last_seen }) => {
-  const isOffline = (Date.now() - new Date(last_seen)) > 2 * 60 * 1000;
-  if (isOffline) return 'offline';
-  if (printer_status && printer_status.toLowerCase().includes('error')) return 'error';
-  return 'online';
+const _deriveStatus = (printerStatus) => {
+  // Status é sempre decidido pelo servidor; erro de impressora vira 'error'.
+  const value = String(printerStatus || '');
+  return /error|erro|falha/i.test(value) ? 'error' : 'online';
 };
 
 /**
@@ -50,8 +49,16 @@ async function resolveModuleId(assetType, logger) {
 exports.handleAgentData = async (req, res) => {
   const logger = req.logger || console;
   try {
-    const data = req.body;
-    const cleanIp = cleanIpAddress(req.ip || req.connection.remoteAddress);
+    const data = req.body || {};
+    const cleanIp = cleanIpAddress(req.ip || req.connection?.remoteAddress);
+
+    const serialNumber = String(data.serial_number || data.serialNumber || '').trim();
+    if (!serialNumber) {
+      return res.status(400).json({
+        success: false,
+        error: 'serial_number/serialNumber é obrigatório',
+      });
+    }
 
     // asset_type pode vir no body; se não, assume 'totem' para compatibilidade
     const assetType = data.asset_type || 'totem';
@@ -74,38 +81,64 @@ exports.handleAgentData = async (req, res) => {
     const locationResult = await locationService.mapDeviceLocation({
       ip_address: cleanIp,
       mac_address_radio: data.mac_address_radio,
-      device_name: data.hostname || data.serialNumber,
+      device_name: data.hostname || serialNumber,
     });
+
+    const printerStatus = data.printer_status ?? data.printerStatus ?? null;
+    const existing = await ManagedAsset.findOne({
+      module_id: moduleId,
+      serial_number: serialNumber,
+    }).lean();
+    const existingCustom = existing?.custom_data
+      ? (existing.custom_data instanceof Map ? Object.fromEntries(existing.custom_data) : existing.custom_data)
+      : {};
+
+    const defined = (obj) => Object.fromEntries(
+      Object.entries(obj).filter(([, value]) => value !== undefined)
+    );
+
+    const mergedCustomData = {
+      ...existingCustom,
+      ...defined({
+        printer_status: printerStatus,
+        installed_programs: data.installed_programs ?? data.installedPrograms,
+        biometric_status: data.biometric_reader ?? data.biometricReaderStatus,
+        zebra_status: data.zebra_status ?? data.zebraStatus,
+        bematech_status: data.bematech_status ?? data.bematechStatus,
+        totem_type: data.totem_type ?? data.totemType,
+      }),
+    };
 
     const assetData = {
       module_id: moduleId,           // ← obrigatório, resolvido acima
       asset_type: assetType,
-      serial_number: data.serialNumber,
-      asset_name: data.hostname || `${assetType}-${data.serialNumber}`,
+      serial_number: serialNumber,
+      asset_name: data.asset_name || data.hostname || `${assetType}-${serialNumber}`,
       ip_address: cleanIp,
-      mac_address: data.mac_address_radio,
-      status: _calculateStatus({ printer_status: data.printerStatus, last_seen: new Date() }),
+      mac_address: data.mac_address || null,
+      mac_address_radio: data.mac_address_radio || null,
+      status: _deriveStatus(printerStatus),
       last_seen: new Date(),
       unit: locationResult.unit || 'Desconhecida',
       sector: locationResult.sector,
       floor: locationResult.floor,
 
       // Campos comuns a agentes desktop/totem
-      hostname: data.hostname,
-      model: data.model || 'N/A',
-      ram: data.ram,
-      storage_type: data.hdType,
-      storage: data.hdStorage,
+      hostname: data.hostname || null,
+      model: data.model || null,
+      ram: data.ram || null,
+      storage_type: data.storage_type || data.hdType || null,
+      storage: data.storage || data.hdStorage || null,
 
-      // Dados extras preservados em custom_data
-      custom_data: {
-        printer_status: data.printerStatus,
-        installed_programs: data.installedPrograms,
-        biometric_status: data.biometricReaderStatus,
-        zebra_status: data.zebraStatus,
-        bematech_status: data.bematechStatus,
-        totem_type: data.totemType,
-      },
+      // Campos de totem no nível superior (contrato único)
+      printer_status: printerStatus,
+      zebra_status: data.zebra_status ?? data.zebraStatus ?? null,
+      bematech_status: data.bematech_status ?? data.bematechStatus ?? null,
+      biometric_reader: data.biometric_reader ?? data.biometricReaderStatus ?? null,
+      totem_type: data.totem_type ?? data.totemType ?? null,
+
+      // Dados extras preservados em custom_data (merge, não overwrite)
+      custom_data: mergedCustomData,
     };
 
     // Upsert seguro: filtra pelo par {module_id, serial_number} garantindo
@@ -113,14 +146,14 @@ exports.handleAgentData = async (req, res) => {
     const asset = await ManagedAsset.findOneAndUpdate(
       {
         module_id: moduleId,
-        serial_number: assetData.serial_number,
+        serial_number: serialNumber,
       },
-      assetData,
-      { upsert: true, new: true }
+      { $set: assetData },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
     logger.logDeviceOperation('agent_data_received', {
-      serialNumber: data.serialNumber,
+      serialNumber,
       hostname: data.hostname,
       asset_type: assetType,
       module_id: moduleId,

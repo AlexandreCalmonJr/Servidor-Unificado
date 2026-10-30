@@ -302,8 +302,20 @@ const validateByModuleId = async (req, res, next) => {
  * @param {string} moduleType - Tipo do módulo
  * @returns {Object} Dados sanitizados
  */
-async function sanitizeAssetData(data, moduleType) {
+// Campos controlados exclusivamente pelo servidor/painel.
+// Nunca aceitar do payload de agente (proteção contra mass assignment).
+const PROTECTED_FIELDS = [
+  '_id', '__v', 'module_id', 'status', 'last_seen',
+  'is_deleted', 'deleted_at', 'deleted_by',
+  'created_at', 'updated_at', 'created_by', 'updated_by',
+  'provisioning_status',
+];
+
+async function sanitizeAssetData(data, moduleType, options = {}) {
   const sanitized = { ...data };
+
+  // Remove campos que o cliente não pode controlar.
+  for (const field of PROTECTED_FIELDS) delete sanitized[field];
 
   // Remove campos vazios ou "N/A" desnecessários
   Object.keys(sanitized).forEach(key => {
@@ -312,6 +324,11 @@ async function sanitizeAssetData(data, moduleType) {
         sanitized[key] = null;
       }
     }
+  });
+
+  // Não sobrescrever com undefined em atualizações parciais.
+  Object.keys(sanitized).forEach(key => {
+    if (sanitized[key] === undefined) delete sanitized[key];
   });
 
   // Normaliza MAC Address
@@ -325,19 +342,16 @@ async function sanitizeAssetData(data, moduleType) {
   // Define tipo do ativo
   sanitized.asset_type = moduleType;
 
-  // Garante campos base
-  if (!sanitized.status) {
-    sanitized.status = 'online';
-  }
-
-  if (!sanitized.last_seen) {
+  if (options.agentIngest) {
+    // Status é decisão do servidor, nunca do agente.
+    const printerStatus = sanitized.custom_data?.printer_status || sanitized.printer_status || '';
+    sanitized.status = /error|erro|falha/i.test(String(printerStatus)) ? 'error' : 'online';
     sanitized.last_seen = new Date();
+  } else if (options.isNew) {
+    if (!sanitized.status) sanitized.status = 'online';
+    if (!sanitized.last_seen) sanitized.last_seen = new Date();
   }
-
-  // ✅ CORREÇÃO: Garante que o ativo não nasce deletado no banco de dados
-  if (sanitized.is_deleted === undefined) {
-    sanitized.is_deleted = false;
-  }
+  // Em update administrativo não tocamos em status/last_seen.
 
   // =================================================================
   // Data
@@ -359,8 +373,9 @@ async function sanitizeAssetData(data, moduleType) {
   const unitUnknown = (!sanitized.unit || sanitized.unit === 'N/A' || sanitized.unit === 'Desconhecido');
   const sectorUnknown = (!sanitized.sector || sanitized.sector === 'Desconhecido');
   const floorUnknown = (!sanitized.floor || sanitized.floor === 'Desconhecido');
+  const hasLocationHint = Boolean(sanitized.ip_address || sanitized.mac_address || sanitized.mac_address_radio);
 
-  if (unitUnknown || sectorUnknown || floorUnknown) {
+  if (options.resolveLocation !== false && hasLocationHint && (unitUnknown || sectorUnknown || floorUnknown)) {
     const deviceData = {
       ip_address: sanitized.ip_address || sanitized.host_computer_ip || 'N/A', // Para printers USB
       mac_address_radio: sanitized.mac_address || sanitized.macAddress || 'N/A',
@@ -420,9 +435,9 @@ function transformAssetForOutput(asset) {
  * @param {Object} data 
  * @returns {Promise<Document>}
  */
-async function createAsset(moduleType, data) {
+async function createAsset(moduleType, data, options = {}) {
   const Model = getModelByType(moduleType);
-  const sanitized = await sanitizeAssetData(data, moduleType);
+  const sanitized = await sanitizeAssetData(data, moduleType, { ...options, isNew: true });
 
   const asset = new Model(sanitized);
 
@@ -451,9 +466,9 @@ async function createAsset(moduleType, data) {
  * @param {Object} data 
  * @returns {Promise<Document>}
  */
-async function updateAsset(moduleType, assetId, data) {
+async function updateAsset(moduleType, assetId, data, options = {}) {
   const Model = getModelByType(moduleType);
-  const sanitized = await sanitizeAssetData(data, moduleType);
+  const sanitized = await sanitizeAssetData(data, moduleType, options);
 
   const asset = await Model.findById(assetId);
   if (!asset) {
@@ -463,8 +478,10 @@ async function updateAsset(moduleType, assetId, data) {
   // Detecta mudança de localização para histórico BEFORE update
   const oldLoc = { u: asset.unit, s: asset.sector, f: asset.floor };
 
-  // Aplica atualizações
-  Object.assign(asset, sanitized);
+  // Aplica apenas chaves definidas: update parcial não apaga dados existentes.
+  Object.keys(sanitized).forEach((key) => {
+    if (sanitized[key] !== undefined) asset[key] = sanitized[key];
+  });
 
   // Validação manual ou via save()
   // Mongoose apply changes

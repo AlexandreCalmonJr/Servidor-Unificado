@@ -25,7 +25,7 @@ const managedAssetSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['online', 'offline', 'maintenance', 'retired', 'unknown'],
+    enum: ['online', 'offline', 'maintenance', 'retired', 'unknown', 'error'],
     default: 'offline'
   },
   last_seen: {

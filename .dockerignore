@@ -5,6 +5,7 @@ node_modules
 # Arquivos de Ambiente e Configuração
 .env
 .env.example
+secrets/
 .git
 .gitignore
 .dockerignore

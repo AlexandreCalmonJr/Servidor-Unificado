@@ -242,8 +242,9 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth, devic
         config_profile: token.config_profile,
         module_id: configProfile.module_id?.toString() || null,
         module_type: configProfile.module_type || 'desktop',
-        // Token de autenticação para uso contínuo pelo agente após enrollment
-        device_token: process.env.AUTH_TOKEN,
+        // A credencial por dispositivo será emitida no fluxo de identidade (fase P1).
+        // Nunca devolver o AUTH_TOKEN global do servidor aqui.
+        credential_type: 'provisioning_only',
         local_admin_password: localAdminPassword,
         commands_count: initialCommands.length,
       });

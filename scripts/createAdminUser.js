@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 const User = require('../backend/models/User');
 require('dotenv').config();
 
@@ -21,11 +22,14 @@ const createAdminUser = async (isStandalone = false) => {
             return;
         }
 
-        // Criar usuário administrador padrão
+        // Senha inicial vem do ambiente; se ausente, gera aleatória e mostra uma única vez.
+        const generated = !process.env.ADMIN_PASSWORD;
+        const initialPassword = process.env.ADMIN_PASSWORD || crypto.randomBytes(18).toString('base64url');
+
         const adminUser = new User({
             username: 'admin',
             email: 'admin@mdm.local',
-            password: 'admin123', // Será criptografada automaticamente pelo modelo
+            password: initialPassword,
             role: 'admin',
             sector: 'Global'
         });
@@ -34,8 +38,11 @@ const createAdminUser = async (isStandalone = false) => {
 
         console.log('✅ Usuário administrador criado com sucesso!');
         console.log('Username: admin');
-        console.log('Password: admin123');
-        console.log('⚠️  IMPORTANTE: Altere a senha padrão após o primeiro login!');
+        if (generated) {
+            console.log(`Senha inicial gerada (guarde e troque no primeiro acesso): ${initialPassword}`);
+        } else {
+            console.log('Senha inicial definida por ADMIN_PASSWORD (não exibida).');
+        }
 
     } catch (error) {
         console.error('❌ Erro ao criar usuário administrador:', error.message);

@@ -10,6 +10,10 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Segredos locais — nunca versionar
+secrets/
+backend/config/keys/command_private_key.pem
 .DS_Store
 coverage/
 dist/

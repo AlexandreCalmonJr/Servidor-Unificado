@@ -366,6 +366,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
         const moduleType = req.moduleType;
         const Model = getModelByType(moduleType);
         const moduleId = req.module?._id || req.body.module_id;
+        const agentIngest = req.user?.role === 'device';
 
         // ✅ CORREÇÃO: busca ativo existente DENTRO deste módulo
         // Evita colisão de serial_number entre módulos diferentes
@@ -376,7 +377,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
 
         let asset;
         if (existing) {
-          asset = await updateAsset(moduleType, existing._id, req.body);
+          asset = await updateAsset(moduleType, existing._id, req.body, { agentIngest });
           logger.info(`✏️ Ativo ATUALIZADO: ${asset.asset_name} (S/N: ${asset.serial_number}) no módulo ${moduleId}`);
           return res.json({
             success: true,
@@ -385,7 +386,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
             updated: true
           });
         } else {
-          asset = await createAsset(moduleType, req.body);
+          asset = await createAsset(moduleType, req.body, { agentIngest });
           logger.info(`✨ Ativo CRIADO: ${asset.asset_name} (S/N: ${asset.serial_number}) no módulo ${moduleId}`);
           return res.status(201).json({
             success: true,
@@ -437,7 +438,7 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
     async (req, res) => {
       try {
         const moduleType = req.moduleType;
-        const asset = await updateAsset(moduleType, req.params.assetId, req.body);
+        const asset = await updateAsset(moduleType, req.params.assetId, req.body, { resolveLocation: false });
         logger.info(`Ativo atualizado (painel): ${asset.asset_name} por ${req.user.username}`);
         res.json({ success: true, message: 'Atualizado', asset: transformAssetForOutput(asset) });
       } catch (error) {

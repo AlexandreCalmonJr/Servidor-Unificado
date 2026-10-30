@@ -20,26 +20,22 @@ function generateKeys() {
     }
   });
 
-  const keysDir = path.join(__dirname, '..', 'backend', 'config', 'keys');
+  const keysDir = path.join(__dirname, '..', 'secrets');
   if (!fs.existsSync(keysDir)) {
     fs.mkdirSync(keysDir, { recursive: true });
   }
 
   const privPath = path.join(keysDir, 'command_private_key.pem');
-  const pubPath = path.join(keysDir, 'command_public_key.pem');
+  const pubPath = path.join(__dirname, '..', 'backend', 'config', 'keys', 'command_public_key.pem');
 
   fs.writeFileSync(privPath, privateKey, { mode: 0o600 });
   fs.writeFileSync(pubPath, publicKey, { mode: 0o644 });
 
   console.log('✅ Chaves salvas com sucesso em:');
-  console.log(`   - Chave Privada (Servidor): ${privPath}`);
-  console.log(`   - Chave Pública (Agentes):  ${pubPath}`);
-
-  console.log('\n💡 Instruções de Configuração no .env:');
-  console.log('--------------------------------------------------');
-  const envFormat = privateKey.replace(/\r?\n/g, '\\n');
-  console.log(`COMMAND_SIGNING_PRIVATE_KEY="${envFormat}"`);
-  console.log('--------------------------------------------------\n');
+  console.log(`   - Chave Privada (servidor, NÃO versionar): ${privPath}`);
+  console.log(`   - Chave Pública (agentes):                ${pubPath}`);
+  console.log('\n💡 O servidor lê a privada de COMMAND_SIGNING_PRIVATE_KEY_FILE');
+  console.log('   ou do caminho padrão secrets/command_private_key.pem.\n');
 }
 
 if (require.main === module) {

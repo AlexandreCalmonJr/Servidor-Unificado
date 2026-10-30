@@ -12,7 +12,7 @@ module.exports = (logger, modifyApiLimiter, getApiLimiter, deviceAuth) => {
   router.post('/heartbeat', deviceAuth, modifyApiLimiter, async (req, res) => {
     const log = req.logger || logger;
     try {
-      const { device_id, serial_number, module_id, battery, last_seen } = req.body;
+      const { device_id, serial_number, module_id, battery } = req.body || {};
       const serialNum = serial_number || device_id;
 
       if (!serialNum) {
@@ -23,13 +23,17 @@ module.exports = (logger, modifyApiLimiter, getApiLimiter, deviceAuth) => {
         });
       }
 
+      // last_seen é sempre do servidor; data enviada pelo cliente é ignorada.
       const update = {
         status: 'online',
-        last_seen: last_seen ? new Date(last_seen) : new Date(),
+        last_seen: new Date(),
       };
 
-      if (battery !== undefined && battery !== null) {
-        update.battery_level = Number(battery);
+      if (battery !== undefined && battery !== null && battery !== '') {
+        const parsedBattery = Number(battery);
+        if (Number.isFinite(parsedBattery)) {
+          update.battery_level = Math.max(0, Math.min(100, Math.round(parsedBattery)));
+        }
       }
 
       // ─── CORREÇÃO CRÍTICA ──────────────────────────────────────────
@@ -50,11 +54,11 @@ module.exports = (logger, modifyApiLimiter, getApiLimiter, deviceAuth) => {
 
       if (!asset) {
         log.warn(`[DeviceRoutes] Heartbeat de dispositivo não registrado: ${serialNum}`);
-        return res.json({ success: true, message: 'Dispositivo não cadastrado ainda' });
+        return res.json({ success: true, registered: false, message: 'Dispositivo não cadastrado ainda' });
       }
 
       log.info(`💓 Heartbeat: ${serialNum} (${asset.asset_name || 'Sem nome'})`);
-      res.json({ success: true, last_seen: asset.last_seen });
+      res.json({ success: true, registered: true, last_seen: asset.last_seen });
     } catch (error) {
       log.error(`[DeviceRoutes] Erro no heartbeat: ${error.message}`);
       res.status(500).json({ success: false, error: error.message });

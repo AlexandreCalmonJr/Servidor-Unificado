@@ -18,9 +18,11 @@ services:
       - MONGO_URI=mongodb://mongodb:27017/mdm
       - REDIS_URL=redis://redis:6379
       - REDIS_ENABLED=true
+      - COMMAND_SIGNING_PRIVATE_KEY_FILE=/run/secrets/command_private_key.pem
     volumes:
       - ./logs:/usr/src/app/logs
       - ./public:/usr/src/app/public
+      - ./secrets:/run/secrets:ro
       - backups-data:/backups
     depends_on:
       mongodb:

@@ -117,31 +117,41 @@ async function runAllTests() {
   log('\n3. Criptografia Assimétrica de Comandos Remotos (RSA-SHA256):', 'blue');
   try {
     const { signCommand, verifyCommand } = require('../backend/utils/commandSignature');
-    const privPath = path.join(__dirname, '..', 'backend', 'config', 'keys', 'command_private_key.pem');
     const pubPath = path.join(__dirname, '..', 'backend', 'config', 'keys', 'command_public_key.pem');
-
-    const privKey = fs.readFileSync(privPath, 'utf8');
     const pubKey = fs.readFileSync(pubPath, 'utf8');
 
-    process.env.COMMAND_SIGNING_PRIVATE_KEY = privKey;
+    let privKey = process.env.COMMAND_SIGNING_PRIVATE_KEY || '';
+    const privCandidates = [
+      process.env.COMMAND_SIGNING_PRIVATE_KEY_FILE,
+      path.join(__dirname, '..', 'secrets', 'command_private_key.pem'),
+    ].filter(Boolean);
+    for (const candidate of privCandidates) {
+      if (!privKey && fs.existsSync(candidate)) privKey = fs.readFileSync(candidate, 'utf8');
+    }
 
-    const sampleCommand = {
-      id: 'cmd-integration-test',
-      commandType: 'reboot_device',
-      command: 'INTERNAL_REBOOT',
-      parameters: { delay: 10 },
-      requiresElevation: false,
-      timeout: 60000
-    };
+    if (!privKey) {
+      log('  ⏭️  Chave privada de assinatura não configurada — teste RSA ignorado.', 'yellow');
+    } else {
+      process.env.COMMAND_SIGNING_PRIVATE_KEY = privKey;
 
-    const signature = signCommand(sampleCommand);
-    assertTest('Geração de assinatura RSA-SHA256 para comando', !!signature && signature.alg === 'RS256');
+      const sampleCommand = {
+        id: 'cmd-integration-test',
+        commandType: 'reboot_device',
+        command: 'INTERNAL_REBOOT',
+        parameters: { delay: 10 },
+        requiresElevation: false,
+        timeout: 60000
+      };
 
-    const isValid = verifyCommand(sampleCommand, signature, pubKey);
-    assertTest('Validação da assinatura criptográfica com chave pública', isValid === true);
+      const signature = signCommand(sampleCommand);
+      assertTest('Geração de assinatura RSA-SHA256 para comando', !!signature && signature.alg === 'RS256');
 
-    const tampered = verifyCommand({ ...sampleCommand, command: 'MALICIOUS_WIPE' }, signature, pubKey);
-    assertTest('Rejeição sumária de comando adulterado em trânsito', tampered === false);
+      const isValid = verifyCommand(sampleCommand, signature, pubKey);
+      assertTest('Validação da assinatura criptográfica com chave pública', isValid === true);
+
+      const tampered = verifyCommand({ ...sampleCommand, command: 'MALICIOUS_WIPE' }, signature, pubKey);
+      assertTest('Rejeição sumária de comando adulterado em trânsito', tampered === false);
+    }
   } catch (err) {
     assertTest('Mecanismo de assinatura criptográfica', false, err.message);
   }

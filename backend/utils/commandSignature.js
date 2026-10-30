@@ -1,4 +1,6 @@
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 function normalizeForSignature(value) {
   if (value instanceof Map) {
@@ -29,7 +31,26 @@ function canonicalizeCommand(command) {
 }
 
 function getPrivateKey() {
-  return (process.env.COMMAND_SIGNING_PRIVATE_KEY || '').replace(/\\n/g, '\n').trim();
+  const inline = (process.env.COMMAND_SIGNING_PRIVATE_KEY || '').replace(/\\n/g, '\n').trim();
+  if (inline) return inline;
+
+  const candidates = [
+    process.env.COMMAND_SIGNING_PRIVATE_KEY_FILE,
+    path.join(__dirname, '..', '..', 'secrets', 'command_private_key.pem'),
+    '/run/secrets/command_private_key.pem',
+  ].filter(Boolean);
+
+  for (const filePath of candidates) {
+    try {
+      if (fs.existsSync(filePath)) {
+        return fs.readFileSync(filePath, 'utf8').trim();
+      }
+    } catch (error) {
+      // Chave opcional: ausencia apenas desabilita assinatura.
+    }
+  }
+
+  return '';
 }
 
 function signCommand(command) {
