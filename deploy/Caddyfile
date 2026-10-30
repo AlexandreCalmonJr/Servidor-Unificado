@@ -1,0 +1,41 @@
+# deploy/Caddyfile
+# Servidor Unificado MDM — Configuração Caddy com TLS automático e WebSockets
+# ===================================================================
+
+{
+    # Modo de produção: Caddy obtém certificados Let's Encrypt automaticamente
+    # Para rede interna/LAN pura, descomente a linha abaixo:
+    # auto_https disable_redirects
+    email admin@mdm.local
+}
+
+# Substitua pelo domínio real ou IP da sua infraestrutura
+# Exemplo: mdm.suaempresa.com.br ou :443
+:443 {
+    # Headers de Segurança recomendados (além dos gerados pelo Helmet)
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    # Compressão transparente
+    encode zstd gzip
+
+    # Proxy reverso para o backend Node.js
+    reverse_proxy 127.0.0.1:3000 {
+        # Suporte completo a WebSockets (/ws) é nativo no Caddy
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+
+        # Timeouts generosos para sessões de WebSocket e agentes
+        transport http {
+            read_buffer 4096
+            response_header_timeout 60s
+        }
+    }
+}

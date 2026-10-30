@@ -310,6 +310,9 @@ const PROTECTED_FIELDS = [
   'is_deleted', 'deleted_at', 'deleted_by',
   'created_at', 'updated_at', 'created_by', 'updated_by',
   'provisioning_status',
+  'device_token_hash', 'device_token_prefix', 'token_status',
+  'quarantine_reason', 'quarantine_at',
+  'token_created_at', 'token_revoked_at',
   'location_history', 'maintenance_history',
   'schema_version',
 ];

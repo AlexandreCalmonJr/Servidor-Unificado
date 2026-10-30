@@ -1,7 +1,8 @@
-// File: routes/moduleRoutes.js (CORRIGIDO — Isolamento por module_id e Soft Delete)
 const express = require('express');
+const crypto = require('crypto');
 const AssetModuleConfig = require('../models/AssetModuleConfig');
 const User = require('../models/User');
+const WebSocketServer = require('../services/websocketServer');
 const { handleMongooseError } = require('../middleware/error');
 
 const {
@@ -565,6 +566,133 @@ module.exports = (logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth) => 
     } catch (error) {
       logger.error(`Erro ao atualizar manutenção: ${error.message}`);
       res.status(500).json({ success: false, message: 'Erro ao atualizar manutenção', error: error.message });
+    }
+  });
+
+  // ===================================================================
+  // GESTÃO DE CREDENCIAIS & QUARENTENA (P1 - ADMIN)
+  // ===================================================================
+
+  // PUT /api/modules/:moduleId/assets/:assetId/quarantine
+  router.put('/:moduleId/assets/:assetId/quarantine', auth, modifyApiLimiter, async (req, res) => {
+    try {
+      const { moduleId, assetId } = req.params;
+      const { quarantine, reason } = req.body;
+
+      const module = await findModuleParam(moduleId);
+      if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
+
+      const Model = getModelByType(module.type);
+      const asset = await Model.findOne({ _id: assetId, module_id: module._id });
+      if (!asset) return res.status(404).json({ success: false, message: 'Ativo não encontrado neste módulo' });
+
+      const isQuarantine = Boolean(quarantine);
+      asset.token_status = isQuarantine ? 'quarantine' : 'active';
+      asset.status = isQuarantine ? 'quarantine' : 'online';
+      asset.quarantine_reason = isQuarantine ? (reason || 'Quarentena administrativa') : null;
+      asset.quarantine_at = isQuarantine ? new Date() : null;
+      asset.updated_at = new Date();
+      await asset.save();
+
+      logger.warn(`Ativo ${isQuarantine ? 'colocado em QUARENTENA' : 'REMOVIDO da quarentena'}: ${asset.asset_name} (${asset.serial_number}) por ${req.user.username}`);
+
+      // Notifica o painel
+      WebSocketServer.broadcastToPanel({
+        type: 'notification',
+        category: 'security',
+        event: 'device_quarantine_changed',
+        title: isQuarantine ? '🛡️ Dispositivo em Quarentena' : '✅ Dispositivo Liberado da Quarentena',
+        message: `${asset.asset_name} (${asset.serial_number}) - ${asset.quarantine_reason || 'Operação normal'}`,
+        data: { assetId: asset._id, isQuarantine, reason: asset.quarantine_reason },
+        timestamp: new Date(),
+      });
+
+      res.json({
+        success: true,
+        message: isQuarantine ? 'Dispositivo colocado em quarentena' : 'Dispositivo removido da quarentena',
+        asset: transformAssetForOutput(asset),
+      });
+    } catch (error) {
+      logger.error(`Erro ao atualizar quarentena: ${error.message}`);
+      res.status(500).json({ success: false, message: 'Erro ao atualizar quarentena', error: error.message });
+    }
+  });
+
+  // POST /api/modules/:moduleId/assets/:assetId/revoke-token
+  router.post('/:moduleId/assets/:assetId/revoke-token', auth, modifyApiLimiter, async (req, res) => {
+    try {
+      const { moduleId, assetId } = req.params;
+
+      const module = await findModuleParam(moduleId);
+      if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
+
+      const Model = getModelByType(module.type);
+      const asset = await Model.findOne({ _id: assetId, module_id: module._id });
+      if (!asset) return res.status(404).json({ success: false, message: 'Ativo não encontrado neste módulo' });
+
+      asset.token_status = 'revoked';
+      asset.status = 'revoked';
+      asset.token_revoked_at = new Date();
+      asset.updated_at = new Date();
+      await asset.save();
+
+      // Desconecta qualquer sessão WebSocket ativa do dispositivo imediatamente
+      WebSocketServer.disconnectAsset(assetId, 4001, 'Credencial revogada pelo administrador');
+
+      logger.warn(`Credencial do ativo REVOGADA: ${asset.asset_name} (${asset.serial_number}) por ${req.user.username}`);
+
+      res.json({
+        success: true,
+        message: 'Token de dispositivo revogado com sucesso',
+        asset: transformAssetForOutput(asset),
+      });
+    } catch (error) {
+      logger.error(`Erro ao revogar token de dispositivo: ${error.message}`);
+      res.status(500).json({ success: false, message: 'Erro ao revogar token', error: error.message });
+    }
+  });
+
+  // POST /api/modules/:moduleId/assets/:assetId/rotate-token
+  router.post('/:moduleId/assets/:assetId/rotate-token', auth, modifyApiLimiter, async (req, res) => {
+    try {
+      const { moduleId, assetId } = req.params;
+
+      const module = await findModuleParam(moduleId);
+      if (!module) return res.status(404).json({ success: false, message: 'Módulo não encontrado' });
+
+      const Model = getModelByType(module.type);
+      const asset = await Model.findOne({ _id: assetId, module_id: module._id });
+      if (!asset) return res.status(404).json({ success: false, message: 'Ativo não encontrado neste módulo' });
+
+      const rawDeviceToken = `dev_${crypto.randomBytes(32).toString('hex')}`;
+      const deviceTokenHash = crypto.createHash('sha256').update(rawDeviceToken).digest('hex');
+      const deviceTokenPrefix = rawDeviceToken.substring(0, 12);
+
+      asset.device_token_hash = deviceTokenHash;
+      asset.device_token_prefix = deviceTokenPrefix;
+      asset.token_status = 'active';
+      asset.status = 'online';
+      asset.token_created_at = new Date();
+      asset.token_revoked_at = null;
+      asset.quarantine_reason = null;
+      asset.quarantine_at = null;
+      asset.updated_at = new Date();
+      await asset.save();
+
+      // Desconecta conexões antigas
+      WebSocketServer.disconnectAsset(assetId, 4002, 'Credencial rotacionada');
+
+      logger.info(`Credencial do ativo ROTACIONADA: ${asset.asset_name} (${asset.serial_number}) por ${req.user.username}`);
+
+      res.json({
+        success: true,
+        message: 'Token gerado com sucesso',
+        device_token: rawDeviceToken,
+        asset: transformAssetForOutput(asset),
+      });
+    } catch (error) {
+      logger.error(`Erro ao rotacionar token de dispositivo: ${error.message}`);
+      res.status(500).json({ success: false, message: 'Erro ao rotacionar token', error: error.message });
     }
   });
 

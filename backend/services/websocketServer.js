@@ -17,7 +17,7 @@ function getProtocolTokens(req) {
   return String(raw).split(',').map((item) => item.trim()).filter(Boolean);
 }
 
-function authenticateHandshake(req) {
+async function authenticateHandshake(req) {
   const sessionToken = getSessionToken(req);
   if (sessionToken) {
     const decoded = verifyJwt(sessionToken);
@@ -42,9 +42,37 @@ function authenticateHandshake(req) {
 
     if (protocol.startsWith('mdm.device.')) {
       const token = protocol.substring('mdm.device.'.length);
+
+      // 🔑 P1: Autenticação por token individual do dispositivo
+      if (token.startsWith('dev_')) {
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+        const asset = await ManagedAsset.findOne({
+          device_token_hash: tokenHash,
+          is_deleted: { $ne: true },
+        });
+
+        if (!asset) {
+          throw new Error('Token individual de dispositivo não reconhecido');
+        }
+
+        if (asset.token_status === 'revoked') {
+          throw new Error('Dispositivo revogado');
+        }
+
+        return {
+          kind: 'device',
+          id: asset._id.toString(),
+          assetId: asset._id.toString(),
+          serial_number: asset.serial_number,
+          isQuarantined: asset.token_status === 'quarantine',
+          isLegacy: false,
+        };
+      }
+
+      // Modo legado (dual-mode)
       const expected = secrets.AUTH_TOKEN || process.env.AUTH_TOKEN;
       if (expected && timingSafeTokenEqual(token, expected)) {
-        return { kind: 'device', id: 'device' };
+        return { kind: 'device', id: 'device', isLegacy: true };
       }
     }
   }
@@ -61,9 +89,9 @@ class WebSocketServer {
     this.wss = new WebSocket.Server({
       server,
       path: '/ws',
-      verifyClient: (info, done) => {
+      verifyClient: async (info, done) => {
         try {
-          info.req.auth = authenticateHandshake(info.req);
+          info.req.auth = await authenticateHandshake(info.req);
           done(true);
         } catch (error) {
           logger.warn(`WebSocket rejected from ${info.req.socket.remoteAddress}: ${error.message}`);
@@ -89,6 +117,9 @@ class WebSocketServer {
       ws.isAlive = true;
       ws.auth = auth;
       ws.userId = userId;
+      ws.assetId = auth.assetId || null;
+      ws.serialNumber = auth.serial_number || null;
+      ws.isQuarantined = Boolean(auth.isQuarantined);
       ws.on('pong', () => { ws.isAlive = true; });
 
       if (userId) {
@@ -271,6 +302,15 @@ class WebSocketServer {
     }
   }
 
+  disconnectAsset(assetId, code = 4001, reason = 'Dispositivo revogado ou desconectado') {
+    const targetId = String(assetId || '');
+    this.wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN && (String(client.assetId || '') === targetId || String(client.auth?.assetId || '') === targetId)) {
+        client.close(code, reason);
+      }
+    });
+  }
+
   notifyAll(data) {
     this.broadcast(data);
   }
@@ -300,6 +340,12 @@ class WebSocketServer {
   static broadcastToPanel(data) {
     if (WebSocketServer.instance) {
       WebSocketServer.instance.broadcastToPanel(data);
+    }
+  }
+
+  static disconnectAsset(assetId, code, reason) {
+    if (WebSocketServer.instance) {
+      WebSocketServer.instance.disconnectAsset(assetId, code, reason);
     }
   }
 }

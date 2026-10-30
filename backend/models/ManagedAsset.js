@@ -25,7 +25,7 @@ const managedAssetSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['online', 'offline', 'maintenance', 'retired', 'unknown', 'error'],
+    enum: ['online', 'offline', 'maintenance', 'retired', 'unknown', 'error', 'quarantine', 'revoked'],
     default: 'offline'
   },
   last_seen: {
@@ -126,8 +126,19 @@ const managedAssetSchema = new mongoose.Schema({
     default: {}
   },
 
-  // ─── Provisionamento ──────────────────────────────────────────────
+  // ─── Provisionamento e Credenciais Individuais (P1) ───────────────
   provisioning_status: { type: String, default: null },
+  device_token_hash: { type: String, default: null },
+  device_token_prefix: { type: String, default: null },
+  token_status: {
+    type: String,
+    enum: ['active', 'quarantine', 'revoked', 'legacy'],
+    default: 'legacy',
+  },
+  quarantine_reason: { type: String, default: null },
+  quarantine_at: { type: Date, default: null },
+  token_created_at: { type: Date, default: null },
+  token_revoked_at: { type: Date, default: null },
 
   // ─── Soft Delete (para manter histórico) ───────────────────────────
   deleted_at: {
@@ -169,6 +180,7 @@ managedAssetSchema.index(
 
 managedAssetSchema.index({ module_id: 1, status: 1 });
 managedAssetSchema.index({ module_id: 1, asset_type: 1 });
+managedAssetSchema.index({ device_token_hash: 1 }, { sparse: true });
 managedAssetSchema.index({ last_seen: -1 });
 managedAssetSchema.index({ location: 1 });
 managedAssetSchema.index({ asset_name: 'text', serial_number: 'text' });

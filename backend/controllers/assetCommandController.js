@@ -206,10 +206,20 @@ exports.createCommand = async (req, res) => {
   }
 };
 
-// [READ] Buscar comandos pendentes (Para o Cliente/Agente)
 exports.getPendingCommands = async (req, res) => {
   const logger = req.logger || console;
   try {
+    // 🛡️ Quarentena (P1): Bloqueia despacho de comandos para dispositivos em quarentena
+    if (req.device?.isQuarantined) {
+      logger.warn(`[CommandController] Dispositivo em QUARENTENA tentou consultar comandos: ${req.device.serial_number}`);
+      return res.status(403).json({
+        success: false,
+        code: 'DEVICE_IN_QUARANTINE',
+        message: 'Dispositivo em quarentena. Execução de comandos bloqueada.',
+        commands: [],
+      });
+    }
+
     // Suporte a camelCase e snake_case
     const serialNumber = req.query.serialNumber || req.query.serial_number;
 

@@ -140,6 +140,11 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth, devic
         .pbkdf2Sync(localAdminPassword, localAdminPasswordSalt, 120000, 32, 'sha256')
         .toString('hex');
 
+      // 🔑 Geração de credencial exclusiva por dispositivo (P1 - Identidade)
+      const rawDeviceToken = `dev_${crypto.randomBytes(32).toString('hex')}`;
+      const deviceTokenHash = crypto.createHash('sha256').update(rawDeviceToken).digest('hex');
+      const deviceTokenPrefix = rawDeviceToken.substring(0, 12);
+
       const assetData = {
         asset_type: targetType,
         module_id: targetModuleId,
@@ -153,6 +158,13 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth, devic
         floor: location.floor,
         status: 'offline',
         last_seen: new Date(),
+        device_token_hash: deviceTokenHash,
+        device_token_prefix: deviceTokenPrefix,
+        token_status: 'active',
+        token_created_at: new Date(),
+        token_revoked_at: null,
+        quarantine_reason: null,
+        quarantine_at: null,
         custom_data: {
           imei,
           android_id: android_id || secure_android_id,
@@ -241,10 +253,9 @@ const provisioningRoutes = (logger, modifyApiLimiter, enrollLimiter, auth, devic
         organization: token.organization,
         config_profile: token.config_profile,
         module_id: configProfile.module_id?.toString() || null,
-        module_type: configProfile.module_type || 'desktop',
-        // A credencial por dispositivo será emitida no fluxo de identidade (fase P1).
-        // Nunca devolver o AUTH_TOKEN global do servidor aqui.
-        credential_type: 'provisioning_only',
+        // Credencial exclusiva por dispositivo (P1 - Identidade Individual)
+        device_token: rawDeviceToken,
+        credential_type: 'device_token',
         local_admin_password: localAdminPassword,
         commands_count: initialCommands.length,
       });

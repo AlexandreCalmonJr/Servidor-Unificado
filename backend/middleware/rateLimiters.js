@@ -2,9 +2,16 @@ const rateLimit = require('express-rate-limit');
 const RedisStore = require('rate-limit-redis');
 const { client: redisClient, isReady } = require('../services/cacheService');
 
-// Rate limit sempre por IP — nunca usar identificadores enviados pelo cliente
-// (S8: serial_number ou prefixo de token são controláveis pelo atacante).
-const deviceKeyGenerator = (req) => req.ip;
+// Rate limit em duas camadas (P1 - Identidade):
+// - Requisições autenticadas por token individual usam o ID verificado do dispositivo (dev:<id>)
+//   permitindo múltiplos dispositivos sob o mesmo NAT/IP corporativo sem bloqueio mútuo.
+// - Requisições legadas ou não autenticadas usam req.ip (proteção anti-DoS).
+const deviceKeyGenerator = (req) => {
+  if (req.device?.kind === 'individual' && req.device?.id) {
+    return `dev:${req.device.id}`;
+  }
+  return req.ip;
+};
 
 const getApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

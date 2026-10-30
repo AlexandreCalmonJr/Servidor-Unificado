@@ -24,8 +24,10 @@ module.exports = (logger, modifyApiLimiter, getApiLimiter, deviceAuth) => {
       }
 
       // last_seen é sempre do servidor; data enviada pelo cliente é ignorada.
+      // Se dispositivo estiver em quarentena, preserva status 'quarantine' para auditoria forense.
+      const isQuarantined = Boolean(req.device?.isQuarantined);
       const update = {
-        status: 'online',
+        status: isQuarantined ? 'quarantine' : 'online',
         last_seen: new Date(),
       };
 
@@ -57,8 +59,13 @@ module.exports = (logger, modifyApiLimiter, getApiLimiter, deviceAuth) => {
         return res.status(404).json({ success: false, registered: false, message: 'Dispositivo não cadastrado' });
       }
 
-      log.info(`💓 Heartbeat: ${serialNum} (${asset.asset_name || 'Sem nome'})`);
-      res.json({ success: true, registered: true, last_seen: asset.last_seen });
+      log.info(`💓 Heartbeat: ${serialNum} (${asset.asset_name || 'Sem nome'})${isQuarantined ? ' [QUARENTENA]' : ''}`);
+      res.json({
+        success: true,
+        registered: true,
+        last_seen: asset.last_seen,
+        quarantine: isQuarantined,
+      });
     } catch (error) {
       log.error(`[DeviceRoutes] Erro no heartbeat: ${error.message}`);
       res.status(500).json({ success: false, error: error.message });
@@ -71,6 +78,15 @@ module.exports = (logger, modifyApiLimiter, getApiLimiter, deviceAuth) => {
   router.post('/command-result', deviceAuth, modifyApiLimiter, async (req, res) => {
     const log = req.logger || logger;
     try {
+      if (req.device?.isQuarantined) {
+        log.warn(`[DeviceRoutes] Dispositivo em QUARENTENA tentou reportar resultado de comando: ${req.device.serial_number}`);
+        return res.status(403).json({
+          success: false,
+          code: 'DEVICE_IN_QUARANTINE',
+          message: 'Dispositivo em quarentena. Operações de comando bloqueadas.',
+        });
+      }
+
       const { command_id, success, result, error_message, executed_at } = req.body;
 
       if (!command_id) {
