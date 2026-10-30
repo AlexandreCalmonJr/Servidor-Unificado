@@ -4,7 +4,7 @@ node_modules
 
 # Arquivos de Ambiente e Configuração
 .env
-.env.example
+.env.*
 secrets/
 .git
 .gitignore
@@ -15,12 +15,20 @@ logs
 *.log
 npm-debug.log*
 backups
+scratch/
+coverage/
 
 # Railway e IDEs
 .railway
 railway.toml
 .vscode
 .idea
+.agent/
+.github/
+
+# Scripts de deploy e batch locais
+*.bat
+deploy/
 
 # Clientes e Agentes Externos (possuem build próprio)
 clients/

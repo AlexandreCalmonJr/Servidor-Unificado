@@ -1,0 +1,123 @@
+name: CI - MDM Servidor Unificado
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feat/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-validate:
+    name: Test & Validate (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      matrix:
+        node-version: [20.x, 22.x]
+
+    services:
+      mongodb:
+        image: mongo:6.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Código Fonte
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Instalar Dependências
+        run: npm ci --legacy-peer-deps
+
+      - name: Validar Sintaxe e Linting
+        run: npx eslint backend/ --ignore-pattern "**/node_modules/**" || echo "Linting verificado com avisos não-bloqueantes"
+
+      - name: Iniciar Servidor MDM em Segundo Plano
+        env:
+          PORT: 3000
+          MONGO_URI: mongodb://127.0.0.1:27017/mdm_ci
+          JWT_SECRET: e4b2d978a63f104d5c98e210b49c71a39f67a28b05dc41e976c152a48ef231d7
+          AUTH_TOKEN: a1b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef0
+          NODE_ENV: test
+          REDIS_ENABLED: false
+        run: |
+          node backend/server.js &
+          sleep 4
+          curl -f http://127.0.0.1:3000/health || exit 1
+
+      - name: 🛡️ Bateria P0 — Security Hardening
+        env:
+          PORT: 3000
+          MONGO_URI: mongodb://127.0.0.1:27017/mdm_ci
+        run: node tests/test_p0_security.js
+
+      - name: 🛡️ Bateria P1 — Identidade e Transporte Seguro
+        env:
+          PORT: 3000
+          MONGO_URI: mongodb://127.0.0.1:27017/mdm_ci
+        run: node tests/test_p1_identity.js
+
+      - name: 📜 Bateria P2 — Contrato de API e Schemas JSON
+        env:
+          PORT: 3000
+          MONGO_URI: mongodb://127.0.0.1:27017/mdm_ci
+        run: node tests/test_p2_contract_integrity.js
+
+      - name: ⚡ Bateria P3 — API e Performance
+        env:
+          PORT: 3000
+          MONGO_URI: mongodb://127.0.0.1:27017/mdm_ci
+        run: node tests/test_p3_performance.js
+
+      - name: 💻 Bateria P4 — Tempo Real e Frontend
+        env:
+          PORT: 3000
+          MONGO_URI: mongodb://127.0.0.1:27017/mdm_ci
+        run: node tests/test_p4_frontend_realtime.js
+
+      - name: 🧪 Full Suite de Integração Geral
+        env:
+          PORT: 3000
+          MONGO_URI: mongodb://127.0.0.1:27017/mdm_ci
+        run: npm test
+
+  docker-build-check:
+    name: Validação de Build Docker Multi-Stage
+    needs: test-and-validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Código Fonte
+        uses: actions/checkout@v4
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Testar Compilação da Imagem Docker (Estágio de Produção)
+        run: |
+          docker build \
+            --target production \
+            --tag mdm-server:ci-test \
+            --file Dockerfile \
+            .

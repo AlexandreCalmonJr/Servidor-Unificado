@@ -24,8 +24,8 @@
     # Compressão transparente
     encode zstd gzip
 
-    # Proxy reverso para o backend Node.js
-    reverse_proxy 127.0.0.1:3000 {
+    # Proxy reverso para o backend Node.js (suporta container ou host local)
+    reverse_proxy {$UPSTREAM:mdm-server:3000} {
         # Suporte completo a WebSockets (/ws) é nativo no Caddy
         header_up Host {host}
         header_up X-Real-IP {remote_host}
