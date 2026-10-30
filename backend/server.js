@@ -1,9 +1,10 @@
 const path = require('path');
+const fs = require('fs');
 const dotenv = require('dotenv');
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 dotenv.config();
 
-const { PUBLIC_DIR, FRONTEND_DIR } = require('./config/paths');
+const { PUBLIC_DIR, FRONTEND_DIR, FRONTEND_REACT_DIR } = require('./config/paths');
 const cron = require('node-cron');
 
 // ===== VALIDAÇÃO DE AMBIENTE =====
@@ -290,6 +291,14 @@ app.get('/index.html', requirePanelSession, (req, res) =>
 app.use('/views', requirePanelSession, express.static(path.join(FRONTEND_DIR, 'views'), { index: false }));
 app.use(express.static(FRONTEND_DIR, { index: false }));
 app.get('/', (req, res) => res.redirect('/panel'));
+
+// ===== PAINEL REACT (NOVO FRONTEND EM PARALELO) =====
+if (fs.existsSync(FRONTEND_REACT_DIR)) {
+  app.use('/panel-react', express.static(FRONTEND_REACT_DIR));
+  app.get(['/panel-react', '/panel-react/*'], (req, res) => {
+    res.sendFile(path.join(FRONTEND_REACT_DIR, 'index.html'));
+  });
+}
 
 // ===== 404 =====
 app.use((req, res) => {

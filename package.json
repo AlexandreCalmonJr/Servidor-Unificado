@@ -8,6 +8,8 @@
   "scripts": {
     "start": "node backend/server.js",
     "dev": "nodemon backend/server.js",
+    "dev:react": "npm --prefix frontend-react run dev",
+    "build:react": "npm --prefix frontend-react run build",
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix",
     "format": "prettier --write \"**/*.{js,json,md}\"",
