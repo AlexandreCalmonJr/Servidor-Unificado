@@ -39,17 +39,26 @@
         }
     }
 
-    async function fetchAssets(moduleId) {
+    async function fetchAssets(moduleId, options = {}) {
         const tbody = document.getElementById('dynamic-table-body');
         if (!tbody) return;
+
+        if (!options.silent) {
+            tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><p>⏳ Carregando...</p></td></tr>';
+        }
 
         try {
             const data = await API.get(`/modules/${moduleId}/assets`);
             allAssets = data.assets || [];
+            if (typeof StateStore !== 'undefined') {
+                StateStore.upsertAssets(allAssets);
+            }
             initPaginator(allAssets);
             renderModuleStats(allAssets);
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="7" class="empty-state"><p style="color:var(--danger);">❌ Erro: ${esc(err.message)}</p></td></tr>`;
+            if (!options.silent) {
+                tbody.innerHTML = `<tr><td colspan="7" class="empty-state"><p style="color:var(--danger);">❌ Erro: ${esc(err.message)}</p></td></tr>`;
+            }
         }
     }
 
@@ -99,26 +108,29 @@
     }
 
     function renderAssetRow(a, type) {
+        const assetId = a._id || a.id || '';
+        const moduleId = a.module_id || currentModuleId || '';
         const actionsHtml = `
             <td>
-                <button class="btn btn-ghost btn-sm" onclick="DynamicAssetManager.view('${a._id || a.id}')" title="Ver Detalhes">👁️</button>
-                <button class="btn btn-ghost btn-sm" onclick="DynamicAssetManager.edit('${a._id || a.id}')" title="Editar">✏️</button>
-                <button class="btn btn-ghost btn-sm" onclick="DynamicAssetManager.sendCommand('${a._id || a.id}', '${esc(a.asset_name || '')}')" title="Comando">⚡</button>
-                <button class="btn btn-danger btn-sm" onclick="DynamicAssetManager.remove('${a._id || a.id}', '${esc(a.asset_name || '')}')" title="Excluir">🗑</button>
+                <button class="btn btn-ghost btn-sm" onclick="DynamicAssetManager.view('${assetId}')" title="Ver Detalhes">👁️</button>
+                <button class="btn btn-ghost btn-sm" onclick="DynamicAssetManager.edit('${assetId}')" title="Editar">✏️</button>
+                <button class="btn btn-ghost btn-sm" onclick="DynamicAssetManager.sendCommand('${assetId}', '${esc(a.asset_name || '')}')" title="Comando">⚡</button>
+                <button class="btn btn-danger btn-sm" onclick="DynamicAssetManager.remove('${assetId}', '${esc(a.asset_name || '')}')" title="Excluir">🗑</button>
             </td>`;
 
-        const lastConnHtml = `<td title="${new Date(a.last_seen || a.updatedAt).toLocaleString('pt-BR')}">${TimeFormatter.formatTimeAgo(a.last_seen || a.updatedAt)}</td>`;
-        const statusHtml = `<td>${statusBadgeWithIcon(a.status)}</td>`;
+        const lastConnHtml = `<td class="last-seen-cell" title="${new Date(a.last_seen || a.updatedAt || Date.now()).toLocaleString('pt-BR')}">${TimeFormatter.formatTimeAgo(a.last_seen || a.updatedAt)}</td>`;
+        const statusHtml = `<td class="status-cell">${statusBadgeWithIcon(a.status)}</td>`;
+        const rowAttrs = `data-asset-id="${assetId}" data-module-id="${moduleId}" data-serial="${esc(a.serial_number || '')}"`;
 
         if (['desktop', 'notebook', 'panel'].includes(type)) {
             const loc = type === 'notebook' && a.custom_data?.bssid ? `BSSID: ${a.custom_data.bssid}` : (a.location || 'N/A');
-            return `<tr><td>${esc(a.hostname || a.asset_name || 'N/A')}</td><td class="mono">${esc(a.ip_address || 'N/A')}</td><td>${esc(loc)}</td>${statusHtml}${lastConnHtml}${actionsHtml}</tr>`;
+            return `<tr ${rowAttrs}><td>${esc(a.hostname || a.asset_name || 'N/A')}</td><td class="mono">${esc(a.ip_address || 'N/A')}</td><td>${esc(loc)}</td>${statusHtml}${lastConnHtml}${actionsHtml}</tr>`;
         }
         if (type === 'totem') {
-            return `<tr><td>${esc(a.hostname || a.asset_name || 'N/A')}</td><td class="mono">${esc(a.ip_address || 'N/A')}</td><td>${esc(a.location || 'N/A')}</td>${statusHtml}<td>${esc(a.custom_data?.printers ? a.custom_data.printers.join(', ') : 'N/A')}</td>${lastConnHtml}${actionsHtml}</tr>`;
+            return `<tr ${rowAttrs}><td>${esc(a.hostname || a.asset_name || 'N/A')}</td><td class="mono">${esc(a.ip_address || 'N/A')}</td><td>${esc(a.location || 'N/A')}</td>${statusHtml}<td>${esc(a.custom_data?.printers ? a.custom_data.printers.join(', ') : 'N/A')}</td>${lastConnHtml}${actionsHtml}</tr>`;
         }
         if (type === 'mobile') {
-            return `<tr><td>${esc(a.asset_name || 'N/A')}</td><td class="mono">${esc(a.serial_number || 'N/A')}</td><td class="mono">${esc(a.imei || 'N/A')}</td><td>${esc(a.location || 'N/A')}</td><td>${esc(a.sector || '-')} / ${esc(a.floor || '-')}</td>${statusHtml}${lastConnHtml}${actionsHtml}</tr>`;
+            return `<tr ${rowAttrs}><td>${esc(a.asset_name || 'N/A')}</td><td class="mono">${esc(a.serial_number || 'N/A')}</td><td class="mono">${esc(a.imei || 'N/A')}</td><td>${esc(a.location || 'N/A')}</td><td>${esc(a.sector || '-')} / ${esc(a.floor || '-')}</td>${statusHtml}${lastConnHtml}${actionsHtml}</tr>`;
         }
         if (type === 'printer') {
             let tonerDisplay = 'N/A';
@@ -128,16 +140,17 @@
                     tonerDisplay = Object.entries(toner).map(([k, v]) => `${k}: ${v}%`).join(', ') || 'N/A';
                 } catch (e) { tonerDisplay = 'Erro json'; }
             }
-            return `<tr><td>${esc(a.asset_name || 'N/A')}</td>${statusHtml}<td>${esc(tonerDisplay)}</td><td>${esc(a.location || 'N/A')}</td><td>${esc(a.sector || '-')} / ${esc(a.floor || '-')}</td>${lastConnHtml}${actionsHtml}</tr>`;
+            return `<tr ${rowAttrs}><td>${esc(a.asset_name || 'N/A')}</td>${statusHtml}<td>${esc(tonerDisplay)}</td><td>${esc(a.location || 'N/A')}</td><td>${esc(a.sector || '-')} / ${esc(a.floor || '-')}</td>${lastConnHtml}${actionsHtml}</tr>`;
         }
 
         // Default
-        return `<tr><td>${esc(a.asset_name || a.name || 'N/A')}</td><td class="mono">${esc(a.serial_number || 'N/A')}</td><td class="mono">${esc(a.ip_address || 'N/A')}</td><td>${esc(a.location || 'N/A')}</td>${statusHtml}${lastConnHtml}${actionsHtml}</tr>`;
+        return `<tr ${rowAttrs}><td>${esc(a.asset_name || a.name || 'N/A')}</td><td class="mono">${esc(a.serial_number || 'N/A')}</td><td class="mono">${esc(a.ip_address || 'N/A')}</td><td>${esc(a.location || 'N/A')}</td>${statusHtml}${lastConnHtml}${actionsHtml}</tr>`;
     }
 
     function statusBadgeWithIcon(status) {
         const badge = TimeFormatter.getStatusBadge(status);
-        return `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;background:${badge.bg};color:${badge.color};border-radius:4px;font-size:12px;font-weight:600;">${badge.icon} ${badge.label}</span>`;
+        const norm = (status || '').toLowerCase() === 'online' ? 'online' : 'offline';
+        return `<span class="status-badge ${norm}" style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;background:${badge.bg};color:${badge.color};border-radius:4px;font-size:12px;font-weight:600;">${badge.icon} ${badge.label}</span>`;
     }
 
     function renderModuleStats(assets) {
@@ -487,5 +500,22 @@
             showToast(`Navegue para Comandos e selecione "${assetName}" manualmente.`, 'info');
         },
         refreshSidebar: injectDynamicSidebar,
+        refreshCurrent: (options = {}) => {
+            if (currentModuleId) {
+                return fetchAssets(currentModuleId, options);
+            }
+        },
     };
+
+    // Sincronização atômica em tempo real via StateStore
+    if (typeof StateStore !== 'undefined') {
+        StateStore.on('asset:status_change', ({ assetId, newStatus, extra }) => {
+            const idx = allAssets.findIndex(a => String(a._id || a.id) === String(assetId));
+            if (idx !== -1) {
+                allAssets[idx].status = newStatus;
+                if (extra && extra.last_seen) allAssets[idx].last_seen = extra.last_seen;
+                renderModuleStats(allAssets);
+            }
+        });
+    }
 })();

@@ -274,3 +274,34 @@
     background-position: -200% 0;
   }
 }
+
+/* ===== WS CONNECTION BANNER (P4) ===== */
+.ws-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 99999;
+  text-align: center;
+  padding: 6px 16px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  display: none;
+}
+
+.ws-banner-connecting {
+  background: #3b82f6;
+  color: #ffffff;
+}
+
+.ws-banner-disconnected {
+  background: #eab308;
+  color: #1e293b;
+}
+
+.ws-banner-connected {
+  background: #10b981;
+  color: #ffffff;
+}

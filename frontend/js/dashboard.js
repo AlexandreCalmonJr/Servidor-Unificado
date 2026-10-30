@@ -239,16 +239,19 @@
             grid.innerHTML = results.map(item => {
                 const s = item.stats || { total: 0, online: 0, offline: 0 };
                 const icon = typeIcons[item.type] || '📦';
+                if (typeof StateStore !== 'undefined') {
+                    StateStore.setModuleStats(item._id, s);
+                }
                 return `
-                <div class="module-stat-card" style="border-left-color: var(--accent);">
+                <div class="module-stat-card" data-module-id="${item._id}" style="border-left-color: var(--accent);">
                     <div class="module-stat-icon" style="background: var(--accent-dim); color: var(--accent);">${icon}</div>
                     <div class="module-stat-info">
                         <span class="module-stat-label">${esc(item.name)}</span>
                         <span class="module-stat-value" style="color: var(--text-primary);">${s.total}</span>
                     </div>
                     <div style="margin-left: auto; display: flex; gap: 10px; font-size: 0.75rem; font-weight: 600;">
-                        <span style="color: var(--success);">🟢 ${s.online}</span>
-                        <span style="color: var(--danger);">🔴 ${s.offline}</span>
+                        <span class="module-online-val" style="color: var(--success);">🟢 ${s.online}</span>
+                        <span class="module-offline-val" style="color: var(--danger);">🔴 ${s.offline}</span>
                     </div>
                 </div>`;
             }).join('');
@@ -257,11 +260,36 @@
         }
     }
 
-    // Exposto para o WebSocket client atualizar o dashboard em tempo real
-    window.DashboardRefresh = () => {
-        loadMetrics();
-        loadModuleStats();
+    // Atualização atômica de card sem recriar o DOM
+    window.updateDashboardCard = (moduleId, stats) => {
+        if (!moduleId || !stats) return;
+        const card = document.querySelector(`.module-stat-card[data-module-id="${moduleId}"]`);
+        if (card) {
+            const totalEl = card.querySelector('.module-stat-value');
+            const onlineEl = card.querySelector('.module-online-val');
+            const offlineEl = card.querySelector('.module-offline-val');
+            if (totalEl && stats.total !== undefined) totalEl.textContent = stats.total;
+            if (onlineEl && stats.online !== undefined) onlineEl.textContent = `🟢 ${stats.online}`;
+            if (offlineEl && stats.offline !== undefined) offlineEl.textContent = `🔴 ${stats.offline}`;
+        }
     };
+
+    // Atualização com debounce para evitar tempestade de requests
+    let refreshDebounceTimer = null;
+    window.DashboardRefresh = () => {
+        if (refreshDebounceTimer) clearTimeout(refreshDebounceTimer);
+        refreshDebounceTimer = setTimeout(() => {
+            loadMetrics();
+            loadModuleStats();
+        }, 300);
+    };
+
+    // Sincronização automática via StateStore
+    if (typeof StateStore !== 'undefined') {
+        StateStore.on('module_stats:update', ({ moduleId, stats }) => {
+            window.updateDashboardCard(moduleId, stats);
+        });
+    }
 
     App.onPageLoad('dashboard', loadDashboard);
 })();
