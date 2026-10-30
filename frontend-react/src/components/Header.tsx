@@ -31,6 +31,8 @@ export const pageMeta: Record<PageId, { title: string; subtitle: string }> = {
   reports: { title: 'Relatórios', subtitle: 'Transforme dados da operação em decisões executivas.' },
   commands: { title: 'Comandos remotos', subtitle: 'Execute ações seguras nos dispositivos gerenciados.' },
   iot: { title: 'Módulo IoT & Hardware Embarcado', subtitle: 'Supervisão de telemetria MQTT, gateways industriais e microcontroladores.' },
+  mappings: { title: 'Mapeamentos', subtitle: 'Gerencie unidades, pontos de acesso BSSID e faixas de IP corporativas.' },
+  profiles: { title: 'Perfis de Configuração MDM', subtitle: 'Perfis de rede Wi-Fi, VPN, certificados e restrições de dispositivos.' },
   profile: { title: 'Meu perfil', subtitle: 'Informações pessoais, acesso e preferências.' },
 }
 

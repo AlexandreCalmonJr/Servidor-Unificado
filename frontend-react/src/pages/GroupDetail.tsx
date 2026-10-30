@@ -21,14 +21,16 @@ export function GroupDetail({ go }: { go: (p: PageId) => void }) {
         </button>
 
         <div className="detail-device">
-          <span>
+          <span className="detail-device-icon">
             <Icon name="grid" size={26} />
           </span>
-          <div>
-            <h2>Departamento Financeiro & Controladoria</h2>
+          <div className="detail-device-info">
+            <div className="detail-device-title-row">
+              <h2>Departamento Financeiro & Controladoria</h2>
+              <Status tone="green">Ativo & Sincronizado</Status>
+            </div>
             <p>Grupo Dinâmico · 34 dispositivos associados · Regras automáticas ativas</p>
           </div>
-          <Status tone="green">Ativo & Sincronizado</Status>
         </div>
 
         <div className="detail-actions">

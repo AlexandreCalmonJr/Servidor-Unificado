@@ -21,16 +21,18 @@ export function TotemDetail({ go }: { go: (p: PageId) => void }) {
         </button>
 
         <div className="detail-device">
-          <span>
+          <span className="detail-device-icon">
             <Icon name="totem" size={26} />
           </span>
-          <div>
-            <h2>Totem Recepção 01 — Unidade Central</h2>
+          <div className="detail-device-info">
+            <div className="detail-device-title-row">
+              <h2>Totem Recepção 01 — Unidade Central</h2>
+              <Status tone={kioskLocked ? 'amber' : 'green'}>
+                {kioskLocked ? 'Modo Manutenção' : 'Online & Operacional'}
+              </Status>
+            </div>
             <p>TOT-REC-01 · Entrada Principal · Windows 11 IoT Enterprise</p>
           </div>
-          <Status tone={kioskLocked ? 'amber' : 'green'}>
-            {kioskLocked ? 'Modo Manutenção' : 'Online & Operacional'}
-          </Status>
         </div>
 
         <div className="detail-actions">

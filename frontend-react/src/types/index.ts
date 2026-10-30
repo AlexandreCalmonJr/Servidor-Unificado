@@ -31,6 +31,8 @@ export type PageId =
   | 'reports'
   | 'profile'
   | 'iot'
+  | 'mappings'
+  | 'profiles'
 
 export type IconName =
   | 'grid'
@@ -67,6 +69,14 @@ export type IconName =
   | 'cpu'
   | 'trash'
   | 'edit'
+  | 'wifi'
+  | 'mapPin'
+  | 'package'
+  | 'history'
+  | 'upload'
+  | 'copy'
+  | 'hardDrive'
+  | 'battery'
 
 export interface ModuleItem {
   id: string

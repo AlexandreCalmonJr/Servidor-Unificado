@@ -26,14 +26,16 @@ export function PrinterDetail({ go }: { go: (p: PageId) => void }) {
         </button>
 
         <div className="detail-device">
-          <span>
+          <span className="detail-device-icon">
             <Icon name="printer" size={26} />
           </span>
-          <div>
-            <h2>HP LaserJet Enterprise M507x — Recepção Principal</h2>
+          <div className="detail-device-info">
+            <div className="detail-device-title-row">
+              <h2>HP LaserJet Enterprise M507x — Recepção Principal</h2>
+              <Status tone="green">Operacional</Status>
+            </div>
             <p>10.42.20.15 · Térreo / Entrada · SNMP v2c Ativo</p>
           </div>
-          <Status tone="green">Operacional</Status>
         </div>
 
         <div className="detail-actions">
