@@ -3,6 +3,7 @@
 // ===================================================================
 
 const ManagedAsset = require('../models/ManagedAsset');
+const { normalizeTelemetry } = require('./telemetryNormalizer');
 
 const { body, validationResult } = require('express-validator');
 const locationService = require('../services/locationService');
@@ -306,7 +307,7 @@ const validateByModuleId = async (req, res, next) => {
 // Nunca aceitar do payload de agente (proteção contra mass assignment).
 const PROTECTED_FIELDS = [
   '_id', '__v', 'module_id',
-  'status', 'last_seen',
+  'status', 'health_status', 'last_seen',
   'is_deleted', 'deleted_at', 'deleted_by',
   'created_at', 'updated_at', 'created_by', 'updated_by',
   'provisioning_status',
@@ -321,7 +322,8 @@ const PROTECTED_FIELDS = [
 // quando a requisição vem de um dispositivo (agentIngest).
 const AGENT_ALLOWED_FIELDS = new Set([
   'asset_name', 'serial_number', 'hostname', 'model', 'manufacturer',
-  'processor', 'processor_cores', 'ram', 'storage', 'storage_type',
+  'processor', 'processor_cores', 'ram', 'ram_total_mb', 'ram_free_mb', 'available_ram',
+  'storage', 'storage_total_gb', 'storage_free_gb', 'storage_type',
   'operating_system', 'os_version', 'ip_address', 'mac_address',
   'mac_address_radio', 'connection_type', 'battery_level', 'battery_health',
   'is_notebook', 'is_encrypted', 'is_mobile',
@@ -330,6 +332,8 @@ const AGENT_ALLOWED_FIELDS = new Set([
   'imei', 'android_id', 'secure_android_id',
   'custom_data', 'asset_type',
   'total_pages', 'toner_levels',
+  'installed_software', 'antivirus_name', 'antivirus_status', 'antivirus_version',
+  'notes', 'health_issues',
 ]);
 
 async function sanitizeAssetData(data, moduleType, options = {}) {
@@ -379,14 +383,44 @@ async function sanitizeAssetData(data, moduleType, options = {}) {
   // Define tipo do ativo
   sanitized.asset_type = moduleType;
 
+  // Pipeline Canônico de Telemetria (P2): Sempre normaliza grandezas (RAM, disco, bateria, saúde)
+  const normalized = normalizeTelemetry(sanitized, {
+    reqIp: options.reqIp,
+    isQuarantined: options.isQuarantined,
+    isMaintenance: options.isMaintenance,
+  });
+
   if (options.agentIngest) {
-    // Status é decisão do servidor, nunca do agente.
-    const printerStatus = sanitized.custom_data?.printer_status || sanitized.printer_status || '';
-    sanitized.status = /error|erro|falha/i.test(String(printerStatus)) ? 'error' : 'online';
-    sanitized.last_seen = new Date();
-  } else if (options.isNew) {
-    if (!sanitized.status) sanitized.status = 'online';
-    if (!sanitized.last_seen) sanitized.last_seen = new Date();
+    sanitized = {
+      ...sanitized,
+      ...normalized,
+      custom_data: {
+        ...(sanitized.custom_data || {}),
+        ...normalized.custom_data,
+      },
+    };
+  } else {
+    // Para updates ou criações manuais (admin/painel):
+    // Aplica grandezas numéricas e sincronização de periféricos
+    if (normalized.ram_total_mb) sanitized.ram_total_mb = normalized.ram_total_mb;
+    if (normalized.ram_free_mb) sanitized.ram_free_mb = normalized.ram_free_mb;
+    if (normalized.storage_total_gb) sanitized.storage_total_gb = normalized.storage_total_gb;
+    if (normalized.storage_free_gb) sanitized.storage_free_gb = normalized.storage_free_gb;
+    if (normalized.battery_level !== undefined) sanitized.battery_level = normalized.battery_level;
+    if (normalized.printer_status) sanitized.printer_status = normalized.printer_status;
+    if (normalized.health_status) sanitized.health_status = normalized.health_status;
+    if (normalized.health_issues?.length) sanitized.health_issues = normalized.health_issues;
+
+    sanitized.custom_data = {
+      ...(sanitized.custom_data || {}),
+      ...normalized.custom_data,
+    };
+
+    if (options.isNew) {
+      if (!sanitized.status) sanitized.status = 'online';
+      if (!sanitized.health_status) sanitized.health_status = 'healthy';
+      if (!sanitized.last_seen) sanitized.last_seen = new Date();
+    }
   }
   // Em update administrativo não tocamos em status/last_seen.
 
@@ -522,6 +556,7 @@ async function updateAsset(moduleType, assetId, data, options = {}) {
   // Aplica apenas chaves PRESENTES e DEFINIDAS no payload sanitizado.
   // Chaves ausentes no body original não devem sobrescrever dados existentes.
   Object.keys(sanitized).forEach((key) => {
+    if (key === 'custom_data') return; // Tratado separadamente para Map do Mongoose
     if (sanitized[key] !== undefined && sanitized[key] !== null) {
       asset[key] = sanitized[key];
     } else if (sanitized[key] === null && options.agentIngest) {
@@ -530,6 +565,18 @@ async function updateAsset(moduleType, assetId, data, options = {}) {
     }
     // Em updates do painel, null é ignorado (preserva valor existente)
   });
+
+  if (sanitized.custom_data) {
+    if (!asset.custom_data) asset.custom_data = new Map();
+    const entries = sanitized.custom_data instanceof Map
+      ? Array.from(sanitized.custom_data.entries())
+      : Object.entries(sanitized.custom_data);
+    for (const [k, v] of entries) {
+      if (v !== undefined) {
+        asset.custom_data.set(k, v);
+      }
+    }
+  }
 
   const newLoc = { u: asset.unit, s: asset.sector, f: asset.floor };
 

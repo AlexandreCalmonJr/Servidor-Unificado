@@ -2,6 +2,7 @@
 const express = require('express');
 const ManagedAsset = require('../models/ManagedAsset');
 const AssetCommand = require('../models/AssetCommand');
+const { validateBody } = require('../middleware/schemaValidator');
 
 module.exports = (logger, modifyApiLimiter, getApiLimiter, deviceAuth) => {
   const router = express.Router();
@@ -9,7 +10,7 @@ module.exports = (logger, modifyApiLimiter, getApiLimiter, deviceAuth) => {
   // ────────────────────────────────────────────────────────────────────
   // POST /api/devices/heartbeat
   // ────────────────────────────────────────────────────────────────────
-  router.post('/heartbeat', deviceAuth, modifyApiLimiter, async (req, res) => {
+  router.post('/heartbeat', deviceAuth, validateBody('heartbeat'), modifyApiLimiter, async (req, res) => {
     const log = req.logger || logger;
     try {
       const { device_id, serial_number, module_id, battery } = req.body || {};
@@ -75,7 +76,7 @@ module.exports = (logger, modifyApiLimiter, getApiLimiter, deviceAuth) => {
   // ────────────────────────────────────────────────────────────────────
   // POST /api/devices/command-result
   // ────────────────────────────────────────────────────────────────────
-  router.post('/command-result', deviceAuth, modifyApiLimiter, async (req, res) => {
+  router.post('/command-result', deviceAuth, validateBody('commandResult'), modifyApiLimiter, async (req, res) => {
     const log = req.logger || logger;
     try {
       if (req.device?.isQuarantined) {

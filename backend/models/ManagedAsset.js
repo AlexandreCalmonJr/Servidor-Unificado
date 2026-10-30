@@ -28,6 +28,15 @@ const managedAssetSchema = new mongoose.Schema({
     enum: ['online', 'offline', 'maintenance', 'retired', 'unknown', 'error', 'quarantine', 'revoked'],
     default: 'offline'
   },
+  health_status: {
+    type: String,
+    enum: ['healthy', 'degraded', 'error', 'unknown'],
+    default: 'unknown'
+  },
+  health_issues: {
+    type: [String],
+    default: []
+  },
   last_seen: {
     type: Date,
     default: Date.now
@@ -44,6 +53,11 @@ const managedAssetSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  notes: {
+    type: String,
+    trim: true,
+    default: ''
+  },
 
   // ─── Campos Desktop / Notebook ────────────────────────────────────
   hostname: String,
@@ -52,7 +66,12 @@ const managedAssetSchema = new mongoose.Schema({
   processor: String,
   processor_cores: Number,
   ram: String,
+  ram_total_mb: Number,
+  ram_free_mb: Number,
+  available_ram: String,
   storage: String,
+  storage_total_gb: Number,
+  storage_free_gb: Number,
   storage_type: String,
   operating_system: String,
   os_version: String,
@@ -74,6 +93,7 @@ const managedAssetSchema = new mongoose.Schema({
   mac_address: String,
   mac_address_radio: String,
   installed_software: [String],
+  antivirus_name: String,
   antivirus_status: Boolean,
   antivirus_version: String,
   last_update_check: Date,
@@ -179,6 +199,7 @@ managedAssetSchema.index(
 );
 
 managedAssetSchema.index({ module_id: 1, status: 1 });
+managedAssetSchema.index({ module_id: 1, health_status: 1 });
 managedAssetSchema.index({ module_id: 1, asset_type: 1 });
 managedAssetSchema.index({ device_token_hash: 1 }, { sparse: true });
 managedAssetSchema.index({ last_seen: -1 });

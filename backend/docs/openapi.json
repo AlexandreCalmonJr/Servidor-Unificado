@@ -1,0 +1,208 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "MDM Servidor Unificado API",
+    "version": "2.0.0",
+    "description": "Especificação OpenAPI oficial do Servidor Unificado MDM — Gestão centralizada de Desktops, Totens, Notebooks e Dispositivos Móveis com validação estrita JSON Schema, telemetria canônica e autenticação de dispositivo individual."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:3000",
+      "description": "Servidor Local de Desenvolvimento"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "AdminBearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Token JWT de operador/administrador"
+      },
+      "DeviceTokenAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Token individual de dispositivo no formato dev_<hex> via Authorization: Bearer dev_..."
+      },
+      "LegacyDeviceAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "AUTH_TOKEN",
+        "description": "Token legado de dispositivo via header AUTH_TOKEN"
+      }
+    },
+    "schemas": {
+      "TelemetryPayload": {
+        "$ref": "../schemas/telemetrySchema.json"
+      },
+      "HeartbeatPayload": {
+        "$ref": "../schemas/heartbeatSchema.json"
+      },
+      "CommandResultPayload": {
+        "$ref": "../schemas/commandResultSchema.json"
+      },
+      "ManagedAsset": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "module_id": { "type": "string" },
+          "asset_name": { "type": "string" },
+          "asset_type": { "type": "string" },
+          "serial_number": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["online", "offline", "maintenance", "retired", "unknown", "quarantine", "revoked"]
+          },
+          "health_status": {
+            "type": "string",
+            "enum": ["healthy", "degraded", "error", "unknown"]
+          },
+          "health_issues": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "ram_total_mb": { "type": "integer" },
+          "ram_free_mb": { "type": "integer" },
+          "storage_total_gb": { "type": "integer" },
+          "storage_free_gb": { "type": "integer" },
+          "battery_level": { "type": "integer", "nullable": true },
+          "printer_status": { "type": "string", "nullable": true },
+          "last_seen": { "type": "string", "format": "date-time" },
+          "unit": { "type": "string" },
+          "sector": { "type": "string" },
+          "floor": { "type": "string" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health Check básico do sistema",
+        "responses": {
+          "200": { "description": "Servidor saudável" }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "summary": "Autenticação de Operadores e Administradores",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["username", "password"],
+                "properties": {
+                  "username": { "type": "string" },
+                  "password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "JWT emitido com sucesso" },
+          "401": { "description": "Credenciais inválidas" }
+        }
+      }
+    },
+    "/api/monitor": {
+      "post": {
+        "summary": "Ingestão Canônica de Telemetria (Agentes)",
+        "security": [
+          { "DeviceTokenAuth": [] },
+          { "LegacyDeviceAuth": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelemetryPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Telemetria processada e persistida no ManagedAsset" },
+          "400": { "description": "Contrato violado (SCHEMA_VALIDATION_ERROR)" },
+          "401": { "description": "Não autenticado ou token revogado" }
+        }
+      }
+    },
+    "/api/devices/heartbeat": {
+      "post": {
+        "summary": "Batimento cardíaco e sinal de conectividade de dispositivo",
+        "security": [
+          { "DeviceTokenAuth": [] },
+          { "LegacyDeviceAuth": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HeartbeatPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Heartbeat aceito, last_seen atualizado no servidor" },
+          "400": { "description": "Payload inválido" },
+          "404": { "description": "Dispositivo não cadastrado" }
+        }
+      }
+    },
+    "/api/devices/command-result": {
+      "post": {
+        "summary": "Reporte de conclusão de comando executado no dispositivo",
+        "security": [
+          { "DeviceTokenAuth": [] },
+          { "LegacyDeviceAuth": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandResultPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Resultado registrado" },
+          "403": { "description": "Dispositivo em quarentena (DEVICE_IN_QUARANTINE)" }
+        }
+      }
+    },
+    "/api/provisioning/enroll": {
+      "post": {
+        "summary": "Enrolamento de dispositivo com emissão de token individual",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["provisioning_token", "serial_number"],
+                "properties": {
+                  "provisioning_token": { "type": "string" },
+                  "serial_number": { "type": "string" },
+                  "device_name": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Dispositivo matriculado com token exclusivo dev_..." },
+          "401": { "description": "Token de provisionamento inválido ou expirado" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HeartbeatPayload",
+  "description": "Contrato para batimento cardíaco periódico de dispositivos",
+  "type": "object",
+  "anyOf": [
+    { "required": ["serial_number"] },
+    { "required": ["device_id"] }
+  ],
+  "properties": {
+    "serial_number": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 100,
+      "pattern": "^(?!N/A$)(?!unknown$).+$",
+      "description": "Número de série válido e não-nulo do ativo"
+    },
+    "device_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 100,
+      "pattern": "^(?!N/A$)(?!unknown$).+$",
+      "description": "Identificador ou número de série do dispositivo legado"
+    },
+    "battery": {
+      "type": ["integer", "number", "null"],
+      "minimum": -1,
+      "maximum": 100
+    },
+    "network_type": {
+      "type": "string"
+    },
+    "metrics": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

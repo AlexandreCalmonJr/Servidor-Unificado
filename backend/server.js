@@ -60,6 +60,9 @@ const savedFilterRoutes = require('./routes/savedFilterRoutes');
 const printerRoutes = require('./routes/printerRoutes');
 const printerSyncRoutes = require('./routes/printerSyncRoutes');
 const { getSessionToken, authenticateJwtToken } = require('./utils/authTokens');
+const swaggerUi = require('swagger-ui-express');
+const openapiSpec = require('./docs/openapi.json');
+const { validateBody } = require('./middleware/schemaValidator');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -229,9 +232,13 @@ app.get('/metrics/prometheus', auth, (req, res) => {
 app.use('/api/auth', authRoutes(logger, getApiLimiter, modifyApiLimiter, auth));
 app.use('/api', publicRoutes(logger, getApiLimiter));
 
+// ===== DOCUMENTAÇÃO DA API (OpenAPI 3.0 / Swagger UI) =====
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapiSpec));
+app.get('/api-docs.json', (req, res) => res.json(openapiSpec));
+
 // ===== ROTAS DE AGENTES (deviceAuth) =====
 // Agentes enviam dados de monitoramento (desktop, totem, mobile, etc.)
-app.post('/api/monitor', modifyApiLimiter, deviceAuth, agentController.handleAgentData);
+app.post('/api/monitor', modifyApiLimiter, deviceAuth, validateBody('telemetry'), agentController.handleAgentData);
 app.use('/api/devices', deviceRoutes(logger, modifyApiLimiter, getApiLimiter, deviceAuth));
 // ===== ROTAS MODULARES (painel + agentes) =====
 app.use('/api/modules', moduleRoutes(logger, getApiLimiter, modifyApiLimiter, auth, deviceAuth));

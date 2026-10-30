@@ -1,0 +1,151 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TelemetryPayload",
+  "description": "Contrato rigoroso para dados de telemetria enviados por agentes Desktop, Totem e Mobile",
+  "type": "object",
+  "anyOf": [
+    { "required": ["serial_number"] },
+    { "required": ["serialNumber"] }
+  ],
+  "properties": {
+    "serial_number": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 100,
+      "pattern": "^(?!N/A$)(?!unknown$).+$",
+      "description": "Número de série exclusivo do dispositivo"
+    },
+    "serialNumber": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 100,
+      "pattern": "^(?!N/A$)(?!unknown$).+$",
+      "description": "Número de série exclusivo do dispositivo (camelCase)"
+    },
+    "asset_name": {
+      "type": "string",
+      "maxLength": 150
+    },
+    "asset_type": {
+      "type": "string",
+      "enum": ["desktop", "notebook", "totem", "panel", "printer", "scanner", "mobile", "custom"]
+    },
+    "hostname": {
+      "type": "string",
+      "maxLength": 150
+    },
+    "ip_address": {
+      "type": "string"
+    },
+    "mac_address": {
+      "type": "string"
+    },
+    "mac_address_radio": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string",
+      "maxLength": 150
+    },
+    "manufacturer": {
+      "type": "string",
+      "maxLength": 150
+    },
+    "processor": {
+      "type": "string",
+      "maxLength": 150
+    },
+    "processor_cores": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 512
+    },
+    "ram": {
+      "type": ["string", "number"]
+    },
+    "ram_total_mb": {
+      "type": "integer",
+      "minimum": 64
+    },
+    "ram_free_mb": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "available_ram": {
+      "type": ["string", "number"]
+    },
+    "storage": {
+      "type": ["string", "number"]
+    },
+    "storage_total_gb": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "storage_free_gb": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "storage_type": {
+      "type": "string"
+    },
+    "operating_system": {
+      "type": "string"
+    },
+    "os_version": {
+      "type": "string"
+    },
+    "battery_level": {
+      "type": ["integer", "null"],
+      "minimum": -1,
+      "maximum": 100
+    },
+    "battery_health": {
+      "type": "string"
+    },
+    "is_notebook": {
+      "type": "boolean"
+    },
+    "is_encrypted": {
+      "type": "boolean"
+    },
+    "is_mobile": {
+      "type": "boolean"
+    },
+    "printer_status": {
+      "type": "string"
+    },
+    "zebra_status": {
+      "type": "string"
+    },
+    "bematech_status": {
+      "type": "string"
+    },
+    "biometric_reader": {
+      "type": "string"
+    },
+    "totem_type": {
+      "type": "string"
+    },
+    "installed_software": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "antivirus_name": {
+      "type": "string"
+    },
+    "antivirus_status": {
+      "type": "boolean"
+    },
+    "antivirus_version": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string",
+      "maxLength": 1000
+    },
+    "custom_data": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

@@ -29,6 +29,8 @@
   "license": "ISC",
   "description": "Servidor unificado para MDM e Monitoramento de Totens",
   "dependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "axios": "^1.13.2",
     "bcryptjs": "^2.4.3",
     "chalk": "^4.1.2",
@@ -53,6 +55,7 @@
     "on-finished": "^2.4.1",
     "rate-limit-redis": "^4.2.3",
     "redis": "^5.9.0",
+    "swagger-ui-express": "^5.0.1",
     "winston": "^3.8.2",
     "ws": "^8.19.0"
   },

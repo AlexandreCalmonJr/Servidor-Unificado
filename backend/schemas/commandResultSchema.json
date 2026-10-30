@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CommandResultPayload",
+  "description": "Contrato para reporte de execução de comandos remotos",
+  "type": "object",
+  "required": ["command_id", "success"],
+  "properties": {
+    "command_id": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 64
+    },
+    "success": {
+      "type": "boolean"
+    },
+    "output": {
+      "type": "string",
+      "maxLength": 50000
+    },
+    "error": {
+      "type": "string",
+      "maxLength": 50000
+    },
+    "execution_time_ms": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": true
+}

@@ -5,19 +5,7 @@
 const ManagedAsset = require('../models/ManagedAsset');
 const AssetModuleConfig = require('../models/AssetModuleConfig');
 const locationService = require('../services/locationService');
-
-function cleanIpAddress(rawIp) {
-  if (!rawIp) return null;
-  if (rawIp.startsWith('::ffff:')) return rawIp.substring(7);
-  if (rawIp.includes(',')) return rawIp.split(',')[0].trim();
-  return rawIp.replace(/[[\]]/g, '');
-}
-
-const _deriveStatus = (printerStatus) => {
-  // Status é sempre decidido pelo servidor; erro de impressora vira 'error'.
-  const value = String(printerStatus || '');
-  return /error|erro|falha/i.test(value) ? 'error' : 'online';
-};
+const { normalizeTelemetry, cleanIpAddress } = require('../utils/telemetryNormalizer');
 
 /**
  * Resolve o module_id a partir do asset_type.
@@ -53,22 +41,19 @@ exports.handleAgentData = async (req, res) => {
     const cleanIp = cleanIpAddress(req.ip || req.connection?.remoteAddress);
 
     const serialNumber = String(data.serial_number || data.serialNumber || '').trim();
-    if (!serialNumber) {
+    if (!serialNumber || serialNumber === 'N/A' || serialNumber.toLowerCase() === 'unknown') {
       return res.status(400).json({
         success: false,
-        error: 'serial_number/serialNumber é obrigatório',
+        code: 'INVALID_SERIAL_NUMBER',
+        error: 'serial_number válido é obrigatório (não pode ser vazio, N/A ou unknown)',
       });
     }
 
     // asset_type pode vir no body; se não, assume 'totem' para compatibilidade
     const assetType = data.asset_type || 'totem';
 
-    // ─── CORREÇÃO CRÍTICA ────────────────────────────────────────────
-    // O schema ManagedAsset exige module_id obrigatório e possui índice
-    // único composto {module_id, serial_number}. Sem module_id o upsert
-    // anterior falhava silenciosamente ou criava documentos inválidos.
+    // Resolve o módulo ativo correspondente
     const moduleId = await resolveModuleId(assetType, logger);
-
     if (!moduleId) {
       return res.status(422).json({
         success: false,
@@ -76,7 +61,11 @@ exports.handleAgentData = async (req, res) => {
           'Crie o módulo no painel antes de enviar dados do agente.',
       });
     }
-    // ────────────────────────────────────────────────────────────────
+
+    const existing = await ManagedAsset.findOne({
+      module_id: moduleId,
+      serial_number: serialNumber,
+    }).lean();
 
     const locationResult = await locationService.mapDeviceLocation({
       ip_address: cleanIp,
@@ -84,60 +73,39 @@ exports.handleAgentData = async (req, res) => {
       device_name: data.hostname || serialNumber,
     });
 
-    const printerStatus = data.printer_status ?? data.printerStatus ?? null;
-    const existing = await ManagedAsset.findOne({
-      module_id: moduleId,
-      serial_number: serialNumber,
-    }).lean();
+    // Pipeline Canônico de Telemetria (P2)
+    const normalized = normalizeTelemetry(data, {
+      reqIp: cleanIp,
+      isQuarantined: existing?.token_status === 'quarantine' || req.device?.isQuarantined,
+      isMaintenance: existing?.maintenance_status,
+    });
+
     const existingCustom = existing?.custom_data
       ? (existing.custom_data instanceof Map ? Object.fromEntries(existing.custom_data) : existing.custom_data)
       : {};
 
-    const defined = (obj) => Object.fromEntries(
-      Object.entries(obj).filter(([, value]) => value !== undefined)
-    );
-
     const mergedCustomData = {
       ...existingCustom,
-      ...defined({
-        printer_status: printerStatus,
-        installed_programs: data.installed_programs ?? data.installedPrograms,
-        biometric_status: data.biometric_reader ?? data.biometricReaderStatus,
-        zebra_status: data.zebra_status ?? data.zebraStatus,
-        bematech_status: data.bematech_status ?? data.bematechStatus,
-        totem_type: data.totem_type ?? data.totemType,
-      }),
+      ...normalized.custom_data,
     };
 
+    // Preserva unidade/setor/andar configurados previamente no painel (B1)
+    const unitToSet = (existing?.unit && existing.unit !== 'N/A' && existing.unit !== 'Desconhecida')
+      ? existing.unit
+      : (locationResult.unit || 'Desconhecida');
+    const sectorToSet = (existing?.sector && existing.sector !== 'Desconhecido')
+      ? existing.sector
+      : locationResult.sector;
+    const floorToSet = (existing?.floor && existing.floor !== 'Desconhecido')
+      ? existing.floor
+      : locationResult.floor;
+
     const assetData = {
-      module_id: moduleId,           // ← obrigatório, resolvido acima
-      asset_type: assetType,
-      serial_number: serialNumber,
-      asset_name: data.asset_name || data.hostname || `${assetType}-${serialNumber}`,
-      ip_address: cleanIp,
-      mac_address: data.mac_address || null,
-      mac_address_radio: data.mac_address_radio || null,
-      status: _deriveStatus(printerStatus),
-      last_seen: new Date(),
-      unit: locationResult.unit || 'Desconhecida',
-      sector: locationResult.sector,
-      floor: locationResult.floor,
-
-      // Campos comuns a agentes desktop/totem
-      hostname: data.hostname || null,
-      model: data.model || null,
-      ram: data.ram || null,
-      storage_type: data.storage_type || data.hdType || null,
-      storage: data.storage || data.hdStorage || null,
-
-      // Campos de totem no nível superior (contrato único)
-      printer_status: printerStatus,
-      zebra_status: data.zebra_status ?? data.zebraStatus ?? null,
-      bematech_status: data.bematech_status ?? data.bematechStatus ?? null,
-      biometric_reader: data.biometric_reader ?? data.biometricReaderStatus ?? null,
-      totem_type: data.totem_type ?? data.totemType ?? null,
-
-      // Dados extras preservados em custom_data (merge, não overwrite)
+      ...normalized,
+      module_id: moduleId,
+      unit: unitToSet,
+      sector: sectorToSet,
+      floor: floorToSet,
       custom_data: mergedCustomData,
     };
 
