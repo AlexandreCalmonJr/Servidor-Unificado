@@ -117,13 +117,21 @@ async function runAllTests() {
   log('\n3. Criptografia Assimétrica de Comandos Remotos (RSA-SHA256):', 'blue');
   try {
     const { signCommand, verifyCommand } = require('../backend/utils/commandSignature');
-    const pubPath = path.join(__dirname, '..', 'backend', 'config', 'keys', 'command_public_key.pem');
-    const pubKey = fs.readFileSync(pubPath, 'utf8');
+    const pubCandidates = [
+      process.env.COMMAND_SIGNING_PUBLIC_KEY_FILE,
+      path.join(__dirname, '..', 'secrets', 'command_public_key.pem'),
+      path.join(__dirname, '..', 'backend', 'config', 'keys', 'command_public_key.pem'),
+    ].filter(Boolean);
+    let pubKey = process.env.COMMAND_SIGNING_PUBLIC_KEY || '';
+    for (const candidate of pubCandidates) {
+      if (!pubKey && fs.existsSync(candidate)) pubKey = fs.readFileSync(candidate, 'utf8');
+    }
 
     let privKey = process.env.COMMAND_SIGNING_PRIVATE_KEY || '';
     const privCandidates = [
       process.env.COMMAND_SIGNING_PRIVATE_KEY_FILE,
       path.join(__dirname, '..', 'secrets', 'command_private_key.pem'),
+      path.join(__dirname, '..', 'backend', 'config', 'keys', 'command_private_key.pem'),
     ].filter(Boolean);
     for (const candidate of privCandidates) {
       if (!privKey && fs.existsSync(candidate)) privKey = fs.readFileSync(candidate, 'utf8');

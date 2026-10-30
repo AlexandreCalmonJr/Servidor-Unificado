@@ -36,7 +36,7 @@ async function runP5Tests() {
   const dockerfilePath = path.join(__dirname, '../Dockerfile');
   assert('Arquivo Dockerfile existe', fs.existsSync(dockerfilePath));
 
-  const dockerfile = fs.readFileSync(dockerfilePath, 'utf-8');
+  const dockerfile = fs.readFileSync(dockerfilePath, 'utf-8').replace(/\r\n/g, '\n');
 
   assert('Estágio 1 (dependencies) presente', dockerfile.includes('FROM node:20-alpine AS dependencies'));
   assert('Estágio 2 (builder) presente', dockerfile.includes('FROM node:20-alpine AS builder'));
@@ -53,7 +53,7 @@ async function runP5Tests() {
   const dockerignorePath = path.join(__dirname, '../.dockerignore');
   assert('.dockerignore existe', fs.existsSync(dockerignorePath));
 
-  const dockerignore = fs.readFileSync(dockerignorePath, 'utf-8');
+  const dockerignore = fs.readFileSync(dockerignorePath, 'utf-8').replace(/\r\n/g, '\n');
 
   assert('.dockerignore bloqueia segredos locais (secrets/, .env)', dockerignore.includes('secrets/') && dockerignore.includes('.env'));
   assert('.dockerignore bloqueia dependências pesadas (node_modules)', dockerignore.includes('node_modules'));
@@ -66,7 +66,7 @@ async function runP5Tests() {
   const composePath = path.join(__dirname, '../docker-compose.yml');
   assert('docker-compose.yml existe', fs.existsSync(composePath));
 
-  const composeContent = fs.readFileSync(composePath, 'utf-8');
+  const composeContent = fs.readFileSync(composePath, 'utf-8').replace(/\r\n/g, '\n');
 
   assert('Bloco top-level "secrets:" declarado no compose', composeContent.includes('\nsecrets:'));
   assert('Secret command_private_key mapeado', composeContent.includes('command_private_key:'));
@@ -82,7 +82,7 @@ async function runP5Tests() {
   const ciPath = path.join(__dirname, '../.github/workflows/ci.yml');
   assert('Arquivo .github/workflows/ci.yml existe', fs.existsSync(ciPath));
 
-  const ciContent = fs.readFileSync(ciPath, 'utf-8');
+  const ciContent = fs.readFileSync(ciPath, 'utf-8').replace(/\r\n/g, '\n');
 
   assert('Gatilhos de push e pull_request configurados', ciContent.includes('push:') && ciContent.includes('pull_request:'));
   assert('Serviço de apoio MongoDB ativo no job de teste', ciContent.includes('image: mongo:6.0') && ciContent.includes('27017:27017'));
@@ -100,7 +100,7 @@ async function runP5Tests() {
   const caddyfilePath = path.join(__dirname, '../deploy/Caddyfile');
   assert('deploy/Caddyfile existe', fs.existsSync(caddyfilePath));
 
-  const caddyfile = fs.readFileSync(caddyfilePath, 'utf-8');
+  const caddyfile = fs.readFileSync(caddyfilePath, 'utf-8').replace(/\r\n/g, '\n');
 
   assert('Caddyfile suporta upstream flexível {$UPSTREAM:mdm-server:3000}', caddyfile.includes('{$UPSTREAM:mdm-server:3000}'));
   assert('Caddyfile define header Strict-Transport-Security (HSTS)', caddyfile.includes('Strict-Transport-Security'));
