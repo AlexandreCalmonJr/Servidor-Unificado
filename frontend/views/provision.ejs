@@ -109,7 +109,7 @@
     <input type="hidden" id="provisioning-json"
         value='{"provisioning_token": "<%= token %>", "url": "<%= server_url %>/api/provisioning/enroll"}'>
 
-    <script>
+    <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>">
         lucide.createIcons();
 
         const token = document.getElementById('token-val').value;

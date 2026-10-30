@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const secrets = require('../config/secrets');
 
 function timingSafeTokenEqual(receivedToken, expectedToken) {
   const received = Buffer.from(String(receivedToken || ''), 'utf8');
@@ -11,7 +12,7 @@ const deviceAuth = (req, res, next) => {
   const logger = req.logger || console;
 
   try {
-    const expectedToken = process.env.AUTH_TOKEN;
+    const expectedToken = secrets.AUTH_TOKEN || process.env.AUTH_TOKEN;
 
     if (!expectedToken) {
       logger.error('AUTH_TOKEN nao configurado no ambiente');

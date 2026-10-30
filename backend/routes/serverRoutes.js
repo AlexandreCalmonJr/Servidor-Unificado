@@ -135,23 +135,3 @@ const serverRoutes = (logger, getApiLimiter, auth) => {
 };
 
 module.exports = serverRoutes;
-
-// Renderizar dashboard (SSR)
-module.exports.renderDashboard = (logger) => async (req, res) => {
-  try {
-    const devices = await ManagedAsset.find().lean();
-    const publicDir = PUBLIC_DIR;
-    const files = await fs.readdir(publicDir);
-    const apks = files.filter(f => f.endsWith('.apk')).map(f => ({
-      name: f,
-      url: `${getPublicBaseUrl(req)}/public/${f}`,
-    }));
-    res.render('dashboard', {
-      devices, apks,
-      serverUrl: getPublicBaseUrl(req),
-    });
-  } catch (err) {
-    logger.error(`Erro ao carregar dashboard: ${err.message}`);
-    res.status(500).send('Erro interno do servidor');
-  }
-};

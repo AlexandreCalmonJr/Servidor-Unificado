@@ -2,15 +2,9 @@ const rateLimit = require('express-rate-limit');
 const RedisStore = require('rate-limit-redis');
 const { client: redisClient, isReady } = require('../services/cacheService');
 
-const deviceKeyGenerator = (req) => {
-  const serial = req.body?.serial_number || req.body?.serialNumber || req.query?.serialNumber || req.headers['x-device-serial'];
-  if (serial) return `device:${serial}`;
-
-  const token = req.headers['auth_token'] || (req.headers['authorization']?.startsWith('Bearer ') ? req.headers['authorization'].slice(7) : null);
-  if (token && token.length > 10) return `token:${token.slice(0, 16)}`;
-
-  return req.ip;
-};
+// Rate limit sempre por IP — nunca usar identificadores enviados pelo cliente
+// (S8: serial_number ou prefixo de token são controláveis pelo atacante).
+const deviceKeyGenerator = (req) => req.ip;
 
 const getApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

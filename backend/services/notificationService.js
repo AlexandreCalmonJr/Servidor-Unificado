@@ -11,17 +11,16 @@ class NotificationService {
    * Notifica sobre novo token de provisionamento criado
    */
   static notifyTokenCreated(token, organization, configProfile) {
-    WebSocketServer.notifyAll({
+    // Dados de provisionamento só para o painel (S9: dispositivos não devem ver)
+    WebSocketServer.broadcastToPanel({
       type: 'notification',
       category: 'provisioning',
       event: 'token_created',
       title: '🔑 Novo Token de Provisionamento',
       message: `Token gerado para ${organization} com perfil ${configProfile}`,
       data: {
-        token: token.substring(0, 16) + '...',
         organization,
         configProfile,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       },
       severity: 'info',
       timestamp: new Date(),
@@ -32,15 +31,15 @@ class NotificationService {
    * Notifica sobre novo dispositivo provisionado
    */
   static notifyDeviceEnrolled(deviceName, serialNumber, organization) {
-    WebSocketServer.notifyAll({
+    // Dados de provisionamento só para o painel (S9)
+    WebSocketServer.broadcastToPanel({
       type: 'notification',
       category: 'provisioning',
       event: 'device_enrolled',
       title: '📱 Dispositivo Provisionado',
-      message: `${deviceName} (${serialNumber}) foi adicionado a ${organization}`,
+      message: `${deviceName} foi adicionado a ${organization}`,
       data: {
         deviceName,
-        serialNumber,
         organization,
       },
       severity: 'success',
@@ -52,7 +51,7 @@ class NotificationService {
    * Notifica sobre comando executado
    */
   static notifyCommandExecuted(deviceName, commandType, status) {
-    WebSocketServer.notifyAll({
+    WebSocketServer.broadcastToPanel({
       type: 'notification',
       category: 'commands',
       event: 'command_executed',
@@ -159,7 +158,7 @@ class NotificationService {
    * Notifica sobre atualização de dashboard
    */
   static notifyDashboardUpdate(moduleId, stats) {
-    WebSocketServer.notifyAll({
+    WebSocketServer.broadcastToPanel({
       type: 'dashboard_update',
       moduleId,
       stats,
@@ -171,7 +170,7 @@ class NotificationService {
    * Notifica sobre novo comando na fila
    */
   static notifyCommandQueued(deviceName, commandType, priority = 'normal') {
-    WebSocketServer.notifyAll({
+    WebSocketServer.broadcastToPanel({
       type: 'notification',
       category: 'commands',
       event: 'command_queued',

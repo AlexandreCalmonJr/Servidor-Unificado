@@ -133,12 +133,10 @@ const managedAssetSchema = new mongoose.Schema({
   deleted_at: {
     type: Date,
     default: null,
-    index: true  // 🗑️ Para filtros rápidos
   },
   is_deleted: {
     type: Boolean,
     default: false,
-    index: true
   },
 
   // ─── Metadados ────────────────────────────────────────────────────
@@ -182,8 +180,8 @@ managedAssetSchema.index({ module_id: 1, is_deleted: 1 });
 
 // ─── Virtual ──────────────────────────────────────────────────────────
 managedAssetSchema.virtual('is_currently_online').get(function () {
-  const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
-  return this.last_seen >= fifteenMinutesAgo;
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+  return this.last_seen >= fiveMinutesAgo;
 });
 
 // ─── Métodos ──────────────────────────────────────────────────────────

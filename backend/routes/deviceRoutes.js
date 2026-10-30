@@ -54,7 +54,7 @@ module.exports = (logger, modifyApiLimiter, getApiLimiter, deviceAuth) => {
 
       if (!asset) {
         log.warn(`[DeviceRoutes] Heartbeat de dispositivo não registrado: ${serialNum}`);
-        return res.json({ success: true, registered: false, message: 'Dispositivo não cadastrado ainda' });
+        return res.status(404).json({ success: false, registered: false, message: 'Dispositivo não cadastrado' });
       }
 
       log.info(`💓 Heartbeat: ${serialNum} (${asset.asset_name || 'Sem nome'})`);

@@ -305,23 +305,57 @@ const validateByModuleId = async (req, res, next) => {
 // Campos controlados exclusivamente pelo servidor/painel.
 // Nunca aceitar do payload de agente (proteção contra mass assignment).
 const PROTECTED_FIELDS = [
-  '_id', '__v', 'module_id', 'status', 'last_seen',
+  '_id', '__v', 'module_id',
+  'status', 'last_seen',
   'is_deleted', 'deleted_at', 'deleted_by',
   'created_at', 'updated_at', 'created_by', 'updated_by',
   'provisioning_status',
+  'location_history', 'maintenance_history',
+  'schema_version',
 ];
 
+// Campos que o agente pode enviar. Tudo fora desta lista é descartado
+// quando a requisição vem de um dispositivo (agentIngest).
+const AGENT_ALLOWED_FIELDS = new Set([
+  'asset_name', 'serial_number', 'hostname', 'model', 'manufacturer',
+  'processor', 'processor_cores', 'ram', 'storage', 'storage_type',
+  'operating_system', 'os_version', 'ip_address', 'mac_address',
+  'mac_address_radio', 'connection_type', 'battery_level', 'battery_health',
+  'is_notebook', 'is_encrypted', 'is_mobile',
+  'printer_status', 'zebra_status', 'bematech_status', 'biometric_reader',
+  'totem_type', 'screen_size', 'resolution', 'firmware_version',
+  'imei', 'android_id', 'secure_android_id',
+  'custom_data', 'asset_type',
+  'total_pages', 'toner_levels',
+]);
+
 async function sanitizeAssetData(data, moduleType, options = {}) {
-  const sanitized = { ...data };
+  let sanitized = { ...data };
 
   // Remove campos que o cliente não pode controlar.
   for (const field of PROTECTED_FIELDS) delete sanitized[field];
 
-  // Remove campos vazios ou "N/A" desnecessários
+  // Se a requisição vem de um agente/dispositivo, aplica allowlist rígida.
+  if (options.agentIngest) {
+    const filtered = {};
+    for (const key of Object.keys(sanitized)) {
+      if (AGENT_ALLOWED_FIELDS.has(key)) filtered[key] = sanitized[key];
+    }
+    sanitized = filtered;
+  }
+
+  // Remove campos vazios ou "N/A" desnecessários.
+  // Em updates parciais (painel), remove a chave completamente para
+  // não sobrescrever dados existentes com null.
+  const isPartialUpdate = !options.isNew && !options.agentIngest;
   Object.keys(sanitized).forEach(key => {
     if (sanitized[key] === 'N/A' || sanitized[key] === '') {
       if (key !== 'asset_name' && key !== 'serial_number') {
-        sanitized[key] = null;
+        if (isPartialUpdate) {
+          delete sanitized[key]; // Não sobrescrever com nulo
+        } else {
+          sanitized[key] = null;
+        }
       }
     }
   });
@@ -437,7 +471,11 @@ function transformAssetForOutput(asset) {
  */
 async function createAsset(moduleType, data, options = {}) {
   const Model = getModelByType(moduleType);
+  const targetModuleId = data.module_id || options.moduleId;
   const sanitized = await sanitizeAssetData(data, moduleType, { ...options, isNew: true });
+  if (targetModuleId) {
+    sanitized.module_id = targetModuleId;
+  }
 
   const asset = new Model(sanitized);
 
@@ -478,13 +516,17 @@ async function updateAsset(moduleType, assetId, data, options = {}) {
   // Detecta mudança de localização para histórico BEFORE update
   const oldLoc = { u: asset.unit, s: asset.sector, f: asset.floor };
 
-  // Aplica apenas chaves definidas: update parcial não apaga dados existentes.
+  // Aplica apenas chaves PRESENTES e DEFINIDAS no payload sanitizado.
+  // Chaves ausentes no body original não devem sobrescrever dados existentes.
   Object.keys(sanitized).forEach((key) => {
-    if (sanitized[key] !== undefined) asset[key] = sanitized[key];
+    if (sanitized[key] !== undefined && sanitized[key] !== null) {
+      asset[key] = sanitized[key];
+    } else if (sanitized[key] === null && options.agentIngest) {
+      // Agentes podem enviar null para limpar campos que eles controlam
+      asset[key] = sanitized[key];
+    }
+    // Em updates do painel, null é ignorado (preserva valor existente)
   });
-
-  // Validação manual ou via save()
-  // Mongoose apply changes
 
   const newLoc = { u: asset.unit, s: asset.sector, f: asset.floor };
 
@@ -493,7 +535,7 @@ async function updateAsset(moduleType, assetId, data, options = {}) {
     if (!asset.location_history) asset.location_history = [];
     asset.location_history.push({
       timestamp: new Date(),
-      ip: asset.ip_address, // IP atualizado
+      ip: asset.ip_address,
       unit: asset.unit,
       sector: asset.sector,
       floor: asset.floor,
@@ -502,7 +544,7 @@ async function updateAsset(moduleType, assetId, data, options = {}) {
   }
 
   asset.updated_at = new Date();
-  await asset.save(); // Validações rodarão aqui
+  await asset.save();
 
   return transformAssetForOutput(asset);
 }

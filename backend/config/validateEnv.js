@@ -59,8 +59,16 @@ const validateEnv = () => {
       default: 'somente same-origin/desenvolvimento',
     },
     COMMAND_SIGNING_PRIVATE_KEY: {
-      description: 'Chave privada PEM para assinar comandos remotos',
+      description: 'Chave privada PEM para assinar comandos remotos (ou COMMAND_SIGNING_PRIVATE_KEY_FILE)',
       default: 'nao configurada',
+      resolved: () => {
+        try {
+          const secrets = require('./secrets');
+          return Boolean(process.env.COMMAND_SIGNING_PRIVATE_KEY || process.env.COMMAND_SIGNING_PRIVATE_KEY_FILE || secrets.COMMAND_PRIVATE_KEY);
+        } catch {
+          return Boolean(process.env.COMMAND_SIGNING_PRIVATE_KEY || process.env.COMMAND_SIGNING_PRIVATE_KEY_FILE);
+        }
+      },
     },
   };
 
@@ -97,16 +105,17 @@ const validateEnv = () => {
   console.log(chalk.bold('\nVariaveis Opcionais:'));
 
   Object.entries(optional).forEach(([key, config]) => {
+    const isResolved = typeof config.resolved === 'function' ? config.resolved() : Boolean(process.env[key]);
     const value = process.env[key];
 
-    if (!value) {
+    if (!value && !isResolved) {
       console.log(chalk.yellow(`   AVISO ${key}: usando padrao (${config.default})`));
       warnings.push({ key, message: `${key} nao definida`, help: config.description });
-    } else if (config.values && !config.values.includes(value)) {
+    } else if (value && config.values && !config.values.includes(value)) {
       console.log(chalk.yellow(`   AVISO ${key}: ${value} (valor nao recomendado)`));
       warnings.push({ key, message: `${key} tem valor nao padrao`, help: `Valores recomendados: ${config.values.join(', ')}` });
     } else {
-      const displayValue = key.includes('KEY') ? `***${value.slice(-12)}` : value;
+      const displayValue = isResolved && !value ? '(configurada via arquivo/secret)' : (key.includes('KEY') ? `***${value.slice(-12)}` : value);
       console.log(chalk.green(`   OK ${key}: ${displayValue}`));
     }
   });
@@ -130,7 +139,11 @@ const validateEnv = () => {
     }
   }
 
-  if (!process.env.COMMAND_SIGNING_PRIVATE_KEY) {
+  const hasSigningKey = typeof optional.COMMAND_SIGNING_PRIVATE_KEY.resolved === 'function'
+    ? optional.COMMAND_SIGNING_PRIVATE_KEY.resolved()
+    : Boolean(process.env.COMMAND_SIGNING_PRIVATE_KEY);
+
+  if (!hasSigningKey) {
     warnings.push({
       key: 'COMMAND_SIGNING_PRIVATE_KEY',
       message: 'Comandos remotos nao serao assinados sem COMMAND_SIGNING_PRIVATE_KEY',

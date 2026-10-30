@@ -17,6 +17,7 @@ try {
 }
 
 // ===== IMPORTS =====
+const crypto = require('crypto');
 const express = require('express');
 const mongoose = require('mongoose');
 const helmet = require('helmet');
@@ -119,15 +120,28 @@ connectDB();
 
 // ===== MIDDLEWARES GLOBAIS =====
 
+// CSP Nonce middleware para scripts dinâmicos (SSR/templates)
+app.use((req, res, next) => {
+  res.locals.cspNonce = crypto.randomBytes(16).toString('base64');
+  next();
+});
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
       connectSrc: ["'self'", "http:", "https:", "ws:", "wss:"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https:"],
+      scriptSrc: [
+        "'self'",
+        (req, res) => `'nonce-${res.locals.cspNonce}'`,
+        "https://cdn.jsdelivr.net",
+        "https://cdnjs.cloudflare.com",
+        "https://unpkg.com",
+        "https://cdn.tailwindcss.com",
+      ],
       scriptSrcAttr: ["'unsafe-inline'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https:"],
-      fontSrc: ["'self'", "data:", "https:"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.tailwindcss.com"],
+      fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https:", "http:", "blob:"],
       objectSrc: ["'none'"],
       frameAncestors: ["'self'"],
@@ -135,6 +149,11 @@ app.use(helmet({
       childSrc: ["'self'", "blob:"],
       upgradeInsecureRequests: null,
     },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
   },
   crossOriginEmbedderPolicy: false,
   crossOriginOpenerPolicy: false,
@@ -246,7 +265,7 @@ const requirePanelSession = async (req, res, next) => {
 };
 
 app.get('/provision/:token', provisioningRoutes.renderProvisioningPage(logger));
-app.get('/dashboard', auth, serverRoutes.renderDashboard(logger));
+app.get('/dashboard', (req, res) => res.redirect('/panel/index.html'));
 
 app.get('/panel/index.html', requirePanelSession, (req, res) =>
   res.sendFile(path.join(FRONTEND_DIR, 'index.html'))

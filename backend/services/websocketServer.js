@@ -3,6 +3,7 @@ const WebSocket = require('ws');
 const ManagedAsset = require('../models/ManagedAsset');
 const logger = require('../utils/logger');
 const { getSessionToken, verifyJwt } = require('../utils/authTokens');
+const secrets = require('../config/secrets');
 
 function timingSafeTokenEqual(receivedToken, expectedToken) {
   const received = Buffer.from(String(receivedToken || ''), 'utf8');
@@ -41,7 +42,8 @@ function authenticateHandshake(req) {
 
     if (protocol.startsWith('mdm.device.')) {
       const token = protocol.substring('mdm.device.'.length);
-      if (process.env.AUTH_TOKEN && timingSafeTokenEqual(token, process.env.AUTH_TOKEN)) {
+      const expected = secrets.AUTH_TOKEN || process.env.AUTH_TOKEN;
+      if (expected && timingSafeTokenEqual(token, expected)) {
         return { kind: 'device', id: 'device' };
       }
     }
@@ -217,6 +219,29 @@ class WebSocketServer {
     });
   }
 
+  /**
+   * Envia apenas para conexões do painel (usuários autenticados).
+   * Dispositivos não recebem dados de provisionamento, tokens, etc.
+   */
+  broadcastToPanel(data) {
+    this.wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN && (client.isPanel || client.auth?.kind === 'user')) {
+        client.send(JSON.stringify(data));
+      }
+    });
+  }
+
+  /**
+   * Envia apenas para conexões de dispositivos.
+   */
+  broadcastToDevices(data) {
+    this.wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN && client.auth?.kind === 'device') {
+        client.send(JSON.stringify(data));
+      }
+    });
+  }
+
   notifyAsset(assetId, data) {
     const targetId = String(assetId || '');
     this.wss.clients.forEach((client) => {
@@ -268,7 +293,13 @@ class WebSocketServer {
 
   static notifyAll(data) {
     if (WebSocketServer.instance) {
-      WebSocketServer.instance.notifyAll(data);
+      WebSocketServer.instance.broadcast(data);
+    }
+  }
+
+  static broadcastToPanel(data) {
+    if (WebSocketServer.instance) {
+      WebSocketServer.instance.broadcastToPanel(data);
     }
   }
 }

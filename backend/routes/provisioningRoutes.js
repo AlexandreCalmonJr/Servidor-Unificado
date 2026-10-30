@@ -348,6 +348,7 @@ module.exports.renderProvisioningPage = (logger) => async (req, res) => {
       token: req.params.token,
       organization: provisioningToken.organization,
       server_url: getPublicBaseUrl(req),
+      cspNonce: res.locals.cspNonce || '',
     });
   } catch (err) {
     logger.error(`Erro na página de provisionamento: ${err.message}`);

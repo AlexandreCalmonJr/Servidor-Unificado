@@ -1,11 +1,12 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const secrets = require('../config/secrets');
 
 const SESSION_COOKIE_NAME = 'mdm_session';
 const DEFAULT_JWT_EXPIRES_IN = '2h';
 
 function getJwtSecret() {
-  const secret = process.env.JWT_SECRET;
+  const secret = secrets.JWT_SECRET || process.env.JWT_SECRET;
   if (!secret) {
     throw new Error('JWT_SECRET nao configurado');
   }
