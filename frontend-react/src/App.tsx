@@ -35,6 +35,16 @@ import { Audit } from './pages/Audit'
 import { ServerStatus } from './pages/ServerStatus'
 import { Reports } from './pages/Reports'
 import { Profile } from './pages/Profile'
+import { Mappings } from './pages/Mappings'
+import { Profiles } from './pages/Profiles'
+import { Desktops } from './pages/Desktops'
+import { DesktopDetail } from './pages/DesktopDetail'
+import { Notebooks } from './pages/Notebooks'
+import { NotebookDetail } from './pages/NotebookDetail'
+import { MobileDevices } from './pages/MobileDevices'
+import { MobileDetail } from './pages/MobileDetail'
+import { Panels } from './pages/Panels'
+import { PanelDetail } from './pages/PanelDetail'
 import { defaultModules } from './data/modules'
 import type { ModuleItem } from './types'
 
@@ -71,6 +81,22 @@ export function App() {
         return <Dashboard go={setActive} modules={modules} />
       case 'assets':
         return <Assets go={setActive} />
+      case 'desktops':
+        return <Desktops go={setActive} />
+      case 'desktopDetail':
+        return <DesktopDetail go={setActive} />
+      case 'notebooks':
+        return <Notebooks go={setActive} />
+      case 'notebookDetail':
+        return <NotebookDetail go={setActive} />
+      case 'mobiles':
+        return <MobileDevices go={setActive} />
+      case 'mobileDetail':
+        return <MobileDetail go={setActive} />
+      case 'panels':
+        return <Panels go={setActive} />
+      case 'panelDetail':
+        return <PanelDetail go={setActive} />
       case 'device':
         return <DeviceDetail go={setActive} />
       case 'totems':
@@ -134,6 +160,10 @@ export function App() {
         return <ServerStatus />
       case 'reports':
         return <Reports />
+      case 'mappings':
+        return <Mappings go={setActive} />
+      case 'profiles':
+        return <Profiles go={setActive} />
       case 'profile':
       default:
         return <Profile />

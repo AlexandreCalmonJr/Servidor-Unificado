@@ -30,6 +30,18 @@ interface EventLogItem {
   payload: Record<string, any>
 }
 
+function getAppIconName(name: string, managed: boolean): import('../types').IconName {
+  if (name.includes('1Password')) return 'lock'
+  if (name.includes('Code') || name.includes('Terminal')) return 'terminal'
+  if (name.includes('Falcon') || name.includes('CrowdStrike')) return 'shield'
+  if (name.includes('Zoom')) return 'phone'
+  if (name.includes('Slack')) return 'agent'
+  if (name.includes('Chrome')) return 'search'
+  if (name.includes('Figma')) return 'sliders'
+  if (name.includes('Copilot') || name.includes('Microsoft')) return 'grid'
+  return managed ? 'shield' : 'package'
+}
+
 export function DeviceDetail({ go }: { go: (p: PageId) => void }) {
   const [tab, setTab] = useState<'geral' | 'hardware' | 'apps' | 'security' | 'activity'>('geral')
   const toast = useToast()
@@ -478,7 +490,12 @@ export function DeviceDetail({ go }: { go: (p: PageId) => void }) {
               </div>
               <div>
                 <span>Ponto de acesso</span>
-                <strong>Novara-Corp-HQ (BSSID 08:ec:f5:12:44:aa)</strong>
+                <strong>
+                  Novara-Corp-HQ
+                  <small style={{ fontWeight: 500, color: 'var(--muted)', display: 'block', fontSize: '10px' }}>
+                    BSSID: 08:ec:f5:12:44:aa
+                  </small>
+                </strong>
               </div>
               <div>
                 <span>Uptime do sistema</span>
@@ -902,7 +919,7 @@ export function DeviceDetail({ go }: { go: (p: PageId) => void }) {
                         <td>
                           <div className="device-cell">
                             <span style={{ background: app.managed ? 'var(--primary-soft)' : '#f3f4f6', color: app.managed ? 'var(--primary)' : '#4b5563' }}>
-                              <Icon name={app.managed ? 'shield' : 'package'} size={18} />
+                              <Icon name={getAppIconName(app.name, app.managed)} size={18} />
                             </span>
                             <div>
                               <strong>{app.name}</strong>

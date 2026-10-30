@@ -24,6 +24,14 @@ export type PageId =
   | 'agent'
   | 'downloads'
   | 'mobile'
+  | 'desktops'
+  | 'desktopDetail'
+  | 'notebooks'
+  | 'notebookDetail'
+  | 'panels'
+  | 'panelDetail'
+  | 'mobiles'
+  | 'mobileDetail'
   | 'admin'
   | 'userCreate'
   | 'audit'
@@ -102,7 +110,7 @@ export interface DeviceItem {
   status: string
   tone: StatusTone
   seen: string
-  category?: 'desktop' | 'mobile' | 'totem' | 'printer'
+  category?: 'desktop' | 'notebook' | 'mobile' | 'totem' | 'printer' | 'panel'
   ip?: string
   serial?: string
   department?: string

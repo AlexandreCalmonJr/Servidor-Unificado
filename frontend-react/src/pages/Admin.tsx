@@ -43,7 +43,6 @@ export function Admin({ go }: { go: (p: PageId) => void }) {
                 <th>Grupos Vinculados</th>
                 <th>Status</th>
                 <th>Último acesso</th>
-                <th />
               </tr>
             </thead>
             <tbody>
@@ -74,9 +73,6 @@ export function Admin({ go }: { go: (p: PageId) => void }) {
                     </Status>
                   </td>
                   <td>{u[4]}</td>
-                  <td>
-                    <button className="card-more" aria-label="Ações do usuário">•••</button>
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -92,7 +88,9 @@ export function Admin({ go }: { go: (p: PageId) => void }) {
           <strong>Autenticação em duas etapas (2FA) Obrigatória</strong>
           <p>3 de 4 administradores já estão com o aplicativo autenticador configurado.</p>
         </div>
-        <Button variant="secondary">Revisar conformidade de segurança</Button>
+        <Button variant="secondary" onClick={() => go('audit')}>
+          Revisar conformidade de segurança
+        </Button>
       </section>
     </div>
   )

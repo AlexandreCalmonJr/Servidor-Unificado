@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Icon } from '../components/Icon'
 import { Button, Status } from '../components/UI'
+import { useToast } from '../components/Toast'
 import type { PageId } from '../types'
 
 interface AppItem {
@@ -16,7 +17,7 @@ interface AppItem {
   targetCount: number
 }
 
-const catalogApps: AppItem[] = [
+const initialCatalogApps: AppItem[] = [
   { id: 'app-1', name: 'Microsoft 365 Apps', vendor: 'Microsoft Corp', category: 'Produtividade', version: 'v16.86', color: 'blue', type: 'baseline', hasUpdate: false, installedCount: 247, targetCount: 247 },
   { id: 'app-2', name: 'Google Chrome Enterprise', vendor: 'Google LLC', category: 'Navegador Web', version: 'v126.0', color: 'green', type: 'baseline', hasUpdate: false, installedCount: 247, targetCount: 247 },
   { id: 'app-3', name: '1Password 8', vendor: 'AgileBits', category: 'Segurança & Senhas', version: 'v8.10.34', color: 'cyan', type: 'baseline', hasUpdate: false, installedCount: 245, targetCount: 247 },
@@ -29,12 +30,14 @@ const catalogApps: AppItem[] = [
 ]
 
 export function AppCatalog({ go }: { go?: (p: PageId) => void }) {
+  const [apps, setApps] = useState<AppItem[]>(initialCatalogApps)
   const [tab, setTab] = useState<'all' | 'baseline' | 'selfService' | 'updates'>('all')
   const [search, setSearch] = useState('')
   const [installed, setInstalled] = useState<string[]>(['Microsoft 365 Apps', 'Google Chrome Enterprise', '1Password 8', 'CrowdStrike Falcon Sensor'])
+  const toast = useToast()
 
   const filteredApps = useMemo(() => {
-    return catalogApps.filter((app) => {
+    return apps.filter((app) => {
       const matchSearch = `${app.name} ${app.vendor} ${app.category}`.toLowerCase().includes(search.toLowerCase())
       if (!matchSearch) return false
 
@@ -43,16 +46,26 @@ export function AppCatalog({ go }: { go?: (p: PageId) => void }) {
       if (tab === 'updates') return app.hasUpdate
       return true
     })
-  }, [tab, search])
+  }, [apps, tab, search])
 
-  const pendingUpdatesCount = useMemo(() => catalogApps.filter(a => a.hasUpdate).length, [])
-  const baselineCount = useMemo(() => catalogApps.filter(a => a.type === 'baseline').length, [])
-  const selfServiceCount = useMemo(() => catalogApps.filter(a => a.type === 'selfService').length, [])
+  const pendingUpdatesCount = useMemo(() => apps.filter(a => a.hasUpdate).length, [apps])
+  const baselineCount = useMemo(() => apps.filter(a => a.type === 'baseline').length, [apps])
+  const selfServiceCount = useMemo(() => apps.filter(a => a.type === 'selfService').length, [apps])
 
   const handleToggleInstall = (appName: string) => {
-    setInstalled((old) =>
-      old.includes(appName) ? old.filter((x) => x !== appName) : [...old, appName]
-    )
+    const isCurrentlyInstalled = installed.includes(appName)
+    if (isCurrentlyInstalled) {
+      setInstalled((old) => old.filter((x) => x !== appName))
+      toast.info(`Distribuição de ${appName} desativada para novos dispositivos.`)
+    } else {
+      setInstalled((old) => [...old, appName])
+      toast.success(`Pacote de ${appName} enfileirado para distribuição silenciosa nos ativos!`)
+    }
+  }
+
+  const handleApproveAllUpdates = () => {
+    setApps((prev) => prev.map((a) => ({ ...a, hasUpdate: false })))
+    toast.success('Todas as atualizações homologadas foram aprovadas e disparadas em lote!')
   }
 
   return (
@@ -74,12 +87,21 @@ export function AppCatalog({ go }: { go?: (p: PageId) => void }) {
           <Icon name="blocks" size={25} />
         </span>
         <div style={{ flex: 1 }}>
-          <strong>{catalogApps.length} softwares homologados no repositório corporativo</strong>
-          <p>{pendingUpdatesCount} atualizações de segurança estão homologadas e aguardando aprovação para distribuição em lote.</p>
+          <strong>{apps.length} softwares homologados no repositório corporativo</strong>
+          <p>{pendingUpdatesCount > 0 ? `${pendingUpdatesCount} atualizações de segurança estão homologadas e aguardando aprovação para distribuição em lote.` : 'Todos os softwares instalados na frota estão nas versões mais recentes.'}</p>
         </div>
-        <Button variant="secondary" onClick={() => setTab('updates')}>
-          Revisar fila de atualizações ({pendingUpdatesCount})
-        </Button>
+        {pendingUpdatesCount > 0 ? (
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Button variant="secondary" onClick={() => setTab('updates')}>
+              Revisar fila ({pendingUpdatesCount})
+            </Button>
+            <Button icon="check" onClick={handleApproveAllUpdates}>
+              Aprovar e Atualizar em Lote
+            </Button>
+          </div>
+        ) : (
+          <Status tone="green">Tudo Atualizado</Status>
+        )}
       </section>
 
       <div className="report-toolbar">
@@ -88,7 +110,7 @@ export function AppCatalog({ go }: { go?: (p: PageId) => void }) {
             className={tab === 'all' ? 'active' : ''}
             onClick={() => setTab('all')}
           >
-            Todos os aplicativos ({catalogApps.length})
+            Todos os aplicativos ({apps.length})
           </button>
           <button
             className={tab === 'baseline' ? 'active' : ''}
@@ -153,7 +175,6 @@ export function AppCatalog({ go }: { go?: (p: PageId) => void }) {
                   </span>
                 </div>
               </div>
-              <button className="card-more" aria-label="Opções do app">•••</button>
               <div className="app-meta">
                 <span>
                   <small>Instalado em</small>

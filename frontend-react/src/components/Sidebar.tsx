@@ -37,7 +37,19 @@ export function Sidebar({
     // DISPOSITIVOS & OPERAÇÃO
     const devItems: NavItem[] = []
     if (isEnabled('assets')) {
-      devItems.push({ id: 'assets', label: 'Ativos', icon: 'laptop', section: 'DISPOSITIVOS & OPERAÇÃO', badge: 247 })
+      devItems.push({ id: 'assets', label: 'Gestão Geral de Ativos', icon: 'grid', section: 'DISPOSITIVOS & OPERAÇÃO', badge: 289 })
+    }
+    if (isEnabled('desktops')) {
+      devItems.push({ id: 'desktops', label: 'Estações & Desktops', icon: 'server', section: 'DISPOSITIVOS & OPERAÇÃO', badge: 120 })
+    }
+    if (isEnabled('notebooks')) {
+      devItems.push({ id: 'notebooks', label: 'Notebooks & Laptops', icon: 'laptop', section: 'DISPOSITIVOS & OPERAÇÃO', badge: 81 })
+    }
+    if (isEnabled('mobiles')) {
+      devItems.push({ id: 'mobiles', label: 'Smartphones & Tablets', icon: 'phone', section: 'DISPOSITIVOS & OPERAÇÃO', badge: 46 })
+    }
+    if (isEnabled('panels')) {
+      devItems.push({ id: 'panels', label: 'Painéis & Signage', icon: 'blocks', section: 'DISPOSITIVOS & OPERAÇÃO', badge: 14 })
     }
     if (isEnabled('totems')) {
       devItems.push({ id: 'totems', label: 'Totens de Autoatend.', icon: 'totem', section: 'DISPOSITIVOS & OPERAÇÃO', badge: 18 })
@@ -70,6 +82,7 @@ export function Sidebar({
 
     // A central de Módulos sempre fica visível para o admin gerenciar!
     mgmtItems.push({ id: 'modules', label: 'Módulos', icon: 'blocks' })
+    mgmtItems.push({ id: 'profiles', label: 'Perfis MDM', icon: 'sliders' })
 
     if (isEnabled('commands')) {
       mgmtItems.push({ id: 'commands', label: 'Comandos remotos', icon: 'terminal' })
@@ -86,6 +99,7 @@ export function Sidebar({
     // SISTEMA
     items.push(
       { id: 'admin', label: 'Administração', icon: 'shield', section: 'SISTEMA' },
+      { id: 'mappings', label: 'Mapeamentos', icon: 'mapPin' },
       { id: 'audit', label: 'Auditoria', icon: 'report' },
       { id: 'server', label: 'Status dos servidores', icon: 'server' }
     )

@@ -76,7 +76,6 @@ export function GroupDetail({ go }: { go: (p: PageId) => void }) {
                   <th>Responsável</th>
                   <th>Status</th>
                   <th>Última Conexão</th>
-                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -99,9 +98,6 @@ export function GroupDetail({ go }: { go: (p: PageId) => void }) {
                       <Status tone={d.tone}>{d.status}</Status>
                     </td>
                     <td>{d.seen}</td>
-                    <td>
-                      <button className="card-more">•••</button>
-                    </td>
                   </tr>
                 ))}
               </tbody>

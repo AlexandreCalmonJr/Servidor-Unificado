@@ -3,7 +3,15 @@ import type { PageId } from '../types'
 
 export const pageMeta: Record<PageId, { title: string; subtitle: string }> = {
   dashboard: { title: 'Visão geral', subtitle: 'Acompanhe a saúde e a segurança do seu ambiente em tempo real.' },
-  assets: { title: 'Ativos', subtitle: 'Inventário completo de dispositivos corporativos e telemetria.' },
+  assets: { title: 'Gestão Geral de Ativos', subtitle: 'Inventário consolidado e unificado de toda a frota corporativa.' },
+  desktops: { title: 'Estações Fixas & Desktops', subtitle: 'Supervisão de torres, estações de trabalho, portas de rede e Wake-on-LAN.' },
+  desktopDetail: { title: 'Ficha da Estação de Trabalho', subtitle: 'Telemetria da torre, multi-monitores, GPU dedicada, portas de rede e Wake-on-LAN.' },
+  notebooks: { title: 'Notebooks & Laptops Móveis', subtitle: 'Gestão de laptops, saúde da bateria, criptografia e rastreamento.' },
+  notebookDetail: { title: 'Ficha do Notebook Corporativo', subtitle: 'Saúde e ciclos de bateria, custódia de chave BitLocker/FileVault e Wi-Fi.' },
+  mobiles: { title: 'Smartphones & Tablets (EMM)', subtitle: 'Gestão móvel iOS e Android, IMEI, operadoras, Modo Perdido e wipe remoto.' },
+  mobileDetail: { title: 'Ficha do Dispositivo Móvel', subtitle: 'Telefonia móvel, IMEI, contêiner EMM, Modo Perdido e wipe seletivo.' },
+  panels: { title: 'Painéis Digitais & Signage', subtitle: 'Supervisão de TVs de chamada de senha, menuboards, video walls e HDMI-CEC.' },
+  panelDetail: { title: 'Ficha do Painel & Signage', subtitle: 'Parâmetros HDMI-CEC, resolução 4K, canal de mídia em reprodução e alertas de tela.' },
   device: { title: 'Detalhes do dispositivo', subtitle: 'Informações, telemetria e atividade do ativo selecionado.' },
   totems: { title: 'Totens de Autoatendimento', subtitle: 'Monitoramento de periféricos, tela, impressora térmica e status operacional.' },
   totemDetail: { title: 'Ficha do Totem de Autoatendimento', subtitle: 'Telemetria, periféricos conectados, tela touch e ações de kiosk.' },

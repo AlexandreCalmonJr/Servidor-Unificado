@@ -431,16 +431,18 @@ td input, th input { accent-color: var(--primary); }
 .info-panel { padding: 22px; }
 .info-grid { display: grid; grid-template-columns: 1fr 1fr; margin-top: 18px; border-top: 1px solid var(--line); }
 .info-grid > div { padding: 14px 5px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
-.info-grid span, .quick-info span { color: var(--muted); font-size: 8px; }
-.info-grid strong, .quick-info strong { font-size: 10px; font-weight: 600; }
+.info-grid span { color: var(--muted); font-size: 11px; }
+.info-grid strong { font-size: 12px; font-weight: 600; }
+.quick-info span { color: var(--muted); font-size: 11px; white-space: nowrap; flex-shrink: 0; }
+.quick-info strong { font-size: 12px; font-weight: 600; text-align: right; }
 .resource-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 21px; }
-.resource-grid > div > div:first-child { display: flex; justify-content: space-between; font-size: 9px; }
-.resource-grid strong { font-size: 9px; }
+.resource-grid > div > div:first-child { display: flex; justify-content: space-between; font-size: 11px; }
+.resource-grid strong { font-size: 12px; }
 .progress.large { height: 7px; }
-.resource-grid small { color: var(--muted); font-size: 8px; }
+.resource-grid small { color: var(--muted); font-size: 11px; }
 .quick-info, .timeline-panel { padding: 21px; }
-.quick-info h3, .timeline-panel h3 { font-size: 13px; margin-bottom: 13px; }
-.quick-info > div { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.quick-info h3, .timeline-panel h3 { font-size: 14px; font-weight: 700; margin-bottom: 13px; color: var(--ink); }
+.quick-info > div { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .timeline-item { display: grid; grid-template-columns: 10px 1fr; gap: 8px; position: relative; padding: 6px 0 16px; }
 .timeline-item > i { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); margin-top: 3px; box-shadow: 0 0 0 4px var(--primary-soft); }
 .timeline-item:not(:last-child):before { content: ''; position: absolute; width: 1px; background: var(--line); top: 14px; bottom: -2px; left: 3px; }

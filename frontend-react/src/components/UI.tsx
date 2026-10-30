@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, CSSProperties } from 'react'
 import { Icon } from './Icon'
 import type { IconName, StatusTone } from '../types'
 
@@ -23,8 +23,9 @@ export function Button({
   disabled = false,
   type = 'button',
   title,
+  style,
 }: {
-  children: ReactNode
+  children?: ReactNode
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
   icon?: IconName
   onClick?: () => void
@@ -32,6 +33,7 @@ export function Button({
   disabled?: boolean
   type?: 'button' | 'submit' | 'reset'
   title?: string
+  style?: CSSProperties
 }) {
   return (
     <button
@@ -40,9 +42,10 @@ export function Button({
       onClick={onClick}
       disabled={disabled}
       title={title}
+      style={style}
     >
       {icon && <Icon name={icon} size={17} />}
-      <span>{children}</span>
+      {children && <span>{children}</span>}
     </button>
   )
 }
