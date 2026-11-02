@@ -46,6 +46,13 @@ import { MobileDevices } from './pages/MobileDevices'
 import { MobileDetail } from './pages/MobileDetail'
 import { Panels } from './pages/Panels'
 import { PanelDetail } from './pages/PanelDetail'
+import { CyberSecurity } from './pages/CyberSecurity'
+import { DesktopAgentApp } from './pages/DesktopAgentApp'
+import { MobileAgentApp } from './pages/MobileAgentApp'
+import { PanelAgentApp } from './pages/PanelAgentApp'
+import { IoTAgentApp } from './pages/IoTAgentApp'
+import { EquipmentDiagnostics } from './pages/EquipmentDiagnostics'
+import { RemoteAccess } from './pages/RemoteAccess'
 import { defaultModules } from './data/modules'
 import type { ModuleItem } from './types'
 
@@ -167,6 +174,20 @@ export function App() {
         return <Mappings go={setActive} />
       case 'profiles':
         return <Profiles go={setActive} />
+      case 'cybersecurity':
+        return <CyberSecurity go={setActive} />
+      case 'desktopAgent':
+        return <DesktopAgentApp go={setActive} />
+      case 'mobileAgent':
+        return <MobileAgentApp go={setActive} />
+      case 'panelAgent':
+        return <PanelAgentApp go={setActive} />
+      case 'iotAgent':
+        return <IoTAgentApp go={setActive} />
+      case 'equipmentDiagnostics':
+        return <EquipmentDiagnostics go={setActive} />
+      case 'remoteAccess':
+        return <RemoteAccess go={setActive} />
       case 'profile':
       default:
         return <Profile />

@@ -42,6 +42,13 @@ export type PageId =
   | 'iotDetail'
   | 'mappings'
   | 'profiles'
+  | 'cybersecurity'
+  | 'desktopAgent'
+  | 'mobileAgent'
+  | 'panelAgent'
+  | 'iotAgent'
+  | 'equipmentDiagnostics'
+  | 'remoteAccess'
 
 export type IconName =
   | 'grid'

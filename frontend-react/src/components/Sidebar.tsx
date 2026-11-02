@@ -96,6 +96,13 @@ export function Sidebar({
 
     items.push(...mgmtItems)
 
+    // CIBERSEGURANÇA & SUPORTE
+    items.push(
+      { id: 'cybersecurity', label: 'Cibersegurança & SOC', icon: 'shield', section: 'CIBERSEGURANÇA & SUPORTE', badge: 'SOC' },
+      { id: 'remoteAccess', label: 'Acesso Remoto', icon: 'terminal' },
+      { id: 'equipmentDiagnostics', label: 'Diagnóstico Hardware', icon: 'cpu' }
+    )
+
     // SISTEMA
     items.push(
       { id: 'admin', label: 'Administração', icon: 'shield', section: 'SISTEMA' },
@@ -104,9 +111,13 @@ export function Sidebar({
       { id: 'server', label: 'Status dos servidores', icon: 'server' }
     )
 
-    // DISTRIBUIÇÃO
+    // DISTRIBUIÇÃO & AGENTES
     const distItems: NavItem[] = [
-      { id: 'agent', label: 'Agente desktop', icon: 'agent', section: 'DISTRIBUIÇÃO' },
+      { id: 'agent', label: 'Downloads de Agentes', icon: 'agent', section: 'DISTRIBUIÇÃO & AGENTES' },
+      { id: 'desktopAgent', label: 'Agente Desktop', icon: 'laptop' },
+      { id: 'mobileAgent', label: 'Agente Mobile', icon: 'phone' },
+      { id: 'panelAgent', label: 'Agente Painel', icon: 'blocks' },
+      { id: 'iotAgent', label: 'Agente IoT & Edge', icon: 'cpu' },
       { id: 'downloads', label: 'Central downloads', icon: 'download' },
     ]
     if (isEnabled('mobile')) {

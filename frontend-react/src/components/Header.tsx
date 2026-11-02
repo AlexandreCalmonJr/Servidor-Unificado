@@ -42,7 +42,14 @@ export const pageMeta: Record<PageId, { title: string; subtitle: string }> = {
   iotDetail: { title: 'Ficha do Dispositivo IoT & Telemetria', subtitle: 'Sensores em tempo real, broker MQTT, limiares de alerta e telemetria industrial.' },
   mappings: { title: 'Mapeamentos', subtitle: 'Gerencie unidades, pontos de acesso BSSID e faixas de IP corporativas.' },
   profiles: { title: 'Perfis de Configuração MDM', subtitle: 'Perfis de rede Wi-Fi, VPN, certificados e restrições de dispositivos.' },
-  profile: { title: 'Meu perfil', subtitle: 'Informações pessoais, acesso e preferências.' },
+  profile: { title: 'Meu perfil', subtitle: 'Informações pessoais, níveis de acesso RBAC e preferências.' },
+  cybersecurity: { title: 'Cibersegurança & SOC', subtitle: 'Monitoramento de incidentes EDR, quarentena e governança Zero-Trust.' },
+  desktopAgent: { title: 'Agente Desktop & Workstation', subtitle: 'Telemetria do agente local em Windows, macOS e Linux.' },
+  mobileAgent: { title: 'Agente Mobile EMM', subtitle: 'Contêiner de trabalho gerenciado, conformidade e integridade Play/Apple.' },
+  panelAgent: { title: 'Agente de Painéis Digitais', subtitle: 'Player de sinalização, HDMI-CEC, resolução 4K e controle de tela.' },
+  iotAgent: { title: 'Agente IoT & Edge Gateways', subtitle: 'Broker MQTT, barramento Modbus RTU, portas seriais e telemetria de sensores.' },
+  equipmentDiagnostics: { title: 'Diagnóstico de Equipamentos', subtitle: 'Bateria de estresse de hardware, memória, disco e verificação de periféricos.' },
+  remoteAccess: { title: 'Acesso Remoto & Shell Seguro', subtitle: 'Espelhamento WebRTC 60 FPS, terminal interativo e transferência de arquivos.' },
 }
 
 export function Header({
