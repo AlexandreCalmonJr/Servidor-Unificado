@@ -54,6 +54,8 @@ export function NotebookDetail({ go }: { go: (p: PageId) => void }) {
   // Modais
   const [keyModalOpen, setKeyModalOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
+  const [fullInventoryOpen, setFullInventoryOpen] = useState(false)
+  const [portsModalOpen, setPortsModalOpen] = useState(false)
   const [installModalOpen, setInstallModalOpen] = useState(false)
   const [eventDetailModal, setEventDetailModal] = useState<EventLogItem | null>(null)
 
@@ -239,39 +241,52 @@ export function NotebookDetail({ go }: { go: (p: PageId) => void }) {
       {tab === 'geral' && (
         <section className="device-overview">
           <div className="page-stack">
-            {/* Health Score */}
-            <article className="panel device-health">
-              <div className="health-score">
+            {/* Health Score Compacto */}
+            <article className="panel device-health" style={{ padding: '16px 20px' }}>
+              <div className="health-score" style={{ minWidth: '95px' }}>
                 <div>
-                  <strong>98</strong>
-                  <span>/100</span>
+                  <strong style={{ fontSize: '28px' }}>98</strong>
+                  <span style={{ fontSize: '13px' }}>/100</span>
                 </div>
                 <p>Saúde excelente</p>
               </div>
               <div className="health-copy">
-                <h3>Notebook corporativo totalmente seguro e em conformidade</h3>
-                <p>
-                  Todas as 6 políticas obrigatórias estão ativas, FileVault habilitado com chave custodiada no Vault e saúde da bateria em 94%.
-                </p>
-                <div>
-                  <Status tone="green">Criptografia FileVault ativa</Status>
-                  <Status tone="green">Bateria 94% (142 ciclos)</Status>
-                  <Status tone="green">Firewall Stealth ativo</Status>
-                  <Status tone="blue">Agente v4.8.2 macOS</Status>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                  <h3 style={{ margin: 0, fontSize: '15px' }}>Notebook corporativo seguro e em conformidade</h3>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    <Status tone="green">FileVault Ativo</Status>
+                    <Status tone="green">Bateria 94%</Status>
+                    <Status tone="green">Firewall Ativo</Status>
+                    <Status tone="blue">Agente v4.8.2</Status>
+                  </div>
                 </div>
+                <p style={{ margin: '6px 0 0', fontSize: '13px' }}>
+                  Todas as 6 políticas obrigatórias estão ativas, chave FileVault custodiada no Vault e ciclo de bateria saudável (142 ciclos).
+                </p>
               </div>
             </article>
 
-            {/* Informações de Inventário */}
+            {/* Informações Essenciais de Inventário */}
             <article className="panel info-panel">
               <div className="panel-head">
                 <div>
-                  <h3>Informações gerais de inventário</h3>
-                  <p>Identificação do hardware, número serial e alocação do colaborador</p>
+                  <h3 style={{ fontSize: '14px', margin: 0 }}>Informações Essenciais de Inventário</h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                    Identificação do hardware e alocação do colaborador (6 campos principais)
+                  </p>
                 </div>
-                <button className="text-link" onClick={() => setEditModalOpen(true)}>
-                  Editar cadastro
-                </button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <Button
+                    variant="secondary"
+                    icon="search"
+                    onClick={() => setFullInventoryOpen(true)}
+                  >
+                    Ver Inventário Completo
+                  </Button>
+                  <button className="text-link" onClick={() => setEditModalOpen(true)}>
+                    Editar
+                  </button>
+                </div>
               </div>
               <div className="info-grid">
                 {[
@@ -279,12 +294,8 @@ export function NotebookDetail({ go }: { go: (p: PageId) => void }) {
                   ['Responsável titular', owner],
                   ['Número de série', serial],
                   ['Patrimônio / Tag', assetTag],
-                  ['Modelo do laptop', 'MacBook Pro 14-inch, M3 Pro (11-core CPU, 14-core GPU)'],
-                  ['Sistema operacional', os],
-                  ['Endereço IP', `${ip} (Wi-Fi 6E)`],
-                  ['Ponto de Acesso Conectado', 'AP-DESIGN-04 (Novara-Corp-HQ)'],
-                  ['BSSID do Rádio', bssid],
-                  ['Departamento / Unidade', `${department} · ${unit}`],
+                  ['Modelo do laptop', 'MacBook Pro 14" M3 Pro'],
+                  ['Endereço IP & Rede', `${ip} (Wi-Fi 6E)`],
                 ].map((x) => (
                   <div key={x[0]}>
                     <span>{x[0]}</span>
@@ -298,8 +309,10 @@ export function NotebookDetail({ go }: { go: (p: PageId) => void }) {
             <article className="panel info-panel">
               <div className="panel-head">
                 <div>
-                  <h3>Armazenamento SSD e Memória Unificada</h3>
-                  <p>Telemetria de utilização em tempo real</p>
+                  <h3 style={{ fontSize: '14px', margin: 0 }}>Armazenamento SSD e Memória Unificada</h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                    Telemetria de utilização em tempo real
+                  </p>
                 </div>
               </div>
               <div className="resource-grid">
@@ -319,7 +332,7 @@ export function NotebookDetail({ go }: { go: (p: PageId) => void }) {
                     <strong>14,2 GB de 36 GB</strong>
                   </div>
                   <div className="progress large">
-                    <i className="os-violet" style={{ width: '39%' }} />
+                    <i className="os-green" style={{ width: '39%' }} />
                   </div>
                   <small>21,8 GB livres (Pressão de memória normal)</small>
                 </div>
@@ -340,15 +353,6 @@ export function NotebookDetail({ go }: { go: (p: PageId) => void }) {
                 <strong>v4.8.2 macOS Daemon</strong>
               </div>
               <div>
-                <span>Ponto de acesso</span>
-                <strong>
-                  Novara-Corp-HQ
-                  <small style={{ fontWeight: 500, color: 'var(--muted)', display: 'block', fontSize: '10px' }}>
-                    BSSID: {bssid} (4º Andar)
-                  </small>
-                </strong>
-              </div>
-              <div>
                 <span>Uptime do sistema</span>
                 <strong>8d 14h 22m</strong>
               </div>
@@ -359,12 +363,20 @@ export function NotebookDetail({ go }: { go: (p: PageId) => void }) {
             </article>
 
             <article className="panel timeline-panel">
-              <h3>Atividade recente do dispositivo</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '13px' }}>Atividade Recente</h3>
+                <button
+                  className="text-link"
+                  style={{ fontSize: '12px', cursor: 'pointer' }}
+                  onClick={() => setTab('activity')}
+                >
+                  Ver histórico
+                </button>
+              </div>
               {[
                 { title: 'Inventário sincronizado', desc: 'Hardware, portas e 42 softwares conferidos', time: 'Há 5 min' },
                 { title: 'Verificação de conformidade', desc: 'Score 98/100 · Nenhuma vulnerabilidade encontrada', time: 'Há 35 min' },
                 { title: 'Política sincronizada', desc: 'Baseline corporativa v2.4 aplicada com sucesso', time: 'Hoje, 09:12' },
-                { title: 'Conexão Wi-Fi 6E estabelecida', desc: 'Autenticado via certificado 802.1X EAP-TLS', time: 'Hoje, 08:30' },
               ].map((a) => (
                 <div className="timeline-item" key={a.title}>
                   <i />
@@ -423,7 +435,7 @@ export function NotebookDetail({ go }: { go: (p: PageId) => void }) {
                     <strong>14 Cores</strong>
                   </div>
                   <div className="progress">
-                    <i className="os-violet" style={{ width: '24%' }} />
+                    <i className="os-blue" style={{ width: '24%' }} />
                   </div>
                   <span className="telemetry-sub">Ray Tracing acelerado</span>
                 </div>
@@ -549,34 +561,30 @@ export function NotebookDetail({ go }: { go: (p: PageId) => void }) {
 
           <aside className="tab-full-stack">
             <article className="panel quick-info">
-              <h3>Portas & Interfaces Físicas</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '14px' }}>Portas & Interfaces Físicas</h3>
+              </div>
               <div>
                 <span>Thunderbolt 4 / USB-C</span>
                 <strong>3 portas (40 Gbps, DP 1.4)</strong>
               </div>
               <div>
-                <span>Porta MagSafe</span>
+                <span>Alimentação MagSafe</span>
                 <strong>MagSafe 3 com LED indicador</strong>
               </div>
               <div>
                 <span>Saída HDMI</span>
                 <strong>HDMI 2.1 (até 8K @ 60Hz)</strong>
               </div>
-              <div>
-                <span>Leitor de Cartão</span>
-                <strong>SDXC UHS-II integrado</strong>
-              </div>
-              <div>
-                <span>Áudio P3</span>
-                <strong>Jack 3,5 mm alta impedância</strong>
-              </div>
-              <div>
-                <span>Wi-Fi Integrado</span>
-                <strong>Wi-Fi 6E (802.11ax) 160MHz</strong>
-              </div>
-              <div>
-                <span>Bluetooth</span>
-                <strong>Bluetooth 5.3 LE Audio</strong>
+              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '10px', marginTop: '6px' }}>
+                <Button
+                  variant="secondary"
+                  icon="search"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  onClick={() => setPortsModalOpen(true)}
+                >
+                  Ver Ficha de Portas (7 interfaces)
+                </Button>
               </div>
             </article>
 
@@ -703,7 +711,6 @@ export function NotebookDetail({ go }: { go: (p: PageId) => void }) {
                   <tr>
                     <th>Nome do Aplicativo</th>
                     <th>Versão Instalada</th>
-                    <th>Fabricante</th>
                     <th>Tamanho</th>
                     <th>Instalação</th>
                     <th>Status / Conformidade</th>
@@ -713,7 +720,7 @@ export function NotebookDetail({ go }: { go: (p: PageId) => void }) {
                 <tbody>
                   {filteredApps.length === 0 ? (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: 'center', padding: '36px', color: 'var(--muted)' }}>
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '36px', color: 'var(--muted)' }}>
                         Nenhum aplicativo encontrado para os filtros selecionados.
                       </td>
                     </tr>
@@ -727,7 +734,7 @@ export function NotebookDetail({ go }: { go: (p: PageId) => void }) {
                             </span>
                             <div>
                               <strong>{app.name}</strong>
-                              <small>{app.managed ? 'Empacotado via MDM' : 'Instalado pelo usuário'}</small>
+                              <small>{app.vendor} · {app.managed ? 'Gerenciado via MDM' : 'Instalado localmente'}</small>
                             </div>
                           </div>
                         </td>
@@ -739,7 +746,6 @@ export function NotebookDetail({ go }: { go: (p: PageId) => void }) {
                             </small>
                           )}
                         </td>
-                        <td>{app.vendor}</td>
                         <td>{app.size}</td>
                         <td>{app.installedAt}</td>
                         <td>
@@ -982,7 +988,6 @@ export function NotebookDetail({ go }: { go: (p: PageId) => void }) {
                     <th>Categoria</th>
                     <th>Título do Evento</th>
                     <th>Detalhes da Operação</th>
-                    <th>Endereço IP</th>
                     <th style={{ textAlign: 'right' }}>Ação</th>
                   </tr>
                 </thead>
@@ -996,8 +1001,7 @@ export function NotebookDetail({ go }: { go: (p: PageId) => void }) {
                         </span>
                       </td>
                       <td><strong>{evt.title}</strong></td>
-                      <td style={{ maxWidth: '420px', color: 'var(--text-secondary)', fontSize: '13px' }}>{evt.desc}</td>
-                      <td><code>{evt.ip}</code></td>
+                      <td style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>{evt.desc}</td>
                       <td style={{ textAlign: 'right' }}>
                         <Button
                           variant="ghost"
@@ -1200,6 +1204,123 @@ export function NotebookDetail({ go }: { go: (p: PageId) => void }) {
             </div>
           </div>
         )}
+      </Modal>
+      {/* MODAL 5: INVENTÁRIO TÉCNICO COMPLETO */}
+      <Modal
+        isOpen={fullInventoryOpen}
+        onClose={() => setFullInventoryOpen(false)}
+        title="Ficha Cadastral e Inventário Completo"
+        subtitle={`Notebook ${name} — ${assetTag}`}
+        icon="laptop"
+        iconColor="blue"
+        maxWidth={640}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+            <Button variant="secondary" onClick={() => setFullInventoryOpen(false)}>
+              Fechar
+            </Button>
+          </div>
+        }
+      >
+        <div className="info-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+          <div>
+            <span>Nome do Dispositivo</span>
+            <strong>{name}</strong>
+          </div>
+          <div>
+            <span>Responsável Titular</span>
+            <strong>{owner}</strong>
+          </div>
+          <div>
+            <span>Número Serial Apple</span>
+            <strong>{serial}</strong>
+          </div>
+          <div>
+            <span>Patrimônio / Tag</span>
+            <strong>{assetTag}</strong>
+          </div>
+          <div>
+            <span>Modelo do Chassi</span>
+            <strong>MacBook Pro 14-inch, M3 Pro (11-core CPU, 14-core GPU)</strong>
+          </div>
+          <div>
+            <span>Sistema Operacional</span>
+            <strong>{os}</strong>
+          </div>
+          <div>
+            <span>Endereço IP Local</span>
+            <strong>{ip} (Wi-Fi 6E)</strong>
+          </div>
+          <div>
+            <span>Ponto de Acesso Conectado</span>
+            <strong>AP-DESIGN-04 (Novara-Corp-HQ)</strong>
+          </div>
+          <div>
+            <span>BSSID do Rádio Wi-Fi</span>
+            <strong>{bssid}</strong>
+          </div>
+          <div>
+            <span>Departamento / Unidade</span>
+            <strong>{department} · {unit}</strong>
+          </div>
+          <div>
+            <span>Criptografia de Disco</span>
+            <strong>FileVault 2 (XTS-AES 256) · Chave Custodiada</strong>
+          </div>
+          <div>
+            <span>Saúde da Bateria</span>
+            <strong>94% de capacidade máxima · 142 ciclos</strong>
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODAL 6: PORTAS E INTERFACES FÍSICAS */}
+      <Modal
+        isOpen={portsModalOpen}
+        onClose={() => setPortsModalOpen(false)}
+        title="Portas & Conexões Físicas do MacBook"
+        subtitle="Especificação de Conectores e Barramentos"
+        icon="blocks"
+        iconColor="blue"
+        maxWidth={580}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+            <Button variant="secondary" onClick={() => setPortsModalOpen(false)}>
+              Fechar
+            </Button>
+          </div>
+        }
+      >
+        <div className="info-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+          <div>
+            <span>Thunderbolt 4 / USB-C</span>
+            <strong>3x portas (40 Gbps, DisplayPort 1.4, USB4)</strong>
+          </div>
+          <div>
+            <span>Alimentação MagSafe</span>
+            <strong>MagSafe 3 com indicação luminosa</strong>
+          </div>
+          <div>
+            <span>Saída HDMI</span>
+            <strong>HDMI 2.1 (compatível com 8K @ 60Hz ou 4K @ 240Hz)</strong>
+          </div>
+          <div>
+            <span>Leitor de Cartão</span>
+            <strong>Slot para cartão SDXC UHS-II integrado</strong>
+          </div>
+          <div>
+            <span>Saída de Áudio P3</span>
+            <strong>Jack de 3,5 mm com suporte para fones de alta impedância</strong>
+          </div>
+          <div>
+            <span>Wi-Fi Integrado</span>
+            <strong>Wi-Fi 6E (802.11ax) com canais de 160MHz</strong>
+          </div>
+          <div>
+            <span>Bluetooth</span>
+            <strong>Bluetooth 5.3 com codec AAC e LE Audio</strong>
+          </div>
+        </div>
       </Modal>
     </div>
   )

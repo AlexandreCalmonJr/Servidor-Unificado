@@ -93,19 +93,23 @@ export function IoT({ go }: { go?: (p: PageId) => void }) {
                 <th>Última Leitura</th>
                 <th>Status</th>
                 <th>Telemetria</th>
-                <th />
               </tr>
             </thead>
             <tbody>
               {filtered.map((d) => (
-                <tr key={d.id}>
+                <tr
+                  key={d.id}
+                  onClick={() => go?.('iotDetail')}
+                  style={{ cursor: 'pointer' }}
+                  title="Clique para abrir detalhes do dispositivo"
+                >
                   <td>
                     <div className="device-cell">
                       <span>
                         <Icon name="cpu" />
                       </span>
                       <div>
-                        <strong>{d.name}</strong>
+                        <strong style={{ color: 'var(--accent, #3b82f6)' }}>{d.name}</strong>
                         <small>{d.id}</small>
                       </div>
                     </div>
@@ -122,9 +126,6 @@ export function IoT({ go }: { go?: (p: PageId) => void }) {
                     <Status tone={d.tone}>{d.status}</Status>
                   </td>
                   <td>{d.lastTelemetry}</td>
-                  <td>
-                    <button className="card-more" aria-label="Opções">•••</button>
-                  </td>
                 </tr>
               ))}
             </tbody>

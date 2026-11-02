@@ -72,6 +72,8 @@ export function PanelDetail({ go }: { go: (p: PageId) => void }) {
   const [emergencyModalOpen, setEmergencyModalOpen] = useState(false)
   const [emergencyText, setEmergencyText] = useState('SIMULADO DE EVACUAÇÃO: Dirija-se à saída de emergência mais próxima.')
   const [editModalOpen, setEditModalOpen] = useState(false)
+  const [fullInventoryOpen, setFullInventoryOpen] = useState(false)
+  const [displayModalOpen, setDisplayModalOpen] = useState(false)
   const [installModalOpen, setInstallModalOpen] = useState(false)
   const [eventDetailModal, setEventDetailModal] = useState<EventLogItem | null>(null)
 
@@ -301,39 +303,52 @@ export function PanelDetail({ go }: { go: (p: PageId) => void }) {
       {tab === 'geral' && (
         <section className="device-overview">
           <div className="page-stack">
-            {/* Health Score */}
-            <article className="panel device-health">
-              <div className="health-score">
+            {/* Health Score Compacto */}
+            <article className="panel device-health" style={{ padding: '16px 20px' }}>
+              <div className="health-score" style={{ minWidth: '95px' }}>
                 <div>
-                  <strong>99</strong>
-                  <span>/100</span>
+                  <strong style={{ fontSize: '28px' }}>99</strong>
+                  <span style={{ fontSize: '13px' }}>/100</span>
                 </div>
                 <p>Saúde excelente</p>
               </div>
               <div className="health-copy">
-                <h3>Painel digital de sinalização operando com máxima estabilidade</h3>
-                <p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                  <h3 style={{ margin: 0, fontSize: '15px' }}>Painel digital operando com máxima estabilidade</h3>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    <Status tone="green">HDMI-CEC Ligado</Status>
+                    <Status tone="green">4K UHD 60Hz</Status>
+                    <Status tone="green">WebSocket 18ms</Status>
+                    <Status tone="blue">Engine CEF</Status>
+                  </div>
+                </div>
+                <p style={{ margin: '6px 0 0', fontSize: '13px' }}>
                   Barramento HDMI-CEC ativo, decodificador 4K por hardware sem engasgos, conexão WebSocket em tempo real e proteção anti burn-in habilitada.
                 </p>
-                <div>
-                  <Status tone="green">HDMI-CEC Ligado</Status>
-                  <Status tone="green">Resolução 4K UHD 60Hz</Status>
-                  <Status tone="green">Latência WebSocket 18ms</Status>
-                  <Status tone="blue">Engine CEF v126</Status>
-                </div>
               </div>
             </article>
 
-            {/* Informações de Inventário */}
+            {/* Informações Essenciais de Inventário */}
             <article className="panel info-panel">
               <div className="panel-head">
                 <div>
-                  <h3>Informações gerais de inventário signage</h3>
-                  <p>Identificação física, localização predial e canal atribuído</p>
+                  <h3 style={{ fontSize: '14px', margin: 0 }}>Informações Essenciais do Painel</h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                    Identificação física e canal atribuído (6 campos principais)
+                  </p>
                 </div>
-                <button className="text-link" onClick={() => setEditModalOpen(true)}>
-                  Editar cadastro
-                </button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <Button
+                    variant="secondary"
+                    icon="search"
+                    onClick={() => setFullInventoryOpen(true)}
+                  >
+                    Ver Inventário Completo
+                  </Button>
+                  <button className="text-link" onClick={() => setEditModalOpen(true)}>
+                    Editar
+                  </button>
+                </div>
               </div>
               <div className="info-grid">
                 {[
@@ -341,12 +356,8 @@ export function PanelDetail({ go }: { go: (p: PageId) => void }) {
                   ['Localização Física', location],
                   ['Unidade / Pavilhão', unit],
                   ['Canal Ativo em Exibição', currentChannel],
-                  ['Resolução Nativa da Matriz', resolution],
-                  ['Orientação Física', orientation],
-                  ['Hardware do Microcomputador', playerType],
-                  ['Endereço IP Estático', `${ip} (VLAN 30 - Mídia)`],
-                  ['Endereço MAC da Interface', mac],
-                  ['Uptime Contínuo do Player', '34 dias sem reinicializações'],
+                  ['Resolução Matriz', resolution],
+                  ['Endereço IP & VLAN', `${ip} (VLAN 30 - Mídia)`],
                 ].map((x) => (
                   <div key={x[0]}>
                     <span>{x[0]}</span>
@@ -443,26 +454,26 @@ export function PanelDetail({ go }: { go: (p: PageId) => void }) {
                 <strong>{brightness}%</strong>
               </div>
               <div>
-                <span>Volume de Áudio</span>
-                <strong>{volume}%</strong>
-              </div>
-              <div>
-                <span>Automação Horária</span>
-                <strong>07:00 Ligar · 21:30 Standby</strong>
-              </div>
-              <div>
                 <span>Uptime do Sistema</span>
                 <strong>34 dias contínuos</strong>
               </div>
             </article>
 
             <article className="panel timeline-panel">
-              <h3>Atividade recente do painel</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '13px' }}>Atividade Recente</h3>
+                <button
+                  className="text-link"
+                  style={{ fontSize: '12px', cursor: 'pointer' }}
+                  onClick={() => setTab('activity')}
+                >
+                  Ver histórico
+                </button>
+              </div>
               {[
                 { title: 'Senha #A-894 transmitida', desc: 'Sinal sonoro disparado no volume 65%', time: 'Há 2 min' },
                 { title: 'Playlist dinâmica atualizada', desc: 'Feed WebSocket sincronizado com sucesso', time: 'Há 12 min' },
                 { title: 'Burn-in protection executada', desc: 'Deslocamento de 3 pixels concluído', time: 'Há 30 min' },
-                { title: 'Acendimento automático CEC', desc: 'Display ligado pontualmente às 07:00', time: 'Hoje, 07:00' },
               ].map((a) => (
                 <div className="timeline-item" key={a.title}>
                   <i />
@@ -532,7 +543,7 @@ export function PanelDetail({ go }: { go: (p: PageId) => void }) {
                     <strong>{volume}%</strong>
                   </div>
                   <div className="progress">
-                    <i className="os-violet" style={{ width: `${volume}%` }} />
+                    <i className="os-amber" style={{ width: `${volume}%` }} />
                   </div>
                   <span className="telemetry-sub">Chimes de senhas audíveis</span>
                 </div>
@@ -590,7 +601,9 @@ export function PanelDetail({ go }: { go: (p: PageId) => void }) {
 
           <aside className="tab-full-stack">
             <article className="panel quick-info">
-              <h3>Portas & Interfaces Físicas</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '14px' }}>Portas & Interfaces Físicas</h3>
+              </div>
               <div>
                 <span>Saída HDMI</span>
                 <strong>HDMI 2.1 com HDMI-CEC ativo</strong>
@@ -600,12 +613,18 @@ export function PanelDetail({ go }: { go: (p: PageId) => void }) {
                 <strong>Intel I226-V 2.5 GbE (PoE+)</strong>
               </div>
               <div>
-                <span>USB do Player</span>
+                <span>Portas USB</span>
                 <strong>4x USB 3.2 Gen 2 (10 Gbps)</strong>
               </div>
-              <div>
-                <span>Áudio Out</span>
-                <strong>HDMI Audio + 3.5mm estéreo</strong>
+              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '10px', marginTop: '6px' }}>
+                <Button
+                  variant="secondary"
+                  icon="search"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  onClick={() => setDisplayModalOpen(true)}
+                >
+                  Ver Ficha de Portas & CEC
+                </Button>
               </div>
             </article>
 
@@ -732,7 +751,6 @@ export function PanelDetail({ go }: { go: (p: PageId) => void }) {
                   <tr>
                     <th>Módulo / Software</th>
                     <th>Versão Instalada</th>
-                    <th>Fabricante</th>
                     <th>Tamanho</th>
                     <th>Instalação</th>
                     <th>Status / Conformidade</th>
@@ -749,7 +767,7 @@ export function PanelDetail({ go }: { go: (p: PageId) => void }) {
                           </span>
                           <div>
                             <strong>{app.name}</strong>
-                            <small>{app.managed ? 'Gerenciado via Novara Signage' : 'Instalado localmente'}</small>
+                            <small>{app.vendor} · {app.managed ? 'Novara Signage' : 'Instalado localmente'}</small>
                           </div>
                         </div>
                       </td>
@@ -761,7 +779,6 @@ export function PanelDetail({ go }: { go: (p: PageId) => void }) {
                           </small>
                         )}
                       </td>
-                      <td>{app.vendor}</td>
                       <td>{app.size}</td>
                       <td>{app.installedAt}</td>
                       <td>
@@ -989,7 +1006,6 @@ export function PanelDetail({ go }: { go: (p: PageId) => void }) {
                     <th>Categoria</th>
                     <th>Título do Evento</th>
                     <th>Detalhes da Operação</th>
-                    <th>Endereço IP</th>
                     <th style={{ textAlign: 'right' }}>Ação</th>
                   </tr>
                 </thead>
@@ -1003,8 +1019,7 @@ export function PanelDetail({ go }: { go: (p: PageId) => void }) {
                         </span>
                       </td>
                       <td><strong>{evt.title}</strong></td>
-                      <td style={{ maxWidth: '420px', color: 'var(--text-secondary)', fontSize: '13px' }}>{evt.desc}</td>
-                      <td><code>{evt.ip}</code></td>
+                      <td style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>{evt.desc}</td>
                       <td style={{ textAlign: 'right' }}>
                         <Button
                           variant="ghost"
@@ -1207,6 +1222,123 @@ export function PanelDetail({ go }: { go: (p: PageId) => void }) {
             </div>
           </div>
         )}
+      </Modal>
+      {/* MODAL 6: INVENTÁRIO TÉCNICO COMPLETO */}
+      <Modal
+        isOpen={fullInventoryOpen}
+        onClose={() => setFullInventoryOpen(false)}
+        title="Ficha Cadastral e Inventário Completo"
+        subtitle={`Painel Signage ${name} — ${assetTag}`}
+        icon="grid"
+        iconColor="blue"
+        maxWidth={640}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+            <Button variant="secondary" onClick={() => setFullInventoryOpen(false)}>
+              Fechar
+            </Button>
+          </div>
+        }
+      >
+        <div className="info-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+          <div>
+            <span>Identificação do Painel</span>
+            <strong>{name}</strong>
+          </div>
+          <div>
+            <span>Localização Física</span>
+            <strong>{location}</strong>
+          </div>
+          <div>
+            <span>Unidade / Pavilhão</span>
+            <strong>{unit}</strong>
+          </div>
+          <div>
+            <span>Patrimônio / Tag</span>
+            <strong>{assetTag}</strong>
+          </div>
+          <div>
+            <span>Canal Ativo</span>
+            <strong>{currentChannel}</strong>
+          </div>
+          <div>
+            <span>Resolução Nativa Matriz</span>
+            <strong>{resolution}</strong>
+          </div>
+          <div>
+            <span>Orientação Física</span>
+            <strong>{orientation}</strong>
+          </div>
+          <div>
+            <span>Microcomputador Player</span>
+            <strong>{playerType}</strong>
+          </div>
+          <div>
+            <span>Endereço IP Estático</span>
+            <strong>{ip} (VLAN 30 - Mídia)</strong>
+          </div>
+          <div>
+            <span>Endereço MAC da Interface</span>
+            <strong>{mac}</strong>
+          </div>
+          <div>
+            <span>Uptime Contínuo do Player</span>
+            <strong>34 dias sem reinicializações</strong>
+          </div>
+          <div>
+            <span>Barramento HDMI-CEC</span>
+            <strong>Handshake ativo (Suporta On/Standby remoto)</strong>
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODAL 7: PORTAS E INTERFACES DE DISPLAY */}
+      <Modal
+        isOpen={displayModalOpen}
+        onClose={() => setDisplayModalOpen(false)}
+        title="Portas & Interfaces de Áudio/Vídeo"
+        subtitle="Especificação de Conectores do Mini PC Player"
+        icon="blocks"
+        iconColor="blue"
+        maxWidth={580}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+            <Button variant="secondary" onClick={() => setDisplayModalOpen(false)}>
+              Fechar
+            </Button>
+          </div>
+        }
+      >
+        <div className="info-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+          <div>
+            <span>Saída de Vídeo Primária</span>
+            <strong>HDMI 2.1 TMDS/FRL (4K @ 60Hz HDR)</strong>
+          </div>
+          <div>
+            <span>Protocolo de Controle CEC</span>
+            <strong>HDMI-CEC v2.0 (Comandos Power On, Standby e Input Select)</strong>
+          </div>
+          <div>
+            <span>Porta de Rede Ethernet</span>
+            <strong>Intel I226-V 2.5 GbE com PoE+ (Power over Ethernet)</strong>
+          </div>
+          <div>
+            <span>Conectores USB</span>
+            <strong>4x USB 3.2 Gen 2 (10 Gbps) para periféricos e sensores</strong>
+          </div>
+          <div>
+            <span>Saída de Áudio Analógica</span>
+            <strong>Jack P2 estéreo 3.5mm para caixas de som amplificadas</strong>
+          </div>
+          <div>
+            <span>Saída de Áudio Digital</span>
+            <strong>Áudio digital PCM integrado via cabo HDMI</strong>
+          </div>
+          <div>
+            <span>Conexão Sem Fio</span>
+            <strong>Wi-Fi 6E (Intel AX211) + Bluetooth 5.3</strong>
+          </div>
+        </div>
       </Modal>
     </div>
   )

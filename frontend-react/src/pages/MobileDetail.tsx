@@ -55,6 +55,8 @@ export function MobileDetail({ go }: { go: (p: PageId) => void }) {
   const [lostPhone, setLostPhone] = useState('+55 (11) 3090-4400')
   const [wipeModalOpen, setWipeModalOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
+  const [fullInventoryOpen, setFullInventoryOpen] = useState(false)
+  const [wirelessModalOpen, setWirelessModalOpen] = useState(false)
   const [installModalOpen, setInstallModalOpen] = useState(false)
   const [eventDetailModal, setEventDetailModal] = useState<EventLogItem | null>(null)
 
@@ -290,39 +292,52 @@ export function MobileDetail({ go }: { go: (p: PageId) => void }) {
       {tab === 'geral' && (
         <section className="device-overview">
           <div className="page-stack">
-            {/* Health Score */}
-            <article className="panel device-health">
-              <div className="health-score">
+            {/* Health Score Compacto */}
+            <article className="panel device-health" style={{ padding: '16px 20px' }}>
+              <div className="health-score" style={{ minWidth: '95px' }}>
                 <div>
-                  <strong>97</strong>
-                  <span>/100</span>
+                  <strong style={{ fontSize: '28px' }}>97</strong>
+                  <span style={{ fontSize: '13px' }}>/100</span>
                 </div>
                 <p>Saúde excelente</p>
               </div>
               <div className="health-copy">
-                <h3>Dispositivo móvel corporativo seguro e protegido</h3>
-                <p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                  <h3 style={{ margin: 0, fontSize: '15px' }}>Dispositivo móvel protegido e em conformidade</h3>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    <Status tone="green">Sinal 5G SA</Status>
+                    <Status tone="green">Bateria 84%</Status>
+                    <Status tone="green">DLP Ativo</Status>
+                    <Status tone="blue">Hub v3.4.1</Status>
+                  </div>
+                </div>
+                <p style={{ margin: '6px 0 0', fontSize: '13px' }}>
                   Supervisão Apple Business Manager ativa, Face ID habilitado, criptografia de hardware Secure Enclave e contêiner DLP sem vazamentos.
                 </p>
-                <div>
-                  <Status tone="green">Sinal 5G SA (-68 dBm)</Status>
-                  <Status tone="green">Bateria 84% (Saúde 99%)</Status>
-                  <Status tone="green">DLP Contêiner Ativo</Status>
-                  <Status tone="blue">Hub EMM v3.4.1</Status>
-                </div>
               </div>
             </article>
 
-            {/* Informações de Inventário */}
+            {/* Informações Essenciais de Inventário */}
             <article className="panel info-panel">
               <div className="panel-head">
                 <div>
-                  <h3>Informações gerais de inventário móvel</h3>
-                  <p>Identificação do aparelho, linhas telefônicas e operadora credenciada</p>
+                  <h3 style={{ fontSize: '14px', margin: 0 }}>Informações Essenciais de Inventário</h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                    Identificação do aparelho e alocação do titular (6 campos principais)
+                  </p>
                 </div>
-                <button className="text-link" onClick={() => setEditModalOpen(true)}>
-                  Editar cadastro
-                </button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <Button
+                    variant="secondary"
+                    icon="search"
+                    onClick={() => setFullInventoryOpen(true)}
+                  >
+                    Ver Inventário Completo
+                  </Button>
+                  <button className="text-link" onClick={() => setEditModalOpen(true)}>
+                    Editar
+                  </button>
+                </div>
               </div>
               <div className="info-grid">
                 {[
@@ -331,11 +346,7 @@ export function MobileDetail({ go }: { go: (p: PageId) => void }) {
                   ['Número da Linha Telefônica', phoneLine],
                   ['Operadora Credenciada', carrier],
                   ['IMEI 1 (eSIM Principal)', imei],
-                  ['IMEI 2 (Slot Físico)', '354892110482911'],
-                  ['Número Serial', 'K92Q99AA05D'],
                   ['Sistema Operacional', os],
-                  ['Departamento / Unidade', `${dept} · ${unit}`],
-                  ['Última Localização GPS', 'São Paulo, SP (Prédio Matriz — Precisão 4m)'],
                 ].map((x) => (
                   <div key={x[0]}>
                     <span>{x[0]}</span>
@@ -349,8 +360,10 @@ export function MobileDetail({ go }: { go: (p: PageId) => void }) {
             <article className="panel info-panel">
               <div className="panel-head">
                 <div>
-                  <h3>Armazenamento Flash & Dados Móveis</h3>
-                  <p>Consumo de memória do dispositivo e cota do plano de dados</p>
+                  <h3 style={{ fontSize: '14px', margin: 0 }}>Armazenamento Flash & Dados Móveis</h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                    Consumo de memória do dispositivo e cota do plano de dados
+                  </p>
                 </div>
               </div>
               <div className="resource-grid">
@@ -381,22 +394,14 @@ export function MobileDetail({ go }: { go: (p: PageId) => void }) {
           {/* Aside Lateral */}
           <aside className="page-stack">
             <article className="panel quick-info">
-              <h3>Conexão & Telefonia Móvel</h3>
+              <h3>Conexão & Linha Celular</h3>
               <div>
                 <span>Sinal Celular</span>
                 <strong>-68 dBm (5 barras 5G SA)</strong>
               </div>
               <div>
-                <span>Banda Conectada</span>
-                <strong>n78 (3.5 GHz Standalone)</strong>
-              </div>
-              <div>
                 <span>Bateria Atual</span>
-                <strong>{battery}% (Saúde 99%)</strong>
-              </div>
-              <div>
-                <span>Modo Perdido</span>
-                <strong>{lostModeActive ? 'ATIVADO' : 'Desativado'}</strong>
+                <strong>{battery}% (Saúde: 99%)</strong>
               </div>
               <div>
                 <span>Versão do EMM</span>
@@ -405,12 +410,20 @@ export function MobileDetail({ go }: { go: (p: PageId) => void }) {
             </article>
 
             <article className="panel timeline-panel">
-              <h3>Atividade recente do smartphone</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '13px' }}>Atividade Recente</h3>
+                <button
+                  className="text-link"
+                  style={{ fontSize: '12px', cursor: 'pointer' }}
+                  onClick={() => setTab('activity')}
+                >
+                  Ver histórico
+                </button>
+              </div>
               {[
                 { title: 'Telemetria celular recebida', desc: 'Sinal 5G excelente e bateria em 84%', time: 'Há 4 min' },
                 { title: 'Varredura EDR Mobile', desc: 'CrowdStrike Falcon não detectou ameaças', time: 'Há 18 min' },
                 { title: 'Conexão Wi-Fi corporativa', desc: 'Associado ao SSID Novara-Corp-HQ', time: 'Há 2 h' },
-                { title: 'Check-in de conformidade APNs', desc: 'Políticas validadas sem desvios', time: 'Hoje, 09:12' },
               ].map((a) => (
                 <div className="timeline-item" key={a.title}>
                   <i />
@@ -521,26 +534,30 @@ export function MobileDetail({ go }: { go: (p: PageId) => void }) {
 
           <aside className="tab-full-stack">
             <article className="panel quick-info">
-              <h3>Bandas e Tecnologias Sem Fio</h3>
-              <div>
-                <span>Bandas 5G SA</span>
-                <strong>n78, n1, n3, n7, n28</strong>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '14px' }}>Conectividade Sem Fio & Modems</h3>
               </div>
               <div>
-                <span>Wi-Fi Integrado</span>
-                <strong>Wi-Fi 7 (802.11be) 2x2 MIMO</strong>
+                <span>Modem Celular</span>
+                <strong>Qualcomm X75 5G SA (Sub-6 + mmWave)</strong>
               </div>
               <div>
-                <span>Bluetooth</span>
-                <strong>Bluetooth 5.3 com LE Audio</strong>
+                <span>Wi-Fi & Bluetooth</span>
+                <strong>Wi-Fi 7 (802.11be) + BT 5.3 LE</strong>
               </div>
               <div>
-                <span>UWB (Ultra-Wideband)</span>
-                <strong>Chip U2 de 2ª geração</strong>
+                <span>Sensores Espaciais</span>
+                <strong>UWB U2 + NFC Crachá Virtual</strong>
               </div>
-              <div>
-                <span>NFC Corporativo</span>
-                <strong>Suporte a crachás virtuais</strong>
+              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '10px', marginTop: '6px' }}>
+                <Button
+                  variant="secondary"
+                  icon="search"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  onClick={() => setWirelessModalOpen(true)}
+                >
+                  Ver Ficha de Rádios & Bandas
+                </Button>
               </div>
             </article>
 
@@ -667,7 +684,6 @@ export function MobileDetail({ go }: { go: (p: PageId) => void }) {
                   <tr>
                     <th>Nome do Aplicativo</th>
                     <th>Versão Instalada</th>
-                    <th>Fabricante</th>
                     <th>Tamanho</th>
                     <th>Instalação</th>
                     <th>Status / Conformidade</th>
@@ -684,7 +700,7 @@ export function MobileDetail({ go }: { go: (p: PageId) => void }) {
                           </span>
                           <div>
                             <strong>{app.name}</strong>
-                            <small>{app.managed ? 'Gerenciado via Apple VPP' : 'Instalado pelo usuário'}</small>
+                            <small>{app.vendor} · {app.managed ? 'Apple VPP MDM' : 'Instalado localmente'}</small>
                           </div>
                         </div>
                       </td>
@@ -696,7 +712,6 @@ export function MobileDetail({ go }: { go: (p: PageId) => void }) {
                           </small>
                         )}
                       </td>
-                      <td>{app.vendor}</td>
                       <td>{app.size}</td>
                       <td>{app.installedAt}</td>
                       <td>
@@ -938,7 +953,6 @@ export function MobileDetail({ go }: { go: (p: PageId) => void }) {
                     <th>Categoria</th>
                     <th>Título do Evento</th>
                     <th>Detalhes da Operação</th>
-                    <th>Endereço IP</th>
                     <th style={{ textAlign: 'right' }}>Ação</th>
                   </tr>
                 </thead>
@@ -952,8 +966,7 @@ export function MobileDetail({ go }: { go: (p: PageId) => void }) {
                         </span>
                       </td>
                       <td><strong>{evt.title}</strong></td>
-                      <td style={{ maxWidth: '420px', color: 'var(--text-secondary)', fontSize: '13px' }}>{evt.desc}</td>
-                      <td><code>{evt.ip}</code></td>
+                      <td style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>{evt.desc}</td>
                       <td style={{ textAlign: 'right' }}>
                         <Button
                           variant="ghost"
@@ -1166,6 +1179,123 @@ export function MobileDetail({ go }: { go: (p: PageId) => void }) {
             </div>
           </div>
         )}
+      </Modal>
+      {/* MODAL 6: INVENTÁRIO TÉCNICO COMPLETO */}
+      <Modal
+        isOpen={fullInventoryOpen}
+        onClose={() => setFullInventoryOpen(false)}
+        title="Ficha Cadastral e Inventário Completo"
+        subtitle={`Smartphone ${name} — ${assetTag}`}
+        icon="phone"
+        iconColor="blue"
+        maxWidth={640}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+            <Button variant="secondary" onClick={() => setFullInventoryOpen(false)}>
+              Fechar
+            </Button>
+          </div>
+        }
+      >
+        <div className="info-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+          <div>
+            <span>Modelo do Aparelho</span>
+            <strong>{name}</strong>
+          </div>
+          <div>
+            <span>Colaborador Titular</span>
+            <strong>{owner}</strong>
+          </div>
+          <div>
+            <span>Linha Telefônica Corporativa</span>
+            <strong>{phoneLine}</strong>
+          </div>
+          <div>
+            <span>Operadora Móvel</span>
+            <strong>{carrier}</strong>
+          </div>
+          <div>
+            <span>IMEI 1 (eSIM Principal)</span>
+            <strong>{imei}</strong>
+          </div>
+          <div>
+            <span>IMEI 2 (Slot Físico)</span>
+            <strong>354892110482911</strong>
+          </div>
+          <div>
+            <span>Número Serial Apple</span>
+            <strong>K92Q99AA05D</strong>
+          </div>
+          <div>
+            <span>Sistema Operacional</span>
+            <strong>{os}</strong>
+          </div>
+          <div>
+            <span>Departamento / Unidade</span>
+            <strong>{dept} · {unit}</strong>
+          </div>
+          <div>
+            <span>Patrimônio / Tag</span>
+            <strong>{assetTag}</strong>
+          </div>
+          <div>
+            <span>Última Coordenada GPS</span>
+            <strong>-23.586842, -46.682190 (Precisão 4m)</strong>
+          </div>
+          <div>
+            <span>Perfil de Supervisão</span>
+            <strong>Apple Business Manager (DEP Supervision)</strong>
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODAL 7: CONECTIVIDADE SEM FIO & RÁDIOS */}
+      <Modal
+        isOpen={wirelessModalOpen}
+        onClose={() => setWirelessModalOpen(false)}
+        title="Conectividade Sem Fio & Modems"
+        subtitle={`${name} — Especificação de Antenas e Rádios`}
+        icon="blocks"
+        iconColor="blue"
+        maxWidth={580}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+            <Button variant="secondary" onClick={() => setWirelessModalOpen(false)}>
+              Fechar
+            </Button>
+          </div>
+        }
+      >
+        <div className="info-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+          <div>
+            <span>Modem Celular 5G</span>
+            <strong>Qualcomm Snapdragon X75 5G Modem-RF</strong>
+          </div>
+          <div>
+            <span>Bandas 5G SA Suportadas</span>
+            <strong>n78 (3.5 GHz), n1, n3, n7, n28 (700 MHz)</strong>
+          </div>
+          <div>
+            <span>Wi-Fi Integrado</span>
+            <strong>Wi-Fi 7 (802.11be) com 2x2 MIMO</strong>
+          </div>
+          <div>
+            <span>Bluetooth</span>
+            <strong>Bluetooth 5.3 com LE Audio e codec AAC</strong>
+          </div>
+          <div>
+            <span>Chip UWB (Ultra-Wideband)</span>
+            <strong>Apple U2 de 2ª geração para localização precisa</strong>
+          </div>
+          <div>
+            <span>NFC & Secure Element</span>
+            <strong>NFC com modo leitor e suporte a crachás virtuais</strong>
+          </div>
+          <div>
+            <span>Geolocalização GNSS</span>
+            <strong>GPS de precisão e frequência dupla (L1 e L5), GLONASS, Galileo, BeiDou</strong>
+          </div>
+        </div>
       </Modal>
     </div>
   )

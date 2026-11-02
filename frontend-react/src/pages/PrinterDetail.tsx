@@ -153,6 +153,31 @@ export function PrinterDetail({ go }: { go: (p: PageId) => void }) {
 
       <section className="device-overview">
         <div className="page-stack">
+          {/* Health Score Compacto */}
+          <article className="panel device-health" style={{ padding: '16px 20px', marginBottom: '8px' }}>
+            <div className="health-score" style={{ minWidth: '95px' }}>
+              <div>
+                <strong style={{ fontSize: '28px' }}>96</strong>
+                <span style={{ fontSize: '13px' }}>/100</span>
+              </div>
+              <p>Saúde excelente</p>
+            </div>
+            <div className="health-copy">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0, fontSize: '15px' }}>Impressora corporativa em operação plena</h3>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  <Status tone="green">Toner K em 78%</Status>
+                  <Status tone="green">Cilindro em 89%</Status>
+                  <Status tone="green">Bandejas com Papel</Status>
+                  <Status tone="blue">SNMP v2c OK</Status>
+                </div>
+              </div>
+              <p style={{ margin: '6px 0 0', fontSize: '13px' }}>
+                Comunicação MIB RFC 3805 ativa, sem atolamentos de papel ou erros de fusor nos últimos 90 dias.
+              </p>
+            </div>
+          </article>
+
           {/* ABA 1: SUPRIMENTOS */}
           {tab === 'supplies' && (
             <div className="page-stack">

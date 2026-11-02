@@ -39,6 +39,7 @@ export type PageId =
   | 'reports'
   | 'profile'
   | 'iot'
+  | 'iotDetail'
   | 'mappings'
   | 'profiles'
 

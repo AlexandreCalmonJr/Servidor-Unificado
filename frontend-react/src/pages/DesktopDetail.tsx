@@ -64,6 +64,8 @@ export function DesktopDetail({ go }: { go: (p: PageId) => void }) {
 
   // Modais
   const [editModalOpen, setEditModalOpen] = useState(false)
+  const [fullInventoryOpen, setFullInventoryOpen] = useState(false)
+  const [portsModalOpen, setPortsModalOpen] = useState(false)
   const [installModalOpen, setInstallModalOpen] = useState(false)
   const [wolModalOpen, setWolModalOpen] = useState(false)
   const [eventDetailModal, setEventDetailModal] = useState<EventLogItem | null>(null)
@@ -256,39 +258,52 @@ export function DesktopDetail({ go }: { go: (p: PageId) => void }) {
       {tab === 'geral' && (
         <section className="device-overview">
           <div className="page-stack">
-            {/* Health Score */}
-            <article className="panel device-health">
-              <div className="health-score">
+            {/* Health Score Compacto */}
+            <article className="panel device-health" style={{ padding: '16px 20px' }}>
+              <div className="health-score" style={{ minWidth: '95px' }}>
                 <div>
-                  <strong>99</strong>
-                  <span>/100</span>
+                  <strong style={{ fontSize: '28px' }}>99</strong>
+                  <span style={{ fontSize: '13px' }}>/100</span>
                 </div>
                 <p>Saúde excelente</p>
               </div>
               <div className="health-copy">
-                <h3>Estação de trabalho de alta performance em conformidade plena</h3>
-                <p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                  <h3 style={{ margin: 0, fontSize: '15px' }}>Estação de trabalho em conformidade plena</h3>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    <Status tone="green">Link 10 Gbps Fibra</Status>
+                    <Status tone="green">RAID 1 Saudável</Status>
+                    <Status tone="green">TPM 2.0</Status>
+                    <Status tone="blue">Agente v4.8.2</Status>
+                  </div>
+                </div>
+                <p style={{ margin: '6px 0 0', fontSize: '13px' }}>
                   Array RAID 1 NVMe verificado, sensor óptico de intrusão fechado, drivers NVIDIA WHQL atualizados e Wake-on-LAN operacional.
                 </p>
-                <div>
-                  <Status tone="green">Link 10 Gbps Fibra ativo</Status>
-                  <Status tone="green">RAID 1 Saudável (99%)</Status>
-                  <Status tone="green">TPM 2.0 Ativo</Status>
-                  <Status tone="blue">Agente v4.8.2 Workstation</Status>
-                </div>
               </div>
             </article>
 
-            {/* Informações de Inventário */}
+            {/* Informações Essenciais de Inventário */}
             <article className="panel info-panel">
               <div className="panel-head">
                 <div>
-                  <h3>Informações gerais de inventário</h3>
-                  <p>Identificação física, alocação de rede e usuário responsável</p>
+                  <h3 style={{ fontSize: '14px', margin: 0 }}>Informações Essenciais de Inventário</h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                    Identificação física e usuário responsável (6 campos principais)
+                  </p>
                 </div>
-                <button className="text-link" onClick={() => setEditModalOpen(true)}>
-                  Editar cadastro
-                </button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <Button
+                    variant="secondary"
+                    icon="search"
+                    onClick={() => setFullInventoryOpen(true)}
+                  >
+                    Ver Inventário Completo
+                  </Button>
+                  <button className="text-link" onClick={() => setEditModalOpen(true)}>
+                    Editar
+                  </button>
+                </div>
               </div>
               <div className="info-grid">
                 {[
@@ -296,12 +311,8 @@ export function DesktopDetail({ go }: { go: (p: PageId) => void }) {
                   ['Responsável', user],
                   ['Patrimônio / Tag', assetTag],
                   ['Modelo do Gabinete', model],
-                  ['Sistema Operacional', 'Windows 11 Pro for Workstations 23H2 (Build 22631)'],
-                  ['Endereço IP Estático', `${ip} (VLAN 10 - Engenharia)`],
-                  ['Endereço MAC', mac],
-                  ['Departamento', dept],
-                  ['Unidade / Baia', `${unit} · ${sector}`],
-                  ['Porta de Switch Mapeada', 'SW-ENG-CORE-01 / Gi1/0/24 (Cat6A Blindado)'],
+                  ['Sistema Operacional', 'Windows 11 Pro for Workstations 23H2'],
+                  ['Endereço IP & VLAN', `${ip} (VLAN 10 - Engenharia)`],
                 ].map((x) => (
                   <div key={x[0]}>
                     <span>{x[0]}</span>
@@ -311,12 +322,14 @@ export function DesktopDetail({ go }: { go: (p: PageId) => void }) {
               </div>
             </article>
 
-            {/* Armazenamento e Memória */}
+            {/* Armazenamento e Memória Compactos */}
             <article className="panel info-panel">
               <div className="panel-head">
                 <div>
-                  <h3>Armazenamento RAID 1 & Memória RAM ECC</h3>
-                  <p>Telemetria de utilização em tempo real</p>
+                  <h3 style={{ fontSize: '14px', margin: 0 }}>Armazenamento RAID 1 & Memória RAM ECC</h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                    Telemetria de utilização em tempo real
+                  </p>
                 </div>
               </div>
               <div className="resource-grid">
@@ -344,7 +357,7 @@ export function DesktopDetail({ go }: { go: (p: PageId) => void }) {
             </article>
           </div>
 
-          {/* Aside Lateral */}
+          {/* Aside Lateral Streamlined */}
           <aside className="page-stack">
             <article className="panel quick-info">
               <h3>Conexão & Rede Cabeada</h3>
@@ -357,31 +370,30 @@ export function DesktopDetail({ go }: { go: (p: PageId) => void }) {
                 <strong>v4.8.2 Workstation Daemon</strong>
               </div>
               <div>
-                <span>Wake-on-LAN</span>
-                <strong>
-                  Habilitado (UEFI + Driver)
-                  <small style={{ fontWeight: 500, color: 'var(--muted)', display: 'block', fontSize: '10px' }}>
-                    Portas UDP 9 e 7
-                  </small>
-                </strong>
-              </div>
-              <div>
                 <span>Uptime da estação</span>
                 <strong>14 dias, 06:42 contínuos</strong>
               </div>
               <div>
-                <span>Fonte redundante</span>
-                <strong>1350W Platinum (184W em uso)</strong>
+                <span>Wake-on-LAN</span>
+                <strong>Habilitado (UEFI + Driver)</strong>
               </div>
             </article>
 
             <article className="panel timeline-panel">
-              <h3>Atividade recente da estação</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '13px' }}>Atividade Recente</h3>
+                <button
+                  className="text-link"
+                  style={{ fontSize: '12px', cursor: 'pointer' }}
+                  onClick={() => setTab('activity')}
+                >
+                  Ver histórico
+                </button>
+              </div>
               {[
                 { title: 'Telemetria de sensores recebida', desc: 'CPU 42°C, GPU 51°C e 3 monitores sincronizados', time: 'Há 3 min' },
                 { title: 'Conformidade de licenças CAD', desc: 'AutoCAD 2026 e Revit verificados com licença de rede', time: 'Há 45 min' },
                 { title: 'Backup de projetos concluído', desc: 'Sincronização com storage NAS corporativo (32 GB)', time: 'Hoje, 12:30' },
-                { title: 'Wake-on-LAN matutino disparado', desc: 'Despertar automático agendado executado', time: 'Hoje, 07:15' },
               ].map((a) => (
                 <div className="timeline-item" key={a.title}>
                   <i />
@@ -440,7 +452,7 @@ export function DesktopDetail({ go }: { go: (p: PageId) => void }) {
                     <strong>8.2 GB / 20 GB</strong>
                   </div>
                   <div className="progress">
-                    <i className="os-violet" style={{ width: '41%' }} />
+                    <i className="os-blue" style={{ width: '41%' }} />
                   </div>
                   <span className="telemetry-sub">Drivers Quadro Studio 552.86</span>
                 </div>
@@ -537,9 +549,11 @@ export function DesktopDetail({ go }: { go: (p: PageId) => void }) {
           {/* Coluna Lateral de Portas e Diagnósticos */}
           <aside className="tab-full-stack">
             <article className="panel quick-info">
-              <h3>Portas & Interfaces Físicas</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '14px' }}>Portas & Interfaces Físicas</h3>
+              </div>
               <div>
-                <span>Rede 10GbE</span>
+                <span>Rede Primária</span>
                 <strong>1x RJ45 10Gbps (Intel X550)</strong>
               </div>
               <div>
@@ -547,20 +561,18 @@ export function DesktopDetail({ go }: { go: (p: PageId) => void }) {
                 <strong>4x DisplayPort 1.4a c/ trava</strong>
               </div>
               <div>
-                <span>Portas USB Frontais</span>
-                <strong>2x USB-C 3.2 20Gbps + 2x USB-A</strong>
+                <span>Conexões USB Totais</span>
+                <strong>12 portas (4x USB-C + 8x USB-A)</strong>
               </div>
-              <div>
-                <span>Portas USB Traseiras</span>
-                <strong>6x USB-A 3.2 + 2x USB-C</strong>
-              </div>
-              <div>
-                <span>Áudio Profissional</span>
-                <strong>Realtek ALC3246-CG HD Audio</strong>
-              </div>
-              <div>
-                <span>Leitor de Mídia</span>
-                <strong>SD Express 7.0 frontal</strong>
+              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '10px', marginTop: '6px' }}>
+                <Button
+                  variant="secondary"
+                  icon="search"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  onClick={() => setPortsModalOpen(true)}
+                >
+                  Ver Ficha de Portas (15 conexões)
+                </Button>
               </div>
             </article>
 
@@ -687,7 +699,6 @@ export function DesktopDetail({ go }: { go: (p: PageId) => void }) {
                   <tr>
                     <th>Nome do Aplicativo</th>
                     <th>Versão Instalada</th>
-                    <th>Fabricante</th>
                     <th>Tamanho</th>
                     <th>Instalação</th>
                     <th>Status / Conformidade</th>
@@ -697,7 +708,7 @@ export function DesktopDetail({ go }: { go: (p: PageId) => void }) {
                 <tbody>
                   {filteredApps.length === 0 ? (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: 'center', padding: '36px', color: 'var(--muted)' }}>
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '36px', color: 'var(--muted)' }}>
                         Nenhum software encontrado para o filtro.
                       </td>
                     </tr>
@@ -711,7 +722,7 @@ export function DesktopDetail({ go }: { go: (p: PageId) => void }) {
                             </span>
                             <div>
                               <strong>{app.name}</strong>
-                              <small>{app.managed ? 'Empacotado via MDM' : 'Instalado pelo técnico'}</small>
+                              <small>{app.vendor} · {app.managed ? 'Gerenciado via MDM' : 'Instalado localmente'}</small>
                             </div>
                           </div>
                         </td>
@@ -723,7 +734,6 @@ export function DesktopDetail({ go }: { go: (p: PageId) => void }) {
                             </small>
                           )}
                         </td>
-                        <td>{app.vendor}</td>
                         <td>{app.size}</td>
                         <td>{app.installedAt}</td>
                         <td>
@@ -966,7 +976,6 @@ export function DesktopDetail({ go }: { go: (p: PageId) => void }) {
                     <th>Categoria</th>
                     <th>Título do Evento</th>
                     <th>Detalhes da Operação</th>
-                    <th>Endereço IP</th>
                     <th style={{ textAlign: 'right' }}>Ação</th>
                   </tr>
                 </thead>
@@ -980,8 +989,7 @@ export function DesktopDetail({ go }: { go: (p: PageId) => void }) {
                         </span>
                       </td>
                       <td><strong>{evt.title}</strong></td>
-                      <td style={{ maxWidth: '420px', color: 'var(--text-secondary)', fontSize: '13px' }}>{evt.desc}</td>
-                      <td><code>{evt.ip}</code></td>
+                      <td style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>{evt.desc}</td>
                       <td style={{ textAlign: 'right' }}>
                         <Button
                           variant="ghost"
@@ -1151,6 +1159,127 @@ export function DesktopDetail({ go }: { go: (p: PageId) => void }) {
             </div>
           </div>
         )}
+      </Modal>
+      {/* MODAL 5: INVENTÁRIO TÉCNICO COMPLETO */}
+      <Modal
+        isOpen={fullInventoryOpen}
+        onClose={() => setFullInventoryOpen(false)}
+        title="Ficha Cadastral e Inventário Completo"
+        subtitle={`Estação de Trabalho ${hostname} — ${assetTag}`}
+        icon="grid"
+        iconColor="blue"
+        maxWidth={640}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+            <Button variant="secondary" onClick={() => setFullInventoryOpen(false)}>
+              Fechar
+            </Button>
+          </div>
+        }
+      >
+        <div className="info-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+          <div>
+            <span>Hostname na Rede</span>
+            <strong>{hostname}</strong>
+          </div>
+          <div>
+            <span>Colaborador / Usuário</span>
+            <strong>{user}</strong>
+          </div>
+          <div>
+            <span>Patrimônio / Tag</span>
+            <strong>{assetTag}</strong>
+          </div>
+          <div>
+            <span>Modelo do Chassi</span>
+            <strong>{model}</strong>
+          </div>
+          <div>
+            <span>Sistema Operacional</span>
+            <strong>Windows 11 Pro for Workstations 23H2 (Build 22631.4317)</strong>
+          </div>
+          <div>
+            <span>Endereço IP Estático</span>
+            <strong>{ip} (VLAN 10 - Engenharia)</strong>
+          </div>
+          <div>
+            <span>Endereço Físico (MAC)</span>
+            <strong>{mac}</strong>
+          </div>
+          <div>
+            <span>Departamento</span>
+            <strong>{dept}</strong>
+          </div>
+          <div>
+            <span>Unidade / Baia</span>
+            <strong>{unit} · {sector}</strong>
+          </div>
+          <div>
+            <span>Porta de Switch Mapeada</span>
+            <strong>SW-ENG-CORE-01 / Gi1/0/24 (Cat6A Blindado)</strong>
+          </div>
+          <div>
+            <span>Número de Série (Service Tag)</span>
+            <strong>CN-0precision-5860-9921</strong>
+          </div>
+          <div>
+            <span>Versão da BIOS UEFI</span>
+            <strong>Dell Inc. 2.14.0 (Secure Boot Ativo)</strong>
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODAL 6: PORTAS E INTERFACES FÍSICAS */}
+      <Modal
+        isOpen={portsModalOpen}
+        onClose={() => setPortsModalOpen(false)}
+        title="Portas & Conexões Físicas do Chassi"
+        subtitle={`${model} — Especificação Completa`}
+        icon="blocks"
+        iconColor="blue"
+        maxWidth={580}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+            <Button variant="secondary" onClick={() => setPortsModalOpen(false)}>
+              Fechar
+            </Button>
+          </div>
+        }
+      >
+        <div className="info-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+          <div>
+            <span>Rede 10GbE Primária</span>
+            <strong>1x RJ45 10Gbps (Intel X550-T2)</strong>
+          </div>
+          <div>
+            <span>Rede 1GbE Secundária (iLO/AMT)</span>
+            <strong>1x RJ45 1Gbps (Intel I219-LM)</strong>
+          </div>
+          <div>
+            <span>Saídas de Vídeo GPU</span>
+            <strong>4x DisplayPort 1.4a com trava mecânica</strong>
+          </div>
+          <div>
+            <span>USB Frontais</span>
+            <strong>2x USB-C 3.2 Gen2x2 (20Gbps) + 2x USB-A 3.2</strong>
+          </div>
+          <div>
+            <span>USB Traseiras</span>
+            <strong>6x USB-A 3.2 Gen 1 + 2x USB-C 3.2 Gen 2</strong>
+          </div>
+          <div>
+            <span>Áudio Integrado</span>
+            <strong>Realtek ALC3246-CG HD Áudio c/ jack frontal e traseiro</strong>
+          </div>
+          <div>
+            <span>Leitor de Cartões</span>
+            <strong>SD Express 7.0 frontal integrado</strong>
+          </div>
+          <div>
+            <span>Slots de Expansão PCIe</span>
+            <strong>2x PCIe 5.0 x16 + 2x PCIe 4.0 x8 (ativos)</strong>
+          </div>
+        </div>
       </Modal>
     </div>
   )

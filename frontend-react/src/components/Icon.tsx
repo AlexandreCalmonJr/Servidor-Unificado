@@ -249,7 +249,17 @@ const iconPaths: Record<IconName, ReactNode> = {
   ),
 }
 
-export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
+export function Icon({
+  name,
+  size = 18,
+  className,
+  style,
+}: {
+  name: IconName
+  size?: number
+  className?: string
+  style?: React.CSSProperties
+}) {
   return (
     <svg
       width={size}
@@ -261,6 +271,8 @@ export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
+      className={className}
+      style={style}
     >
       {iconPaths[name]}
     </svg>

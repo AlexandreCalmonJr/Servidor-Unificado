@@ -18,6 +18,7 @@ import { Commands } from './pages/Commands'
 import { Diagnostics } from './pages/Diagnostics'
 import { Modules } from './pages/Modules'
 import { IoT } from './pages/IoT'
+import { IoTDetail } from './pages/IoTDetail'
 import { Policies } from './pages/Policies'
 import { PolicyCreate } from './pages/PolicyCreate'
 import { Groups } from './pages/Groups'
@@ -109,6 +110,8 @@ export function App() {
         return <PrinterDetail go={setActive} />
       case 'iot':
         return <IoT go={setActive} />
+      case 'iotDetail':
+        return <IoTDetail go={setActive} />
       case 'provisioning':
         return <Provisioning go={setActive} />
       case 'provisionQr':
