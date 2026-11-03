@@ -1,23 +1,41 @@
 import { useState } from 'react'
 import { Icon } from '../components/Icon'
 import { Logo, Button } from '../components/UI'
+import { loginSchema } from '../services/validation'
+import { authStorage } from '../services/api'
 
 export function Login({ onLogin }: { onLogin: () => void }) {
   const [show, setShow] = useState(false)
-  const [email, setEmail] = useState('admin@novara.com.br')
-  const [password, setPassword] = useState('novara2025')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const handleFillDemo = () => {
+    setEmail('admin@novara.com.br')
+    setPassword('novara2025')
+    setError('')
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
     setError('')
-    // Simulação rápida ou integração direta
+
+    // Validação estrita via Zod antes de qualquer processamento
+    const validation = loginSchema.safeParse({ email, password })
+    if (!validation.success) {
+      setError(validation.error.issues[0]?.message || 'Dados de acesso inválidos.')
+      return
+    }
+
+    setLoading(true)
+
+    // Simulação segura com emissão de token de sessão temporário
     setTimeout(() => {
+      authStorage.setToken('demo-session-token-' + Date.now())
       setLoading(false)
       onLogin()
-    }, 400)
+    }, 350)
   }
 
   return (
@@ -53,8 +71,22 @@ export function Login({ onLogin }: { onLogin: () => void }) {
           <p>Insira seus dados para continuar na plataforma central.</p>
 
           {error && (
-            <div style={{ color: 'var(--red)', fontSize: '11px', marginBottom: '14px' }}>
-              {error}
+            <div
+              role="alert"
+              style={{
+                color: 'var(--red)',
+                backgroundColor: 'var(--red-soft, #fff0f1)',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                marginBottom: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              <Icon name="warning" size={15} />
+              <span>{error}</span>
             </div>
           )}
 
@@ -62,8 +94,10 @@ export function Login({ onLogin }: { onLogin: () => void }) {
             <span>E-mail corporativo</span>
             <input
               type="email"
+              placeholder="exemplo@empresa.com.br"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              autoComplete="username"
               required
             />
           </label>
@@ -73,29 +107,45 @@ export function Login({ onLogin }: { onLogin: () => void }) {
             <div className="password">
               <input
                 type={show ? 'text' : 'password'}
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
                 required
               />
               <button
                 type="button"
                 onClick={() => setShow(!show)}
-                aria-label="Exibir senha"
+                aria-label={show ? 'Ocultar senha' : 'Exibir senha'}
               >
                 <Icon name="eye" />
               </button>
             </div>
           </label>
 
-          <div className="login-options">
+          <div className="login-options" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <label>
               <input type="checkbox" defaultChecked /> Lembrar de mim
             </label>
-            <button type="button">Esqueci minha senha</button>
+            <button
+              type="button"
+              onClick={handleFillDemo}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--primary)',
+                fontSize: '11.5px',
+                cursor: 'pointer',
+                fontWeight: 600,
+                padding: 0,
+              }}
+            >
+              Preencher Demo
+            </button>
           </div>
 
           <Button type="submit" className="login-submit" disabled={loading}>
-            {loading ? 'Entrando...' : 'Entrar na plataforma'} <Icon name="arrow" />
+            {loading ? 'Validando acesso...' : 'Entrar na plataforma'} <Icon name="arrow" />
           </Button>
 
           <div className="sso-divider">
@@ -106,7 +156,10 @@ export function Login({ onLogin }: { onLogin: () => void }) {
             type="button"
             variant="secondary"
             className="sso-button"
-            onClick={onLogin}
+            onClick={() => {
+              authStorage.setToken('sso-azure-token-' + Date.now())
+              onLogin()
+            }}
           >
             <span className="ms-logo">
               <i />

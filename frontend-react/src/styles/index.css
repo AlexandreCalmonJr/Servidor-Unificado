@@ -1,5 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
-
+/* Google Fonts pré-carregadas de forma não-bloqueante no index.html */
 :root {
   --ink: #182034;
   --muted: #6f788c;
@@ -1345,3 +1344,40 @@ td input, th input { accent-color: var(--primary); }
   .release-panel{align-items:flex-start;flex-direction:column;gap:12px}
   .supply-bars { grid-template-columns: 1fr; }
 }
+
+/* ==========================================================================
+   LAPIDAÇÃO DE ACESSIBILIDADE E ANIMAÇÕES SUAVES (SEM ALTERAR O DESIGN)
+   ========================================================================== */
+
+/* Foco visível acessível exclusivamente na navegação por teclado */
+:focus-visible {
+  outline: 2px solid var(--primary, #5368ec);
+  outline-offset: 2px;
+}
+
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible),
+input:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.btn:focus-visible,
+.nav-item:focus-visible,
+.icon-button:focus-visible,
+.card-more:focus-visible,
+.unified-modal-close:focus-visible {
+  outline: 2px solid var(--primary, #5368ec);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--primary-soft, #eef0ff);
+}
+
+/* Animação suave para estados de carregamento (Skeleton) */
+@keyframes skeleton-pulse {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+

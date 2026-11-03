@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, type ReactNode } from 'react'
+import { useState, createContext, useContext, type ReactNode } from 'react'
 import { Icon } from './Icon'
 
 export type ToastTone = 'success' | 'error' | 'warning' | 'info'

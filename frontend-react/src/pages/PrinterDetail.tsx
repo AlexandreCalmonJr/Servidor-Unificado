@@ -385,7 +385,7 @@ export function PrinterDetail({ go }: { go: (p: PageId) => void }) {
             <article className="panel timeline-panel">
               <h3>Histórico de Manutenções e Trocas de Insumos</h3>
               {maintenanceHistory.map((h, i) => (
-                <div className="timeline-item" key={i}>
+                <div className="timeline-item" key={`${h.time}-${h.title}-${i}`}>
                   <i />
                   <div>
                     <strong>{h.title}</strong>

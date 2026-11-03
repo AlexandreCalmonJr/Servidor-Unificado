@@ -793,8 +793,8 @@ export function Printers({ go }: { go?: (p: PageId) => void }) {
                       { date: '20/10/2026', prn: 'Brother HL-L6400DW', item: 'Cilindro DR-890', pages: '82.000 pgs', tech: 'Lucas Mendes', tone: 'green' },
                       { date: '14/10/2026', prn: 'Canon imageRUNNER ADV DX', item: 'Toner Amarelo NPG-84', pages: '109.800 pgs', tech: 'Carlos Silva', tone: 'green' },
                       { date: '02/10/2026', prn: 'Canon imageRUNNER ADV DX', item: 'Toner Magenta NPG-84', pages: '104.200 pgs', tech: 'Mariana Costa', tone: 'green' },
-                    ].map((h, i) => (
-                      <tr key={i}>
+                    ].map((h) => (
+                      <tr key={`${h.date}-${h.prn}-${h.item}`}>
                         <td>
                           <strong>{h.date}</strong>
                         </td>

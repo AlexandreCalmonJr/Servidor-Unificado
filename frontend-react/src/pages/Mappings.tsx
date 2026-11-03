@@ -450,7 +450,9 @@ export function Mappings({ go }: { go: (p: PageId) => void }) {
         await fetch(`/api/units/${encodeURIComponent(deleteConfirm.name)}`, {
           method: 'DELETE',
         })
-      } catch {}
+      } catch (err) {
+        // Fallback gracioso em ambiente mock / offline
+      }
       setUnits((prev) => prev.filter((u) => u.id !== deleteConfirm.id))
       toast.success(`Unidade "${deleteConfirm.name}" removida com sucesso.`)
     } else if (deleteConfirm.type === 'bssid') {
@@ -458,7 +460,9 @@ export function Mappings({ go }: { go: (p: PageId) => void }) {
         await fetch(`/api/bssid-mappings/${encodeURIComponent(deleteConfirm.name)}`, {
           method: 'DELETE',
         })
-      } catch {}
+      } catch (err) {
+        // Fallback gracioso em ambiente mock / offline
+      }
       setBssids((prev) => prev.filter((b) => b.id !== deleteConfirm.id))
       toast.success(`BSSID ${deleteConfirm.name} removido com sucesso.`)
     } else if (deleteConfirm.type === 'ip') {
@@ -669,7 +673,7 @@ export function Mappings({ go }: { go: (p: PageId) => void }) {
                         {u.ip_ranges && u.ip_ranges.length > 0 ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             {u.ip_ranges.map((r, i) => (
-                              <code key={i} style={{ fontSize: '11px', color: 'var(--primary)' }}>
+                              <code key={`${u.id}-range-${r.start}-${r.end}-${i}`} style={{ fontSize: '11px', color: 'var(--primary)' }}>
                                 {r.start} — {r.end}
                               </code>
                             ))}

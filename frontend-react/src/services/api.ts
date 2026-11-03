@@ -1,46 +1,89 @@
-// Serviço unificado de requisições com token JWT
-export interface ApiResponse<T = any> {
+// Serviço unificado de requisições com segurança de tokens e timeout defensivo
+export interface ApiResponse<T = unknown> {
   success: boolean
   data?: T
   message?: string
   error?: string
 }
 
-const TOKEN_KEY = 'NOVARA_MDM_TOKEN'
+const TOKEN_SESSION_KEY = 'NOVARA_MDM_SESSION_TOKEN'
+let inMemoryToken: string | null = null
 
 export const authStorage = {
-  getToken: () => localStorage.getItem(TOKEN_KEY),
-  setToken: (token: string) => localStorage.setItem(TOKEN_KEY, token),
-  clearToken: () => localStorage.removeItem(TOKEN_KEY),
+  getToken: (): string | null => {
+    if (inMemoryToken) return inMemoryToken
+    try {
+      return sessionStorage.getItem(TOKEN_SESSION_KEY)
+    } catch {
+      return null
+    }
+  },
+  setToken: (token: string) => {
+    inMemoryToken = token
+    try {
+      sessionStorage.setItem(TOKEN_SESSION_KEY, token)
+    } catch {
+      // Falha silenciosa em navegadores com storage restrito
+    }
+  },
+  clearToken: () => {
+    inMemoryToken = null
+    try {
+      sessionStorage.removeItem(TOKEN_SESSION_KEY)
+    } catch {
+      // Ignora erro de storage
+    }
+  },
 }
 
-export async function request<T = any>(
+export interface RequestOptions extends RequestInit {
+  timeoutMs?: number
+}
+
+export async function request<T = unknown>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestOptions = {}
 ): Promise<T> {
+  const { timeoutMs = 10000, headers: customHeaders, ...fetchOptions } = options
   const token = authStorage.getToken()
+
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(options.headers || {}),
+    ...(customHeaders || {}),
   }
 
-  const response = await fetch(endpoint, {
-    ...options,
-    headers,
-  })
+  // AbortController para prevenir requisições pendentes infinitas / DoS de conexões
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
-  if (response.status === 401) {
-    // Redirecionamento ou emissão de evento de logout
-    authStorage.clearToken()
+  try {
+    const response = await fetch(endpoint, {
+      ...fetchOptions,
+      headers,
+      signal: controller.signal,
+    })
+
+    if (response.status === 401) {
+      authStorage.clearToken()
+    }
+
+    if (!response.ok) {
+      const errorBody = await response
+        .json()
+        .catch(() => ({ message: 'Erro desconhecido na resposta do servidor' }))
+      throw new Error(errorBody.message || `Erro HTTP ${response.status}`)
+    }
+
+    return (await response.json()) as T
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`Tempo limite de requisição excedido (${timeoutMs / 1000}s)`)
+    }
+    throw err
+  } finally {
+    clearTimeout(timeoutId)
   }
-
-  if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({ message: 'Erro desconhecido' }))
-    throw new Error(errorBody.message || `Erro HTTP ${response.status}`)
-  }
-
-  return response.json()
 }
 
 export const api = {

@@ -352,7 +352,7 @@ export function TotemDetail({ go }: { go: (p: PageId) => void }) {
                 </Button>
               </div>
               {logs.map((l, index) => (
-                <div className="timeline-item" key={index}>
+                <div className="timeline-item" key={`${l.time}-${l.title}-${index}`}>
                   <i />
                   <div>
                     <strong>{l.title}</strong>

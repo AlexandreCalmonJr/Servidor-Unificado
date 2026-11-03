@@ -180,7 +180,7 @@ export function RemoteAccess({ go }: { go?: (p: PageId) => void }) {
         <section className="panel" style={{ padding: 16 }}>
           <div className="cyber-terminal" style={{ minHeight: 340, marginBottom: 12 }}>
             {terminalLogs.map((log, i) => (
-              <div key={i}>{log}</div>
+              <div key={`term-log-${i}-${log.slice(0, 20)}`}>{log}</div>
             ))}
           </div>
 

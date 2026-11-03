@@ -113,8 +113,8 @@ export function Audit() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((e) => (
-                <tr key={e[0] + e[3]}>
+              {filtered.map((e, idx) => (
+                <tr key={`audit-${e[0]}-${e[3]}-${idx}`}>
                   <td>
                     <div className="user-cell">
                       <span>
